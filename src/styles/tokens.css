@@ -1,0 +1,35 @@
+/* 配色・寸法のトークン。役割ごとに色を分ける（見出し帯と本文ブロックで同じ色を使わない） */
+:root {
+  --bg: #0E1116;
+  --card: #171C24;
+  --card-2: #1D2430;
+  --border: #252C36;
+  --border-strong: #34404F;
+  --text: #F2F4F7;
+  --text-sub: #9DA7B5;
+  --text-dim: #6B7684;
+  --profit: #61C987;
+  --warn: #E9B949;
+  --loss: #E26767;
+  --power: #5EA7FF;
+  --research: #A47BFF;
+  --accent: #5EA7FF;
+  --accent-strong: #3B8DEB;
+  --profit-bg: rgba(97, 201, 135, 0.14);
+  --warn-bg: rgba(233, 185, 73, 0.14);
+  --loss-bg: rgba(226, 103, 103, 0.14);
+  --power-bg: rgba(94, 167, 255, 0.14);
+  --research-bg: rgba(164, 123, 255, 0.14);
+
+  --radius: 12px;
+  --radius-sm: 8px;
+  --gap: 12px;
+  --tap: 44px;
+  --nav-h: 60px;
+  --header-h: 56px;
+  --sidebar-w: 224px;
+  --content-max: 1120px;
+
+  --font: "Inter", "Noto Sans JP", system-ui, -apple-system, "Segoe UI", "Hiragino Sans", "Yu Gothic UI", "Meiryo", sans-serif;
+  --shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+}
