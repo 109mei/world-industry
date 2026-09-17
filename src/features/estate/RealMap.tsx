@@ -11,16 +11,17 @@ import { isUnlocked } from '@/game/engine/systems/unlocks';
 import { useGame } from '@/stores/gameStore';
 import { useUiStore } from '@/stores/uiStore';
 import { formatMoney } from '@/utils/format';
-import { useResolvedTheme } from '@/utils/theme';
 
 /** ズームがこれ未満のときは都市ごとにまとめて表示する */
 const CITY_ZOOM = 11;
 
-const TILES = {
-  light: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-  dark: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-};
-const ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions" target="_blank" rel="noreferrer">CARTO</a>';
+/**
+ * 地図タイルは OpenStreetMap の標準タイル（API キー不要、日本語の地名）。
+ * ダークテーマでは CSS フィルタ（components.css の `html[data-theme='dark'] .rm__map .leaflet-tile-pane`）で暗くする。
+ * ※ CARTO の無料タイルは寄ると「API KEY REQUIRED」の透かしが入るため使わない。
+ */
+const TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+const ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors';
 
 type Owner = 'player' | 'company' | 'market';
 
@@ -46,12 +47,11 @@ function cityIcon(count: number, owned: number, affordable: number): L.DivIcon {
 }
 
 /**
- * 実在の地図（OpenStreetMap / CARTO のタイル）の上に、物件・会社の本社・産業用地を置く。
+ * 実在の地図（OpenStreetMap のタイル）の上に、物件・会社の本社・産業用地を置く。
  * ズームアウト時は都市ごとにまとめ、タップでその都市へ寄る。
  */
 export function RealMap() {
   const { state, derived } = useGame();
-  const theme = useResolvedTheme();
   const openProperty = useUiStore((s) => s.openProperty);
   const openCompany = useUiStore((s) => s.openCompany);
   const openLand = useUiStore((s) => s.openLand);
@@ -82,13 +82,13 @@ export function RealMap() {
     };
   }, []);
 
-  // タイル（テーマで切替）
+  // タイル（テーマによる見た目の違いは CSS フィルタで付けるので、レイヤーは1つ）
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
     if (tileRef.current) tileRef.current.remove();
     setTileError(false);
-    const tile = L.tileLayer(TILES[theme], { attribution: ATTRIBUTION, subdomains: 'abcd', maxZoom: 19, crossOrigin: true });
+    const tile = L.tileLayer(TILE_URL, { attribution: ATTRIBUTION, maxZoom: 19, crossOrigin: true });
     let errors = 0;
     tile.on('tileerror', () => {
       errors += 1;
@@ -100,7 +100,7 @@ export function RealMap() {
     });
     tile.addTo(map);
     tileRef.current = tile;
-  }, [theme, ready]);
+  }, [ready]);
 
   // 外から指定された場所へ移動
   useEffect(() => {
@@ -170,8 +170,14 @@ export function RealMap() {
         const m = L.marker([lat, lon], { icon: cityIcon(g.props.length, owned, buyable), title: names, zIndexOffset: 1000 });
         m.bindTooltip(`${names}（物件 ${g.props.length}件${owned > 0 ? `・所有 ${owned}` : ''}${buyable > 0 ? `・買える ${buyable}` : ''}）`, { direction: 'top', offset: [0, -12] });
         m.on('click', () => {
-          if (g.cities.length === 1) map.flyTo([g.cities[0].lat, g.cities[0].lon], 13, { duration: 0.7 });
-          else map.flyToBounds(L.latLngBounds(g.cities.map((c) => [c.lat, c.lon] as [number, number])).pad(0.4), { duration: 0.7, maxZoom: 13 });
+          if (g.cities.length === 1) {
+            map.flyTo([g.cities[0].lat, g.cities[0].lon], 13, { duration: 0.7 });
+          } else {
+            // 複数の都市のまとまりは全体が入る倍率へ。ただしピンが出る倍率（CITY_ZOOM）より手前では止めない
+            const bounds = L.latLngBounds(g.cities.map((c) => [c.lat, c.lon] as [number, number])).pad(0.4);
+            const z = Math.max(CITY_ZOOM, Math.min(13, map.getBoundsZoom(bounds)));
+            map.flyTo(bounds.getCenter(), z, { duration: 0.7 });
+          }
         });
         m.addTo(layer);
       }
@@ -281,7 +287,7 @@ export function RealMap() {
         </span>
       </div>
       <p className="text-dim" style={{ fontSize: 11 }}>
-        地図: © OpenStreetMap contributors, © CARTO。物件・会社は架空で、価格は公示地価などを参考にしたゲーム用の値です。色は種類（{Object.values(PROPERTY_KIND).map((k) => k.label).join('・')}）。
+        地図: © OpenStreetMap contributors。物件・会社は架空で、価格は公示地価などを参考にしたゲーム用の値です。色は種類（{Object.values(PROPERTY_KIND).map((k) => k.label).join('・')}）。
       </p>
     </div>
   );

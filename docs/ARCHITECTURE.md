@@ -105,7 +105,7 @@ modifiers・容量・イベント係数 → イベント進行 → 調査 → �
 ## UI まわり（v0.5）
 
 - テーマは `settings.theme`（dark / light / system）。`utils/theme.ts` の `useResolvedTheme()` が端末設定も含めて解決し、`App` が `<html data-theme>` に付ける。色は `styles/tokens.css` の CSS 変数だけで切り替わる（部品側に色の直書きをしない）
-- 実在の地図は `features/estate/RealMap.tsx`（Leaflet、`React.lazy` で遅延読み込み）。タイルは CARTO（voyager / dark_all）でテーマに追従。ズーム 11 未満は都市ごとにまとめ（画面上で近い都市は1つに）、寄ると物件ピン・会社の本社・産業用地を出す。マーカーは `L.divIcon` で HTML/CSS 描画（画像なし）。`.rm__stage` は `isolation: isolate` で Leaflet の z-index をシートの下に閉じ込める
+- 実在の地図は `features/estate/RealMap.tsx`（Leaflet、`React.lazy` で遅延読み込み）。タイルは OpenStreetMap の標準タイル（API キー不要）。ダークテーマでは CSS フィルタ（`html[data-theme='dark'] .rm__map .leaflet-tile-pane`）で暗くする（CARTO の無料タイルは寄ると透かしが入るため不採用）。ズーム 11 未満は都市ごとにまとめ（画面上で近い都市は1つに）、寄ると物件ピン・会社の本社・産業用地を出す。マーカーは `L.divIcon` で HTML/CSS 描画（画像なし）。`.rm__stage` は `isolation: isolate` で Leaflet の z-index をシートの下に閉じ込める
 - 物件・会社の詳細は `PropertySheet` / `CompanySheet`（`uiStore.selectedProperty` / `selectedCompany`）。「地図で見る」は `uiStore.flyTo()` で地図に位置を渡す
 
 ## 今後の拡張ポイント

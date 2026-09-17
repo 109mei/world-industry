@@ -1413,6 +1413,13 @@ textarea.input {
 :root:not([data-theme='light']) .leaflet-tooltip-top::before {
   border-top-color: rgba(23, 28, 36, 0.92);
 }
+/* ダークテーマの地図: OpenStreetMap の明るいタイルを反転して暗い配色にする（ピンや文字は別レイヤーなので影響なし） */
+:root:not([data-theme='light']) .rm__map .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) brightness(0.82) contrast(0.92) saturate(0.75);
+}
+:root:not([data-theme='light']) .rm__map.leaflet-container {
+  background: #101418;
+}
 
 /* 押せるカード（物件・会社） */
 .card--click {
