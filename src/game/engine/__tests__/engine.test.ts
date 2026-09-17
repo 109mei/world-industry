@@ -252,7 +252,8 @@ describe('オフライン進行', () => {
 
   it('倉庫が満杯なら単純な 生産量×秒 にはならない', () => {
     const e = makeEngine();
-    e.debugAddCash(1000);
+    // 8時間ぶんの人件費を払っても倒産しないだけの元手を持たせる
+    e.debugAddCash(1_000_000);
     e.buyFacility('worker_stone', 1);
     const report = e.applyOffline(8 * 3600);
     expect(report.resourceDelta.stone).toBeCloseTo(CONFIG.baseStorage, 3);

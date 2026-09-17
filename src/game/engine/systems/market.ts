@@ -19,8 +19,14 @@ export function getMarketState(state: GameState, id: ResourceId): MarketResource
 export function eventPriceMultiplier(state: GameState, id: ResourceId): number {
   let mult = 1;
   for (const ev of state.events?.active ?? []) {
-    if (ev.target !== id || !isEventDefId(ev.defId)) continue;
+    if (!isEventDefId(ev.defId)) continue;
     const kind = EVENT_MAP[ev.defId].kind;
+    // 好景気・不況はすべての資源に効く
+    if (kind === 'market_wave') {
+      mult *= ev.magnitude;
+      continue;
+    }
+    if (ev.target !== id) continue;
     if (kind === 'boom' || kind === 'crash') mult *= ev.magnitude;
   }
   return mult;

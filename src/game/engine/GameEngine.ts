@@ -19,6 +19,10 @@ import { runCompanyMetrics } from './systems/company';
 import { creditRankDef } from './systems/contracts';
 import { acceptOffer, cancelDeal, declineOffer, deliverDeal, pitchToClient, pitchToPlace, runSales } from './systems/sales';
 import { runInfluence } from './systems/influence';
+import { buildBankruptState, runFinance } from './systems/finance';
+import { runHistory } from './systems/history';
+import { cancelProject, closeDivision, openDivision, restockShop, returnFromShop, runBusiness, setStaff, startAd, startProject, toggleParking, getDivision } from './systems/business';
+import { buyTickets, play, runLottery, type PlayResult } from './systems/gambling';
 import { buyProperty, isEstateUnlocked, runEstate, sellProperty } from './systems/estate';
 import { buyCustomProperty, customBuyCost, quoteFeature, sellCustomProperty } from './systems/customEstate';
 import { placeLabel } from './hq';
@@ -135,8 +139,11 @@ export class GameEngine {
     runPower(this.ctx, dt);
     const { commercialIncome } = runProduction(this.ctx, dt);
     const { cost } = runLogistics(this.ctx, dt);
+    const { wages, bankrupt } = runFinance(this.ctx, dt);
     runMarket(this.ctx, dt);
     runSales(this.ctx, dt);
+    const business = runBusiness(this.ctx, dt);
+    runLottery(this.ctx, dt);
     runAutomation(this.ctx, dt);
     runInfluence(this.ctx, dt);
     const sold = runAutoSell(this.ctx);
@@ -153,13 +160,27 @@ export class GameEngine {
     }
     const extra = this.derived.extraIncome;
     this.derived.extraIncome = 0;
-    this.recordIncome(sold + earned + rent + dividends + extra - cost, dt);
+    this.recordIncome(sold + earned + rent + dividends + extra + business.income - cost - wages, dt);
     state.stats.playtimeSeconds += dt;
     runCompanyMetrics(this.ctx);
+    runHistory(this.ctx, dt);
     this.derived.creditRank = creditRankDef(state).rank;
     runUnlocks(this.ctx);
     runTutorial(this.ctx);
     runAchievements(this.ctx);
+    if (bankrupt) this.goBankrupt();
+  }
+
+  /** 倒産。永続ポイント・アップグレード・実績は残して、会社だけ最初からにする */
+  private goBankrupt(): void {
+    const next = buildBankruptState(this.state, this.nowFn(), createInitialState);
+    this.state = next;
+    this.ctx.state = next;
+    this.derived = createEmptyDerived();
+    this.ctx.derived = this.derived;
+    this.refreshDerived();
+    runUnlocks(this.ctx);
+    this.emit('warn', `資金が尽きて倒産しました。会社を畳んで、もう一度やり直します（永続ポイント ${next.prestige.points}pt と実績は残っています）`, { toast: true });
   }
 
   /** 収入を1秒ごとのバケツに記録し、直近10秒の平均を incomePerSec にする */
@@ -474,6 +495,109 @@ export class GameEngine {
     return ok;
   }
 
+
+  // ---------- 事業（お店・IT会社など） ----------
+  /** 事業を始める */
+  openDivision(kind: Parameters<typeof openDivision>[1], landId: string, name?: string): { ok: boolean; reason?: string; id?: number } {
+    const r = openDivision(this.ctx, kind, landId, name);
+    if (r.ok) this.refreshDerived();
+    return r;
+  }
+
+  /** 事業をたたむ */
+  closeDivision(id: number): boolean {
+    const ok = closeDivision(this.ctx, id);
+    if (ok) this.refreshDerived();
+    return ok;
+  }
+
+  /** 人を雇う・減らす */
+  setDivisionStaff(id: number, staff: number): boolean {
+    const ok = setStaff(this.ctx, id, staff);
+    if (ok) this.refreshDerived();
+    return ok;
+  }
+
+  /** 事業の名前を変える */
+  renameDivision(id: number, name: string): boolean {
+    const div = getDivision(this.state, id);
+    if (!div) return false;
+    const trimmed = name.trim().slice(0, 24);
+    if (!trimmed) return false;
+    div.name = trimmed;
+    return true;
+  }
+
+  /** 広告を出す */
+  startAd(id: number, adId: string): { ok: boolean; reason?: string } {
+    const r = startAd(this.ctx, id, adId);
+    if (r.ok) this.refreshDerived();
+    return r;
+  }
+
+  /** 駐車場として土地を割り当てる・外す */
+  toggleParking(id: number, landId: string): boolean {
+    return toggleParking(this.ctx, id, landId);
+  }
+
+  /** 案件を始める */
+  startProject(id: number, projectId: string): { ok: boolean; reason?: string } {
+    const div = getDivision(this.state, id);
+    if (!div) return { ok: false, reason: 'その事業はありません' };
+    const r = startProject(this.ctx, div, projectId);
+    if (r.ok) this.refreshDerived();
+    return r;
+  }
+
+  /** 案件をやめる */
+  cancelProject(id: number, projectId: string): boolean {
+    const div = getDivision(this.state, id);
+    if (!div) return false;
+    return cancelProject(this.ctx, div, projectId);
+  }
+
+  /** お店へ品物を送る（入荷） */
+  restockShop(id: number, resource: ResourceId, amount: number): number {
+    const div = getDivision(this.state, id);
+    if (!div) return 0;
+    const n = restockShop(this.ctx, div, resource, amount);
+    if (n > 0) this.refreshDerived();
+    return n;
+  }
+
+  /** お店から品物を戻す */
+  returnFromShop(id: number, resource: ResourceId, amount: number): number {
+    const div = getDivision(this.state, id);
+    if (!div) return 0;
+    const n = returnFromShop(this.ctx, div, resource, amount);
+    if (n > 0) this.refreshDerived();
+    return n;
+  }
+
+  /** お店の自動入荷の目標を決める */
+  setRestockTarget(id: number, resource: ResourceId, target: number): boolean {
+    const div = getDivision(this.state, id);
+    if (!div) return false;
+    const n = Math.max(0, Math.floor(target));
+    if (n <= 0) delete div.restock[resource];
+    else div.restock[resource] = n;
+    return true;
+  }
+
+  // ---------- 賭け事 ----------
+  /** スロットなどで遊ぶ */
+  playGame(gameId: Parameters<typeof play>[1]): PlayResult {
+    const r = play(this.ctx, gameId);
+    if (r.ok) this.refreshDerived();
+    return r;
+  }
+
+  /** 宝くじを買う */
+  buyLotteryTickets(count: number): { ok: boolean; reason?: string; bought: number } {
+    const r = buyTickets(this.ctx, count);
+    if (r.ok) this.refreshDerived();
+    return r;
+  }
 
   // ---------- 自動化 ----------
   /** 自動化のスイッチを切り替える（買っていなければ何も起きない） */

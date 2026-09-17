@@ -8,9 +8,9 @@ import type { NavTab } from '@/types/ui';
 /** クラフト一覧のカテゴリ（すべてを含む） */
 export type CraftCategoryFilter = 'all' | RecipeCategory;
 
-export type CompanySubTab = 'info' | 'achievements' | 'prestige';
+export type CompanySubTab = 'info' | 'achievements' | 'rich' | 'prestige';
 /** ホーム画面の中の切替（資源・会社をここに統合した） */
-export type HomeSubTab = 'home' | 'resources' | 'sales' | 'company';
+export type HomeSubTab = 'home' | 'resources' | 'sales' | 'business' | 'company';
 /** 地図画面の中の切替（土地・物件・株をここに統合した） */
 export type MapSubTab = 'map' | 'owned' | 'stocks';
 
@@ -51,6 +51,9 @@ interface UiStore {
   companySubTab: CompanySubTab;
   setCompanySubTab: (t: CompanySubTab) => void;
   homeSubTab: HomeSubTab;
+  /** 事業の詳細シートで開いている事業 */
+  openDivisionId: number | null;
+  setOpenDivision: (id: number | null) => void;
   setHomeSubTab: (t: HomeSubTab) => void;
   mapSubTab: MapSubTab;
   setMapSubTab: (t: MapSubTab) => void;
@@ -105,6 +108,8 @@ export const useUiStore = create<UiStore>((set) => ({
   companySubTab: 'info',
   setCompanySubTab: (companySubTab) => set({ companySubTab }),
   homeSubTab: 'home',
+  openDivisionId: null,
+  setOpenDivision: (openDivisionId) => set({ openDivisionId }),
   setHomeSubTab: (homeSubTab) => set({ homeSubTab }),
   mapSubTab: 'map',
   setMapSubTab: (mapSubTab) => set({ mapSubTab }),

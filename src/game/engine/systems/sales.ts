@@ -193,7 +193,7 @@ export function deliverDeal(ctx: EngineContext, dealId: number): boolean {
   const have = state.inventory[deal.resource] ?? 0;
   if (have + 1e-9 < deal.amountPer) return false;
   state.inventory[deal.resource] = clean(have - deal.amountPer);
-  const pay = Math.round(deal.amountPer * deal.unitPrice);
+  const pay = Math.round(deal.amountPer * deal.unitPrice * (derived.eventMods?.dealPrice ?? 1));
   state.company.cash += pay;
   state.company.totalEarned += pay;
   derived.extraIncome += pay;

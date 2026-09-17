@@ -28,6 +28,7 @@ export const GATHER_ACTIONS = [
   { id: 'gather_scrap', resource: 'scrap_metal', label: '鉄くずを回収', baseAmount: 1, tools: ['stone_hammer'], requiresTool: true, unlock: { type: 'always' }, hint: '石のハンマーが必要' },
   { id: 'gather_sap', resource: 'sap', label: '樹液を採る', baseAmount: 1, tools: ['stone_axe'], requiresTool: false, unlock: { type: 'obtained', resource: 'wood', min: 15 }, hint: '石の斧があると3倍' },
   { id: 'gather_iron_ore', resource: 'iron_ore', label: '鉄鉱石を掘る', baseAmount: 2, tools: ['steel_pickaxe', 'iron_pickaxe', 'stone_pickaxe'], requiresTool: true, unlock: { type: 'toolCrafted', tool: 'stone_pickaxe' }, hint: 'つるはしが必要' },
+  { id: 'gather_gold', resource: 'gold_ore', label: '砂金を探す', baseAmount: 0.02, tools: ['shovel'], requiresTool: true, unlock: { type: 'research', research: 'gold_rush' }, hint: 'シャベルが必要。めったに見つからない' },
 ] as const satisfies readonly GatherActionDef[];
 
 export type GatherActionId = (typeof GATHER_ACTIONS)[number]['id'];

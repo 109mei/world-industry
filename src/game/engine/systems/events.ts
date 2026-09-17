@@ -1,7 +1,7 @@
 import { CITIES, CITY_MAP, isCityId } from '@/game/data/cities';
 import { CONFIG } from '@/game/data/config';
 import { PROPERTY_MAP, isPropertyId } from '@/game/data/properties';
-import { EVENTS, EVENT_MAP, isEventDefId, type EventDef } from '@/game/data/events';
+import { EVENTS, EVENT_MAP, isEventDefId, type EventDef, type EventDefId } from '@/game/data/events';
 import { FACILITY_MAP, isFacilityId } from '@/game/data/facilities';
 import { RESOURCE_MAP, type ResourceId } from '@/game/data/resources';
 import type { ActiveEvent, EventModifiers, GameState } from '@/types/state';
@@ -11,7 +11,7 @@ import { isEstateUnlocked, shiftCityPrice } from './estate';
 import { getMarketState } from './market';
 
 export function createEmptyEventMods(): EventModifiers {
-  return { landProduction: {}, transport: {}, power: 1, commercial: 1, stock: 1 };
+  return { landProduction: {}, transport: {}, power: 1, commercial: 1, stock: 1, transportCost: 1, marketPrice: 1, researchRate: 1, dealPrice: 1, production: 1 };
 }
 
 /** 売れる資源のうち、プレイヤーが持っている・売ったことのあるもの（イベントの対象候補） */
@@ -54,6 +54,19 @@ function pickTarget(ctx: EngineContext, def: EventDef): { ok: boolean; target: s
     }
     case 'subsidy':
       return { ok: state.stats.playtimeSeconds > 300, target: null };
+    case 'tax':
+      // 出せるお金があるときだけ。始めたばかりの会社は狙われない
+      return { ok: state.stats.playtimeSeconds > 600 && state.company.cash > 200_000, target: null };
+    case 'research_grant':
+      return { ok: state.research.totalPoints > 0 || state.stats.playtimeSeconds > 600, target: null };
+    case 'fuel':
+      return { ok: derived.transportCost > 0 && !state.events.active.some((e) => EVENT_MAP[e.defId as EventDefId]?.kind === 'fuel'), target: null };
+    case 'market_wave':
+      return { ok: marketTargets(state).length > 0 && !state.events.active.some((e) => EVENT_MAP[e.defId as EventDefId]?.kind === 'market_wave'), target: null };
+    case 'order_rush':
+      return { ok: (state.sales?.deals.length ?? 0) > 0 && !state.events.active.some((e) => EVENT_MAP[e.defId as EventDefId]?.kind === 'order_rush'), target: null };
+    case 'slowdown':
+      return { ok: state.facilities.some((f) => f.count > 0) && !state.events.active.some((e) => EVENT_MAP[e.defId as EventDefId]?.kind === 'slowdown'), target: null };
     case 'bull':
     case 'bear':
       return { ok: isEstateUnlocked(state, derived.assets) && !state.events.active.some((e) => e.defId === 'bull' || e.defId === 'bear'), target: null };
@@ -100,6 +113,20 @@ function applyInstant(ctx: EngineContext, def: EventDef, target: string | null):
   if ((def.kind === 'land_boom' || def.kind === 'land_slump') && target) {
     shiftCityPrice(state, target, def.magnitude);
     return describe(def, target, state);
+  }
+  if (def.kind === 'tax') {
+    // 収入の magnitude 秒ぶん（最低 2万円）。所持金の3割を超えないようにする
+    const raw = Math.max(20_000, Math.round(Math.max(0, derived.incomePerSec) * def.magnitude));
+    const amount = Math.min(raw, Math.max(0, Math.floor(state.company.cash * 0.3)));
+    state.company.cash -= amount;
+    state.company.totalSpent += amount;
+    return `${describe(def, target, state)} -${amount.toLocaleString('ja-JP')}円`;
+  }
+  if (def.kind === 'research_grant') {
+    const amount = Math.max(5, Math.round((derived.researchRate ?? 0) * def.magnitude));
+    state.research.points += amount;
+    state.research.totalPoints += amount;
+    return `${describe(def, target, state)} +${amount.toLocaleString('ja-JP')}RP`;
   }
   if (def.kind === 'subsidy') {
     // 収入の magnitude 秒ぶん（最低 5万円）
@@ -201,6 +228,18 @@ export function computeEventMods(state: GameState): EventModifiers {
       case 'bull':
       case 'bear':
         mods.stock *= a.magnitude;
+        break;
+      case 'fuel':
+        mods.transportCost *= a.magnitude;
+        break;
+      case 'market_wave':
+        mods.marketPrice *= a.magnitude;
+        break;
+      case 'order_rush':
+        mods.dealPrice *= a.magnitude;
+        break;
+      case 'slowdown':
+        mods.production *= a.magnitude;
         break;
       default:
         break;

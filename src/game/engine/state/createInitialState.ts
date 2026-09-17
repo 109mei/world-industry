@@ -5,7 +5,7 @@ import { createInitialSales } from '../systems/sales';
 import { HQ_LAND_ID, HQ_TERRAIN } from '@/game/data/lands';
 import { GAME_META } from '@/game/data/meta';
 import { RESOURCES, type ResourceDef, type ResourceId } from '@/game/data/resources';
-import type { AutomationState, CompanyStockState, ContractsState, DerivedState, EstateState, GameState, LandState, PrestigeState, StocksState } from '@/types/state';
+import type { AutomationState, BusinessState, CompanyStockState, ContractsState, DerivedState, EstateState, GameState, LandState, PrestigeState, StocksState } from '@/types/state';
 import { createEmptyEventMods } from '../systems/events';
 import { createBaseModifiers } from '../systems/modifiers';
 import { createEmptyPower } from '../systems/power';
@@ -39,6 +39,10 @@ export function createInitialContracts(): ContractsState {
 
 export function createInitialPrestige(): PrestigeState {
   return { count: 0, points: 0, history: [] };
+}
+
+export function createInitialBusiness(): BusinessState {
+  return { divisions: [], nextId: 1 };
 }
 
 export function createInitialAutomation(): AutomationState {
@@ -99,6 +103,8 @@ export function createInitialState(now = Date.now()): GameState {
     sales: createInitialSales(),
     prestige: createInitialPrestige(),
     automation: createInitialAutomation(),
+    business: createInitialBusiness(),
+    history: { assets: [], income: [], employees: [], nextIn: 0 },
     eventLog: [],
     nextEventId: 1,
     settings: {
@@ -114,6 +120,8 @@ export function createInitialState(now = Date.now()): GameState {
       factoryOnlyBuildable: false,
       craftOnlyMakeable: false,
       estateView: 'map',
+      currency: 'jpy',
+      unitStyle: 'ja',
       hqLocation: null,
       hqChosen: false,
       map3D: false,
@@ -141,6 +149,9 @@ export function createEmptyDerived(): DerivedState {
     modifiers: createBaseModifiers(),
     commercialIncome: 0,
     transportCost: 0,
+    wageCost: 0,
+    businessIncome: 0,
+    adCost: 0,
     researchRate: 0,
     estateValue: 0,
     rentPerSec: 0,

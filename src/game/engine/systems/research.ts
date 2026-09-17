@@ -4,7 +4,7 @@ import type { EngineContext } from '../context';
 
 /** 研究ポイントを貯める */
 export function runResearchPoints(ctx: EngineContext, dt: number): void {
-  const gained = ctx.derived.researchRate * dt;
+  const gained = ctx.derived.researchRate * (ctx.derived.eventMods?.researchRate ?? 1) * dt;
   if (gained <= 0) return;
   ctx.state.research.points += gained;
   ctx.state.research.totalPoints += gained;

@@ -1690,3 +1690,238 @@ html[data-theme='dark'] .maplibregl-ctrl-attrib {
   background: rgba(0, 0, 0, 0.5);
   color: #cfd6e0;
 }
+
+/* ---------- 研究ツリー ---------- */
+.tree {
+  position: relative;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  background: var(--surface-1, rgba(255, 255, 255, 0.03));
+  border: 1px solid var(--line, rgba(255, 255, 255, 0.08));
+  border-radius: 14px;
+  padding: 12px;
+  max-height: 70vh;
+}
+
+.tree__canvas {
+  position: relative;
+}
+
+.tree__lines {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.tree__line {
+  stroke-width: 2;
+}
+.tree__line--done {
+  stroke: var(--research, #7aa2f7);
+  opacity: 0.85;
+}
+.tree__line--open {
+  stroke: var(--research, #7aa2f7);
+  opacity: 0.45;
+  stroke-dasharray: 5 4;
+}
+.tree__line--locked {
+  stroke: currentColor;
+  opacity: 0.16;
+}
+
+.tree__band {
+  position: absolute;
+  left: 0;
+  border-top: 1px dashed rgba(127, 127, 127, 0.22);
+  pointer-events: none;
+}
+
+.tree__band-label {
+  position: sticky;
+  left: 0;
+  display: inline-block;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  opacity: 0.6;
+  padding: 2px 6px;
+  background: var(--surface-2, rgba(0, 0, 0, 0.25));
+  border-radius: 6px;
+}
+
+.tree__node {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--line, rgba(255, 255, 255, 0.1));
+  background: var(--surface-2, rgba(255, 255, 255, 0.05));
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.08s ease, border-color 0.15s ease;
+}
+.tree__node:hover {
+  transform: translateY(-1px);
+}
+.tree__node-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.tree__node-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tree__node-cost {
+  font-size: 11px;
+  opacity: 0.7;
+}
+.tree__node--done {
+  border-color: var(--profit, #6ee7a8);
+  background: color-mix(in srgb, var(--profit, #6ee7a8) 14%, transparent);
+}
+.tree__node--ready {
+  border-color: var(--research, #7aa2f7);
+}
+.tree__node--affordable {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--research, #7aa2f7) 45%, transparent);
+}
+.tree__node--locked {
+  opacity: 0.45;
+}
+
+.tree__req {
+  width: 100%;
+  background: none;
+  border: none;
+  color: inherit;
+  padding: 4px 0;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+/* ---------- 図表 ---------- */
+.chart {
+  margin: 6px 0;
+}
+.chart__label {
+  font-size: 12px;
+  opacity: 0.7;
+  margin-bottom: 4px;
+}
+.chart__svg {
+  width: 100%;
+  display: block;
+}
+.chart__grid {
+  stroke: currentColor;
+  opacity: 0.12;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+.chart__zero {
+  stroke: currentColor;
+  opacity: 0.3;
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  vector-effect: non-scaling-stroke;
+}
+.chart__axis {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  opacity: 0.6;
+}
+.chart__empty {
+  font-size: 12px;
+  opacity: 0.5;
+  padding: 10px 0;
+}
+
+.bars {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.bars__row {
+  display: grid;
+  grid-template-columns: minmax(64px, 30%) 1fr auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.bars__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.85;
+}
+.bars__track {
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(127, 127, 127, 0.18);
+  overflow: hidden;
+}
+.bars__fill {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+}
+.bars__value {
+  font-size: 11.5px;
+  opacity: 0.85;
+}
+
+.donut {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.donut__track {
+  fill: none;
+  stroke: rgba(127, 127, 127, 0.18);
+  stroke-width: 14;
+}
+.donut__seg {
+  fill: none;
+  stroke-width: 14;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+}
+.donut__legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 12px;
+  flex: 1;
+  min-width: 140px;
+}
+.donut__legend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.donut__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  flex: none;
+}
+.donut__name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.85;
+}

@@ -59,6 +59,11 @@ export const RECIPES = [
   { id: 'make_furniture', name: '家具を作る', category: 'products', icon: 'icon_office_chair', inputs: { lumber: 6, cloth: 2, tool: 1 }, outputs: { furniture: 1 }, unlock: { type: 'obtained', resource: 'lumber', min: 20 }, description: '板材6・布2・工具1から家具1。高く売れる。' },
   { id: 'make_tire', name: 'タイヤを作る', category: 'parts', icon: 'icon_machine_wheel_loader', inputs: { rubber: 3, cloth: 1 }, outputs: { tire: 1 }, unlock: { type: 'obtained', resource: 'rubber', min: 10 }, description: 'ゴム3と布1からタイヤ1。' },
   { id: 'make_battery', name: 'バッテリーを作る', category: 'parts', icon: 'icon_material_battery', inputs: { wire: 2, plastic: 1, chemical: 1 }, outputs: { battery: 1 }, unlock: { type: 'obtained', resource: 'wire', min: 10 }, description: '電線2・プラスチック1・化学薬品1からバッテリー1。' },
+  // ---- 貴金属・宝石 ----
+  { id: 'smelt_gold', name: '金を精錬', category: 'materials', icon: 'icon_office_coins', inputs: { gold_ore: 3, coal: 2 }, outputs: { gold: 1 }, unlock: { type: 'obtained', resource: 'gold_ore', min: 1 }, description: '金鉱石3と石炭2から金1を作る。' },
+  { id: 'smelt_silver', name: '銀を精錬', category: 'materials', icon: 'icon_material_aluminum', inputs: { silver_ore: 3, coal: 2 }, outputs: { silver: 1 }, unlock: { type: 'obtained', resource: 'silver_ore', min: 1 }, description: '銀鉱石3と石炭2から銀1を作る。' },
+  { id: 'cut_gem', name: '原石を磨く', category: 'products', icon: 'icon_resource_gem', inputs: { rough_gem: 4, water: 5 }, outputs: { gem: 1 }, unlock: { type: 'obtained', resource: 'rough_gem', min: 1 }, description: '原石4を磨いて宝石1にする。値段が跳ね上がる。' },
+  { id: 'make_leather', name: '革をなめす', category: 'materials', icon: 'icon_material_leather', inputs: { cloth: 3, chemical: 2 }, outputs: { leather: 2 }, unlock: { type: 'research', research: 'tanning' }, description: '布と化学薬品から革を作る。鞄や家具に使う。' },
 ] as const satisfies readonly RecipeDef[];
 
 export type RecipeId = (typeof RECIPES)[number]['id'];

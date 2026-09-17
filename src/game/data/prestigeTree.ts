@@ -47,7 +47,7 @@ export const PRESTIGE_UPGRADES: readonly PrestigeUpgradeDef[] = [
   { id: 'relation', name: '信頼の積み重ね', icon: 'icon_ui_medal', perLevel: '納品で上がる関係 +25%', maxLevel: 5, cost: flat(2), description: '取引先との関係が早く深まる。' },
   { id: 'power', name: '発電の効率', icon: 'icon_power_transmission_tower', perLevel: '発電量 +10%', maxLevel: 8, cost: flat(2), description: 'すべての発電所の出力が上がる。' },
   { id: 'storage', name: '倉庫の使い方', icon: 'icon_commercial_warehouse', perLevel: '倉庫容量 +15%', maxLevel: 8, cost: flat(1), description: '本社と土地の保管量が増える。' },
-  { id: 'offline', name: '夜間操業', icon: 'icon_ui_clock', perLevel: 'オフライン進行の上限 +2時間', maxLevel: 8, cost: flat(1), description: '閉じている間に進む時間が延びる。' },
+  { id: 'offline', name: '夜間操業', icon: 'icon_ui_time', perLevel: 'オフライン進行の上限 +2時間', maxLevel: 8, cost: flat(1), description: '閉じている間に進む時間が延びる。' },
 ];
 
 /** 自動化＋数値強化のすべて */

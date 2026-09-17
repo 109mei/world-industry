@@ -77,7 +77,7 @@ export function runProduction(ctx: EngineContext, dt: number): { commercialIncom
 
     const stock = stockOf(state, land);
     const capacity = derived.lands[land.id]?.capacity ?? derived.capacity;
-    const mult = terrainMultiplier(def, land) * surveyMultiplier(def, land) * (mods.production[def.category] ?? 1) * (derived.eventMods.landProduction[land.id] ?? 1);
+    const mult = terrainMultiplier(def, land) * surveyMultiplier(def, land) * (mods.production[def.category] ?? 1) * (derived.eventMods.landProduction[land.id] ?? 1) * (derived.eventMods.production ?? 1);
     let efficiency = pr;
     const missingInputs: ResourceId[] = [];
     const blockedOutputs: ResourceId[] = [];

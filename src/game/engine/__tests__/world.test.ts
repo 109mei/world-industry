@@ -152,7 +152,8 @@ describe('物流', () => {
     expect(e.state.inventory.coal).toBeCloseTo(5, 5);
     expect(getLand(e.state, 'jp_hokkaido')!.stock.coal ?? 0).toBeCloseTo(0, 5);
     const tons = 5 * 0.04;
-    expect(cash - e.state.company.cash).toBeCloseTo(tons * 30, 5);
+    // 輸送費に加えて、この tick の人件費も引かれる
+    expect(cash - e.state.company.cash).toBeCloseTo(tons * 30 + e.derived.wageCost, 5);
     expect(e.derived.lands['jp_hokkaido'].transportUsed).toBeCloseTo(tons, 5);
     expect(e.derived.lands['jp_hokkaido'].exports.coal).toBeCloseTo(5, 5);
   });

@@ -23,7 +23,7 @@ function transportModes(ctx: EngineContext, land: LandState): Mode[] {
     const t = FACILITY_MAP[inst.typeId].transport;
     if (!t) continue;
     const eventMult = transportEventMultiplier(ctx.derived.eventMods, land.id, t.kind);
-    modes.push({ capacity: t.capacity * inst.count * mods.transportCapacity * eventMult, costPerTon: t.costPerTon * mods.transportCost * rankCost, liquidOnly: !!t.liquidOnly });
+    modes.push({ capacity: t.capacity * inst.count * mods.transportCapacity * eventMult, costPerTon: t.costPerTon * mods.transportCost * rankCost * (ctx.derived.eventMods?.transportCost ?? 1), liquidOnly: !!t.liquidOnly });
   }
   // 安い手段から使う
   return modes.sort((a, b) => a.costPerTon - b.costPerTon);

@@ -10,6 +10,7 @@ import { formatMW } from '@/utils/names';
 import { EventList } from '../home/EventList';
 import { AchievementsList } from './AchievementsList';
 import { PrestigePanel } from './PrestigePanel';
+import { RichListPanel } from './RichListPanel';
 
 /** 会社情報・実績・再出発（ホームの「会社」タブの中身） */
 export function CompanyPanel() {
@@ -29,6 +30,7 @@ export function CompanyPanel() {
         items={[
           { id: 'info', label: '会社情報' },
           { id: 'achievements', label: `実績 ${achievementsDone}` },
+          { id: 'rich', label: '番付' },
           { id: 'prestige', label: '再出発', badge: canPrestige(derived.assets) ? 1 : 0 },
         ]}
         value={sub}
@@ -77,6 +79,7 @@ export function CompanyPanel() {
           <AchievementsList />
         </Card>
       )}
+      {sub === 'rich' && <RichListPanel />}
       {sub === 'prestige' && <PrestigePanel />}
     </>
   );

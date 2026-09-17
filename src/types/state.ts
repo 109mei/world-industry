@@ -1,4 +1,5 @@
 import type { PropertyKind } from '@/game/data/properties';
+import type { BusinessKindId } from '@/game/data/business';
 import type { CompanyPolicy } from '@/game/data/companies';
 import type { RecipeId } from '@/game/data/recipes';
 import type { GatherActionId } from '@/game/data/gathering';
@@ -19,6 +20,8 @@ export interface CompanyState {
   facilityInvestment: number;
   /** 土地購入に使った累計 */
   landInvestment: number;
+  /** 所持金がマイナスのまま続いている秒数（倒産までの猶予） */
+  debtSeconds?: number;
 }
 
 /** 道具は同じ種類をまとめて持つ。durability は「いま使っている1本」の残り回数 */
@@ -62,6 +65,14 @@ export interface MarketState {
 
 export interface StatsState {
   taps: number;
+  /** 累計の人件費（円） */
+  totalWages?: number;
+  /** 賭けた額の合計（円） */
+  gambleBet?: number;
+  /** 賭けで返ってきた額の合計（円） */
+  gambleWon?: number;
+  /** 倒産した回数 */
+  bankruptcies?: number;
   /** 累計入手量（採集＋生産＋クラフト） */
   totalObtained: Partial<Record<string, number>>;
   totalGathered: Partial<Record<string, number>>;
@@ -219,6 +230,10 @@ export interface SettingsState {
   craftOnlyMakeable: boolean;
   /** ESTATE 画面の表示 */
   estateView: 'map' | 'list' | 'stocks';
+  /** 表示に使う通貨（計算はすべて円のまま、見た目だけ換算する） */
+  currency?: string;
+  /** 数字の単位の付け方（日本式の万・億／英語式の K・M／付けない） */
+  unitStyle?: 'ja' | 'western' | 'none';
 }
 
 /** 所有している不動産 */
@@ -439,6 +454,114 @@ export interface AutomationState {
 
 export type AutomationKey = 'gather' | 'craft' | 'deliver' | 'pitch' | 'survey' | 'build';
 
+/** 進行中の広告契約 */
+export interface ActiveAd {
+  /** 広告の種類 */
+  adId: string;
+  /** 残りの秒数 */
+  remaining: number;
+}
+
+/** 進めている案件 */
+export interface ActiveProject {
+  projectId: string;
+  /** これまでに積み上げた仕事量 */
+  work: number;
+  startedAt: number;
+}
+
+/** 発売した製品（利用者がいるかぎり毎秒お金が入る） */
+export interface BusinessProduct {
+  id: number;
+  projectId: string;
+  name: string;
+  /** いまの利用者数 */
+  users: number;
+  /** 発売したときの利用者数（最盛期の目安） */
+  peakUsers: number;
+  releasedAt: number;
+}
+
+/** 自分で始めた事業（お店・IT会社など） */
+export interface Division {
+  id: number;
+  /** 業種 */
+  kind: BusinessKindId;
+  name: string;
+  /** 拠点にしている土地（買った物件の landId） */
+  landId: string;
+  /** 雇っている人数 */
+  staff: number;
+  /** 知名度 0〜100 */
+  awareness: number;
+  /** ブランド価値 0〜100 */
+  brand: number;
+  openedAt: number;
+  /** 進行中の広告契約 */
+  ads: ActiveAd[];
+  /** 駐車場として割り当てた土地（landId） */
+  parkingLands: string[];
+  /** お店の在庫（仕入れて並べているもの） */
+  stock: Partial<Record<ResourceId, number>>;
+  /** お店が自動で仕入れる目標個数 */
+  restock: Partial<Record<ResourceId, number>>;
+  /** 進めている案件 */
+  projects: ActiveProject[];
+  /** 発売した製品 */
+  products: BusinessProduct[];
+  /** 通算の売上（円） */
+  totalEarned: number;
+  /** 完了した案件の数 */
+  completed: number;
+  /** 通算で売った点数（お店） */
+  sold?: number;
+  /** 品切れで逃した客（お店） */
+  lostSales?: number;
+  /** 傷んで捨てた在庫（飲食・生鮮） */
+  wasted?: number;
+  /** 通算の取扱高（カジノ） */
+  handle?: number;
+  /** 通算で掘った量（鉱区） */
+  dug?: number;
+  /** 大鉱脈に当たっている残り秒数（鉱区） */
+  rush?: number;
+  /** 画面に出す短い状況（鉱区など） */
+  note?: string;
+}
+
+export interface BusinessState {
+  divisions: Division[];
+  nextId: number;
+}
+
+/** 宝くじ */
+export interface LotteryState {
+  /** いまの賞金（円） */
+  jackpot: number;
+  /** 次の抽選までの秒数 */
+  nextDrawIn: number;
+  /** この回に自分が買った枚数 */
+  tickets: number;
+  /** これまでの抽選回数 */
+  draws: number;
+  /** 当たった回数 */
+  won: number;
+  /** 前回の結果（表示用） */
+  lastMessage: string;
+}
+
+/** 折れ線グラフ用の記録（一定の間隔で数字を積んでいく） */
+export interface HistoryState {
+  /** 総資産 */
+  assets: number[];
+  /** 1秒あたりの収支 */
+  income: number[];
+  /** 従業員の数 */
+  employees: number[];
+  /** 次に記録するまでの秒数 */
+  nextIn: number;
+}
+
 export interface GameState {
   saveVersion: number;
   meta: {
@@ -469,6 +592,12 @@ export interface GameState {
   prestige: PrestigeState;
   /** 自動化の設定（永続アップグレードで買ったもの） */
   automation: AutomationState;
+  /** 自分で始めた事業（お店・IT会社など） */
+  business: BusinessState;
+  /** 宝くじ */
+  lottery?: LotteryState;
+  /** グラフ用の記録 */
+  history?: HistoryState;
   eventLog: GameEvent[];
   nextEventId: number;
   settings: SettingsState;
@@ -554,6 +683,20 @@ export interface Modifiers {
   relationGain: number;
   /** オフライン進行の上限に足す秒数 */
   offlineBonusSec: number;
+  /** 人件費の倍率 */
+  wage: number;
+  /** 事業の仕事量（開発力・接客力）の倍率 */
+  devSpeed: number;
+  /** 発売した製品の収入の倍率 */
+  productRevenue: number;
+  /** お店の売値の倍率 */
+  shopSales: number;
+  /** 広告費の倍率 */
+  adCost: number;
+  /** 知名度の上がりやすさ */
+  awarenessGain: number;
+  /** ブランド価値の上がりやすさ */
+  brandGain: number;
 }
 
 /** 進行中のイベントから計算した係数（保存しない） */
@@ -568,6 +711,16 @@ export interface EventModifiers {
   commercial: number;
   /** 株価全体に掛かる倍率（株高・株安） */
   stock: number;
+  /** 輸送費に掛かる倍率（燃料の値動き） */
+  transportCost: number;
+  /** 資源の売値に掛かる倍率（景気） */
+  marketPrice: number;
+  /** 研究ポイントに掛かる倍率 */
+  researchRate: number;
+  /** 契約の納品単価に掛かる倍率（特需・発注減） */
+  dealPrice: number;
+  /** すべての土地の生産に掛かる倍率（ストライキ・感染症） */
+  production: number;
 }
 
 /** 会社ごとの計算結果（保存しない） */
@@ -613,6 +766,12 @@ export interface DerivedState {
   commercialIncome: number;
   /** 輸送費（円/秒） */
   transportCost: number;
+  /** 人件費（円/秒） */
+  wageCost: number;
+  /** 事業（お店・会社）の収入（円/秒） */
+  businessIncome: number;
+  /** 広告費（円/秒） */
+  adCost: number;
   /** 研究ポイントの増加（/秒） */
   researchRate: number;
   /** 所有する不動産の評価額（円） */

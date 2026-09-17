@@ -3,14 +3,13 @@ import { Button } from '@/components/ui/Button';
 import { getRuntime } from '@/game/runtime';
 import { bumpGame, useGame } from '@/stores/gameStore';
 import { hqLocation } from '@/game/engine/hq';
-import { formatDuration } from '@/utils/format';
+import { formatDuration, formatMoney } from '@/utils/format';
+import { CURRENCIES } from '@/game/data/currencies';
 import { sfx } from '@/utils/sfx';
 
 export function SettingsPanel() {
   const { state, engine } = useGame();
   const [name, setName] = useState(state.company.name);
-  const [importText, setImportText] = useState('');
-  const [exportText, setExportText] = useState('');
   const [message, setMessage] = useState('');
   const [confirmReset, setConfirmReset] = useState(false);
 
@@ -73,6 +72,43 @@ export function SettingsPanel() {
         </div>
       </div>
 
+      <div className="field">
+        <span className="field__label">単位の付け方</span>
+        <div className="btn-row">
+          <Button variant={(state.settings.unitStyle ?? 'ja') === 'ja' ? 'primary' : 'secondary'} size="sm" onClick={() => update({ unitStyle: 'ja' })}>
+            日本式 (1.2億)
+          </Button>
+          <Button variant={state.settings.unitStyle === 'western' ? 'primary' : 'secondary'} size="sm" onClick={() => update({ unitStyle: 'western' })}>
+            英語式 (120M)
+          </Button>
+          <Button variant={state.settings.unitStyle === 'none' ? 'primary' : 'secondary'} size="sm" onClick={() => update({ unitStyle: 'none' })}>
+            付けない (120,000,000)
+          </Button>
+        </div>
+      </div>
+
+      <div className="field">
+        <span className="field__label">通貨</span>
+        <div className="text-sub" style={{ fontSize: 12, marginBottom: 4 }}>
+          表示だけが変わります。ゲームの中の計算は変わりません（レートは固定の目安です）。
+        </div>
+        <div className="grid grid--2">
+          {CURRENCIES.map((c) => (
+            <Button
+              key={c.id}
+              size="sm"
+              variant={(state.settings.currency ?? 'jpy') === c.id ? 'primary' : 'secondary'}
+              onClick={() => update({ currency: c.id })}
+            >
+              {c.name}（{c.symbol.trim()}）
+            </Button>
+          ))}
+        </div>
+        <div className="text-sub num" style={{ fontSize: 12, marginTop: 4 }}>
+          例: {formatMoney(12_345_678, state.settings.numberFormat)}
+        </div>
+      </div>
+
       <label className="switch">
         <input type="checkbox" checked={state.settings.showTutorial} onChange={(e) => update({ showTutorial: e.target.checked })} />
         チュートリアルを表示する
@@ -113,55 +149,24 @@ export function SettingsPanel() {
         </div>
       </div>
 
-      <label className="switch">
-        <input type="checkbox" checked={state.settings.events} onChange={(e) => update({ events: e.target.checked })} />
-        ランダムイベント（相場変動・災害など）を起こす
-      </label>
-
-      <div className="text-sub" style={{ fontSize: 12 }}>
-        自動保存: {state.settings.autosaveSeconds}秒ごと ／ オフライン進行の上限: {formatDuration(state.settings.maxOfflineSeconds)}
+      <div className="field">
+        <span className="field__label">ランダムイベント</span>
+        <div className="text-sub" style={{ fontSize: 12 }}>
+          相場の急変・災害・好景気などは常に起こります（止められません）。イベントに備えるのも経営のうちです。
+        </div>
       </div>
 
       <div className="field">
-        <span className="field__label">セーブデータ</span>
-        <div className="btn-row">
-          <Button
-            size="sm"
-            onClick={async () => {
-              await getRuntime().save();
-              setMessage('保存しました');
-            }}
-          >
-            今すぐ保存
-          </Button>
-          <Button
-            size="sm"
-            onClick={() => {
-              setExportText(getRuntime().exportState());
-              setMessage('下の欄の文字列をコピーして保管してください');
-            }}
-          >
-            書き出し
-          </Button>
+        <span className="field__label">セーブ</span>
+        <div className="text-sub" style={{ fontSize: 12 }}>
+          つねに自動で保存され、開くと自動で読み込まれます。操作のたびに保存し、閉じるときにも保存します
+          （オフライン進行の上限は {formatDuration(state.settings.maxOfflineSeconds)}）。
         </div>
-        {exportText && <textarea className="input" readOnly value={exportText} onFocus={(e) => e.currentTarget.select()} />}
-        <textarea className="input" placeholder="書き出した文字列を貼り付けて読み込み" value={importText} onChange={(e) => setImportText(e.target.value)} />
+      </div>
+
+      <div className="field">
+        <span className="field__label">やり直し</span>
         <div className="btn-row">
-          <Button
-            size="sm"
-            disabled={!importText.trim()}
-            onClick={async () => {
-              try {
-                await getRuntime().importState(importText);
-                setImportText('');
-                setMessage('読み込みました');
-              } catch (e) {
-                setMessage(`読み込みに失敗: ${(e as Error).message}`);
-              }
-            }}
-          >
-            読み込み
-          </Button>
           {!confirmReset ? (
             <Button variant="danger" size="sm" onClick={() => setConfirmReset(true)}>
               データを消して最初から
@@ -184,6 +189,9 @@ export function SettingsPanel() {
               </Button>
             </>
           )}
+        </div>
+        <div className="text-sub" style={{ fontSize: 12, marginTop: 4 }}>
+          消すと永続ポイントも含めてすべて失われます。
         </div>
       </div>
       {message && (

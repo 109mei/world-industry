@@ -3,7 +3,7 @@ import { addCustomLand } from '../systems/customEstate';
 import { createInitialSales } from '../systems/sales';
 import { addPropertyLand } from '../systems/estate';
 import type { GameState, LandState } from '@/types/state';
-import { createHqLand, createInitialAutomation, createInitialCompanyStock, createInitialContracts, createInitialEstate, createInitialPrestige, createInitialState, createInitialStocks } from './createInitialState';
+import { createHqLand, createInitialAutomation, createInitialBusiness, createInitialCompanyStock, createInitialContracts, createInitialEstate, createInitialPrestige, createInitialState, createInitialStocks } from './createInitialState';
 
 /**
  * 古いセーブデータを現在の形式へ変換する。
@@ -97,6 +97,23 @@ const MIGRATIONS: Record<number, Migration> = {
   },
   // v8 → v9: 自動化（永続アップグレードで買う）の設定を追加
   8: (data) => ({ ...data, saveVersion: 9, automation: { on: {}, recipes: [], gathers: [], timers: {} } }),
+  // v9 → v10: 人件費と倒産、通貨と単位の設定、ランダムイベントの常時発生
+  9: (data) => {
+    const d = data as Partial<GameState> & Record<string, unknown>;
+    const company = { ...((d.company ?? {}) as Record<string, unknown>), debtSeconds: 0 };
+    const settings = { ...((d.settings ?? {}) as Record<string, unknown>) };
+    // イベントは止められない仕様になったので、切っていた人も戻す
+    settings.events = true;
+    if (!settings.currency) settings.currency = 'jpy';
+    if (!settings.unitStyle) settings.unitStyle = 'ja';
+    return { ...data, saveVersion: 10, company, settings };
+  },
+  // v10 → v11: 自分で始める事業（お店・IT会社など）を追加
+  10: (data) => ({ ...data, saveVersion: 11, business: { divisions: [], nextId: 1 } }),
+  // v11 → v12: 宝くじ
+  11: (data) => ({ ...data, saveVersion: 12 }),
+  // v12 → v13: グラフ用の記録
+  12: (data) => ({ ...data, saveVersion: 13, history: { assets: [], income: [], employees: [], nextIn: 0 } }),
 };
 
 export function migrateSave(raw: unknown): GameState {
@@ -132,6 +149,27 @@ function fixSales(v: Partial<GameState['sales']> | undefined): GameState['sales'
     clients: { ...(v.clients ?? {}) },
     offers: Array.isArray(v.offers) ? v.offers : [],
     deals: Array.isArray(v.deals) ? v.deals : [],
+    nextId: typeof v.nextId === 'number' ? v.nextId : 1,
+  };
+}
+
+function fixBusiness(v: Partial<GameState['business']> | undefined): GameState['business'] {
+  const base = createInitialBusiness();
+  if (!v) return base;
+  return {
+    divisions: Array.isArray(v.divisions)
+      ? v.divisions.map((d) => ({
+          ...d,
+          ads: Array.isArray(d.ads) ? d.ads : [],
+          parkingLands: Array.isArray(d.parkingLands) ? d.parkingLands : [],
+          stock: { ...(d.stock ?? {}) },
+          restock: { ...(d.restock ?? {}) },
+          projects: Array.isArray(d.projects) ? d.projects : [],
+          products: Array.isArray(d.products) ? d.products : [],
+          totalEarned: d.totalEarned ?? 0,
+          completed: d.completed ?? 0,
+        }))
+      : [],
     nextId: typeof v.nextId === 'number' ? v.nextId : 1,
   };
 }
@@ -217,6 +255,7 @@ export function fillDefaults(data: Record<string, unknown>): GameState {
     sales: fixSales(d.sales),
     prestige: fixPrestige(d.prestige),
     automation: fixAutomation(d.automation),
+    business: fixBusiness(d.business),
     eventLog: Array.isArray(d.eventLog) ? d.eventLog : [],
     nextEventId: typeof d.nextEventId === 'number' ? d.nextEventId : 1,
     settings: { ...base.settings, ...(d.settings ?? {}) },

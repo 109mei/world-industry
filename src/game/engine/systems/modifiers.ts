@@ -25,6 +25,13 @@ export function createBaseModifiers(): Modifiers {
     dealPrice: 1,
     relationGain: 1,
     offlineBonusSec: 0,
+    wage: 1,
+    devSpeed: 1,
+    productRevenue: 1,
+    shopSales: 1,
+    adCost: 1,
+    awarenessGain: 1,
+    brandGain: 1,
   };
 }
 
@@ -87,6 +94,30 @@ export function computeModifiers(state: GameState): Modifiers {
           break;
         case 'demandRecovery':
           m.demandRecovery *= e.mult;
+          break;
+        case 'wage':
+          m.wage *= e.mult;
+          break;
+        case 'devSpeed':
+          m.devSpeed *= e.mult;
+          break;
+        case 'productRevenue':
+          m.productRevenue *= e.mult;
+          break;
+        case 'shopSales':
+          m.shopSales *= e.mult;
+          break;
+        case 'adCost':
+          m.adCost *= e.mult;
+          break;
+        case 'awarenessGain':
+          m.awarenessGain *= e.mult;
+          break;
+        case 'brandGain':
+          m.brandGain *= e.mult;
+          break;
+        case 'researchRate':
+          m.researchRate *= e.mult;
           break;
         default:
           break;

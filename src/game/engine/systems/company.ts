@@ -1,3 +1,4 @@
+import { businessStaffTotal } from './business';
 import { CONFIG } from '@/game/data/config';
 import { FACILITY_MAP, isFacilityId } from '@/game/data/facilities';
 import { RESOURCE_MAP, type ResourceId } from '@/game/data/resources';
@@ -31,7 +32,7 @@ export function runCompanyMetrics(ctx: EngineContext): void {
     employees += FACILITY_MAP[f.typeId].employees * f.count;
   }
   derived.inventoryValue = inventoryValue;
-  derived.employees = employees;
+  derived.employees = employees + businessStaffTotal(state);
   derived.assets =
     state.company.cash +
     inventoryValue +

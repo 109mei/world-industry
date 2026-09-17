@@ -20,6 +20,7 @@ import { useGame } from '@/stores/gameStore';
 import { useUiStore } from '@/stores/uiStore';
 import type { NavTab } from '@/types/ui';
 import { applyTheme, useResolvedTheme } from '@/utils/theme';
+import { setNumberDisplay } from '@/utils/format';
 
 const PAGES: Record<NavTab, () => ReactElement> = {
   home: HomePage,
@@ -35,6 +36,10 @@ export function App() {
   const { state, derived } = useGame();
   const theme = useResolvedTheme();
   useEffect(() => applyTheme(theme), [theme]);
+  // 通貨と単位の表記は、計算ではなく表示だけを切り替える
+  useEffect(() => {
+    setNumberDisplay({ currencyId: state.settings.currency ?? 'jpy', unitStyle: state.settings.unitStyle ?? 'ja' });
+  }, [state.settings.currency, state.settings.unitStyle]);
   // 本社を決めるまではホームから動かさない（最初に1回だけ決める）
   const Page = state.settings.hqChosen ? PAGES[tab] : PAGES.home;
   const stopped = Object.values(derived.facilityRuntime).some((r) => r.status === 'no_input' || r.status === 'storage_full' || r.status === 'no_power' || r.status === 'depleted');

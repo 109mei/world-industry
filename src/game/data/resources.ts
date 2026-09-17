@@ -43,7 +43,7 @@ export const RESOURCES = [
   { id: 'tool', name: '工具', nameEn: 'Tools', category: 'product', basePrice: 150, weight: 0.01, icon: 'icon_tool_wrench', sellable: true, liquidity: 80, description: '鉄と木から作る製品。序盤の主力商品。' },
   // ---- 土地・電力・物流以降で使う資源 ----
   { id: 'copper_ore', name: '銅鉱石', nameEn: 'Copper Ore', category: 'ore', basePrice: 18, weight: 0.05, icon: 'icon_resource_copper_ore', sellable: true, liquidity: 1200, description: '銅の原料。土地の鉱脈から採掘する。' },
-  { id: 'crude_oil', name: '原油', nameEn: 'Crude Oil', category: 'ore', basePrice: 25, weight: 0.03, icon: 'icon_resource_crude_oil', sellable: true, liquidity: 2000, description: '油田から汲み上げる。精製して燃料にする。パイプラインで運べる。' },
+  { id: 'crude_oil', name: '原油', nameEn: 'Crude Oil', category: 'ore', basePrice: 45, weight: 0.03, icon: 'icon_resource_crude_oil', sellable: true, liquidity: 900, description: '油田から汲み上げる。出る土地はごく限られていて、当たれば大きい。精製して燃料にする。' },
   { id: 'uranium_ore', name: 'ウラン鉱石', nameEn: 'Uranium Ore', category: 'ore', basePrice: 400, weight: 0.05, icon: 'icon_resource_uranium', sellable: true, liquidity: 50, description: '原子力燃料の原料。ごく限られた土地にしかない。' },
   { id: 'wheat', name: '小麦', nameEn: 'Wheat', category: 'raw', basePrice: 6, weight: 0.01, icon: 'icon_resource_wheat', sellable: true, liquidity: 5000, description: '農園で育てる。平原で効率が高い。' },
   { id: 'copper', name: '銅', nameEn: 'Copper', category: 'material', basePrice: 70, weight: 0.05, icon: 'icon_material_copper', sellable: true, liquidity: 300, description: '銅鉱石を精錬した金属。電線や電子部品の材料。' },
@@ -73,6 +73,14 @@ export const RESOURCES = [
   { id: 'furniture', name: '家具', nameEn: 'Furniture', category: 'product', basePrice: 950, weight: 0.2, icon: 'icon_office_chair', sellable: true, liquidity: 150, description: '板材と布から作る家具。住宅やオフィスに売れる。' },
   { id: 'tire', name: 'タイヤ', nameEn: 'Tire', category: 'part', basePrice: 430, weight: 0.08, icon: 'icon_machine_wheel_loader', sellable: true, liquidity: 300, description: 'ゴムと布から作る。自動車に必要。' },
   { id: 'battery', name: 'バッテリー', nameEn: 'Battery', category: 'part', basePrice: 1400, weight: 0.05, icon: 'icon_material_battery', sellable: true, liquidity: 120, description: '電線・プラスチック・化学薬品から作る。電気自動車やロボットに使う。' },
+  // ---- 貴金属・宝石（激レア） ----
+  { id: 'gold_ore', name: '金鉱石', nameEn: 'Gold Ore', category: 'ore', basePrice: 900, weight: 0.05, icon: 'icon_resource_rare_earth', sellable: true, liquidity: 60, description: 'ごくまれにしか出ない鉱石。精錬すると金になる。当たった土地は宝の山。' },
+  { id: 'silver_ore', name: '銀鉱石', nameEn: 'Silver Ore', category: 'ore', basePrice: 220, weight: 0.05, icon: 'icon_resource_nickel', sellable: true, liquidity: 140, description: '金ほどではないが珍しい鉱石。精錬すると銀になる。' },
+  { id: 'rough_gem', name: '宝石の原石', nameEn: 'Rough Gem', category: 'ore', basePrice: 1_800, weight: 0.002, icon: 'icon_resource_gravel', sellable: true, liquidity: 30, description: '磨く前の石。当たり外れが大きく、めったに出ない。' },
+  { id: 'gold', name: '金', nameEn: 'Gold', category: 'material', basePrice: 4_500, weight: 0.02, icon: 'icon_office_coins', sellable: true, liquidity: 40, description: '金鉱石を精錬した貴金属。値崩れしにくく、持っているだけで資産になる。' },
+  { id: 'silver', name: '銀', nameEn: 'Silver', category: 'material', basePrice: 1_100, weight: 0.02, icon: 'icon_material_aluminum', sellable: true, liquidity: 90, description: '銀鉱石を精錬した貴金属。装飾にも電子部品にも使う。' },
+  { id: 'gem', name: '宝石', nameEn: 'Gem', category: 'product', basePrice: 9_000, weight: 0.001, icon: 'icon_resource_gem', sellable: true, liquidity: 20, description: '原石を磨いたもの。宝石店に並べるとブランド価値がそのまま値段になる。' },
+  { id: 'leather', name: '革', nameEn: 'Leather', category: 'material', basePrice: 180, weight: 0.02, icon: 'icon_material_leather', sellable: true, liquidity: 300, description: '布と化学薬品からなめして作る。鞄や靴、家具に使う。' },
 ] as const satisfies readonly ResourceDef[];
 
 export type ResourceId = (typeof RESOURCES)[number]['id'];

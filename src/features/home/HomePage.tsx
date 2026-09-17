@@ -9,12 +9,15 @@ import { formatMW } from '@/utils/names';
 import { CompanyPanel } from '@/features/company/CompanyPanel';
 import { ResourcesPanel } from '@/features/resources/ResourcesPanel';
 import { SalesPanel } from '@/features/sales/SalesPanel';
+import { BusinessPanel } from '@/features/business/BusinessPanel';
 import { AutomationCard } from './AutomationCard';
+import { DebtWarning } from './DebtWarning';
 import { HqSetupCard } from './HqSetupCard';
 import { EventBanner } from './EventBanner';
 import { EventList } from './EventList';
 import { GatherPanel } from './GatherPanel';
 import { HighlightsCard } from './HighlightsCard';
+import { TrendCard } from './TrendCard';
 import { KeyResources } from './KeyResources';
 import { NextGoals } from './NextGoals';
 import { TutorialCard } from './TutorialCard';
@@ -36,6 +39,7 @@ export function HomePage() {
           {(derived.power.capacity > 0 || derived.power.demand > 0) && (
             <Stat label="電力" value={`${formatMW(derived.power.generation)} / ${formatMW(derived.power.capacity)}`} tone={derived.power.ratio >= 0.999 ? 'power' : 'loss'} extra={`供給率 ${formatPercent(derived.power.ratio)}`} />
           )}
+          {derived.wageCost > 0 && <Stat label="人件費 /秒" value={formatMoneyRate(-derived.wageCost, mode)} tone="loss" extra={`従業員 ${formatNumber(derived.employees, mode)}人`} />}
           {state.lands.length > 1 && <Stat label="土地" value={`${state.lands.length - 1}か所`} extra={derived.transportCost > 0 ? `輸送費 ${formatMoney(derived.transportCost, mode)}/秒` : undefined} />}
           {state.contracts.credit > 0 && <Stat label="信用ランク" value={derived.creditRank} tone="research" extra={`信用 ${formatNumber(state.contracts.credit, mode)}`} />}
           {state.prestige.points > 0 && <Stat label="再出発ボーナス" value={`${state.prestige.points}pt`} tone="research" extra={`生産 ×${(1 + CONFIG.prestige.productionPerPoint * state.prestige.points).toFixed(2)}`} />}
@@ -49,12 +53,15 @@ export function HomePage() {
           { id: 'home', label: 'ホーム' },
           { id: 'resources', label: '資源' },
           { id: 'sales', label: '取引' },
+          { id: 'business', label: '事業' },
           { id: 'company', label: '会社' },
         ]}
         value={sub}
         onChange={setSub}
       />
       )}
+
+      <DebtWarning />
 
       {!state.settings.hqChosen && <HqSetupCard />}
 
@@ -73,6 +80,9 @@ export function HomePage() {
           <div className="section-title">主要資源</div>
           <KeyResources />
 
+          <div className="section-title">会社の動き</div>
+          <TrendCard />
+
           <div className="section-title">ハイライト</div>
           <HighlightsCard />
 
@@ -88,6 +98,7 @@ export function HomePage() {
 
       {sub === 'resources' && <ResourcesPanel />}
       {sub === 'sales' && <SalesPanel />}
+      {sub === 'business' && <BusinessPanel />}
       {sub === 'company' && <CompanyPanel />}
       </>
       )}
