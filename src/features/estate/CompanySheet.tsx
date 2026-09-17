@@ -24,6 +24,8 @@ export function CompanySheet() {
   const openCompany = useUiStore((s) => s.openCompany);
   const openProperty = useUiStore((s) => s.openProperty);
   const flyTo = useUiStore((s) => s.flyTo);
+  const setMapSubTab = useUiStore((s) => s.setMapSubTab);
+  const setTab = useUiStore((s) => s.setTab);
   const { state, derived, engine } = useGame();
   const [qty, setQty] = useState(100);
   const [confirmDissolve, setConfirmDissolve] = useState(false);
@@ -254,7 +256,8 @@ export function CompanySheet() {
           size="sm"
           onClick={() => {
             close();
-            engine.updateSettings({ estateView: 'map' });
+            setMapSubTab('map');
+            setTab('map');
             bumpGame();
             flyTo(def.lat, def.lon, 11);
           }}

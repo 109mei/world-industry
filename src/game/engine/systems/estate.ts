@@ -7,6 +7,7 @@ import type { GameState, LandState } from '@/types/state';
 import type { EngineContext, Rng } from '../context';
 import { createInitialEstate } from '../state/createInitialState';
 import { creditRankDef } from './contracts';
+import { customEstateValue, customProperties, customRentTotal } from './customEstate';
 
 /** 標準正規乱数（Box–Muller） */
 export function randn(rng: Rng): number {
@@ -53,17 +54,19 @@ export function companyProperties(state: GameState, companyId: string): string[]
     .map(([p]) => p);
 }
 
-/** プレイヤーの不動産の評価額（円） */
+/** プレイヤーの不動産の評価額（円）。地図で買った実在の場所も含む */
 export function estateValue(state: GameState): number {
   let v = 0;
   for (const id of Object.keys(state.estate.owned)) v += propertyPrice(state, id);
+  v += customEstateValue(state);
   return v;
 }
 
-/** プレイヤーの賃料収入（円/秒） */
+/** プレイヤーの賃料収入（円/秒）。地図で買った実在の場所も含む */
 export function rentPerSec(state: GameState): number {
   let r = 0;
   for (const id of Object.keys(state.estate.owned)) r += propertyRentPerSec(state, id);
+  r += customRentTotal(state);
   return r;
 }
 
@@ -126,6 +129,7 @@ export function runEstate(ctx: EngineContext, dt: number): { rent: number } {
   for (const id of Object.keys(state.estate.owned)) {
     if (isPropertyId(id)) countries.add(CITY_MAP[PROPERTY_MAP[id].city].country);
   }
+  for (const cp of customProperties(state)) countries.add(cp.country);
   derived.estateCountries = countries.size;
   return { rent };
 }

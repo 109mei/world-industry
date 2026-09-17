@@ -1,4 +1,5 @@
 import { GAME_META } from '@/game/data/meta';
+import { addCustomLand } from '../systems/customEstate';
 import { addPropertyLand } from '../systems/estate';
 import type { GameState, LandState } from '@/types/state';
 import { createHqLand, createInitialCompanyStock, createInitialContracts, createInitialEstate, createInitialPrestige, createInitialState, createInitialStocks } from './createInitialState';
@@ -79,6 +80,13 @@ const MIGRATIONS: Record<number, Migration> = {
     delete stats.autoCrafted;
     return { ...d, saveVersion: 6, stats };
   },
+  // v6 → v7: 地図から買う「実在の場所」（OSM の建物・区画）を追加
+  6: (data) => {
+    const d = data as Partial<GameState> & Record<string, unknown>;
+    const estate = { ...((d.estate ?? {}) as Record<string, unknown>) };
+    if (!estate.custom) estate.custom = {};
+    return { ...data, saveVersion: 7, estate };
+  },
 };
 
 export function migrateSave(raw: unknown): GameState {
@@ -104,7 +112,7 @@ function fixEstate(e: Partial<GameState['estate']> | undefined): GameState['esta
   // 会社所有の物件: 保存されていればそれを使い、なければ初期値。プレイヤーが持っている物件は会社所有から外す
   const companyOwned = { ...(e.companyOwned ?? base.companyOwned) };
   for (const id of Object.keys(owned)) delete companyOwned[id];
-  return { ...base, ...e, owned, cityMult: { ...base.cityMult, ...(e.cityMult ?? {}) }, companyOwned, nextUpdateIn: typeof e.nextUpdateIn === 'number' ? e.nextUpdateIn : base.nextUpdateIn };
+  return { ...base, ...e, owned, custom: { ...(e.custom ?? {}) }, cityMult: { ...base.cityMult, ...(e.cityMult ?? {}) }, companyOwned, nextUpdateIn: typeof e.nextUpdateIn === 'number' ? e.nextUpdateIn : base.nextUpdateIn };
 }
 
 function fixStocks(s: Partial<GameState['stocks']> | undefined): GameState['stocks'] {
@@ -182,6 +190,10 @@ export function fillDefaults(data: Record<string, unknown>): GameState {
   // 買った物件は「施設を建てられる土地」として扱う（古いセーブにも足す）
   for (const propertyId of Object.keys(result.estate.owned)) {
     addPropertyLand(result, propertyId, result.estate.owned[propertyId].boughtAt ?? 0);
+  }
+  // 地図から買った実在の場所も同じように土地として扱う
+  for (const cp of Object.values(result.estate.custom ?? {})) {
+    addCustomLand(result, cp);
   }
   return result;
 }

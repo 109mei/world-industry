@@ -1657,3 +1657,16 @@ textarea.input {
   color: var(--text);
   border-color: var(--border-strong);
 }
+
+/* 地図: 実在の建物（OpenStreetMap）の凡例 */
+.rm-osm-legend {
+  display: inline-block;
+  width: 14px;
+  height: 10px;
+  border: 1.5px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  border-radius: 2px;
+}
+.rm-osm {
+  cursor: pointer;
+}

@@ -1,3 +1,4 @@
+import type { PropertyKind } from '@/game/data/properties';
 import type { CompanyPolicy } from '@/game/data/companies';
 import type { ResourceId } from '@/game/data/resources';
 import type { TerrainId } from '@/game/data/terrain';
@@ -173,6 +174,8 @@ export interface LandState {
   deposits: Partial<Record<ResourceId, DepositState>>;
   /** その土地の倉庫（本社は state.inventory を使うので空） */
   stock: Partial<Record<ResourceId, number>>;
+  /** 人口・交通量の係数（商業施設の収入に掛かる）。地図で買った建物はここに入る */
+  population?: number;
 }
 
 export interface ResearchState {
@@ -215,9 +218,38 @@ export interface OwnedProperty {
   boughtPrice: number;
 }
 
+/** 地図から買った実在の場所（建物・区画）。名前はもじった架空名で、実名は持たない */
+export interface CustomProperty {
+  /** OSM の ID（'w123456'） */
+  id: string;
+  /** 表示名（架空） */
+  name: string;
+  /** 用途のラベル（コンビニ・住宅・工場など） */
+  label: string;
+  kind: PropertyKind;
+  lat: number;
+  lon: number;
+  /** 敷地・建物の面積（㎡） */
+  areaSqm: number;
+  levels: number;
+  /** 買ったときの土地の単価（円/㎡） */
+  unitPrice: number;
+  /** 地価倍率を掛ける前の評価額（円） */
+  basePrice: number;
+  /** 価格が連動する都市 */
+  cityId: string;
+  /** 表示用の場所（「福岡・飯塚の近く」など） */
+  regionLabel: string;
+  country: string;
+  boughtAt: number;
+  boughtPrice: number;
+}
+
 export interface EstateState {
   /** 物件ID → 所有情報 */
   owned: Record<string, OwnedProperty>;
+  /** 地図から買った実在の場所（OSM の ID → 情報） */
+  custom?: Record<string, CustomProperty>;
   /** 都市ID → 地価の倍率（基準価格に掛かる） */
   cityMult: Record<string, number>;
   /** 会社が持っている物件（物件ID → 会社ID）。買収・解体で外れる */

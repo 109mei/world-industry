@@ -12,7 +12,9 @@ import { useUiStore } from '@/stores/uiStore';
 import { formatMoney, formatMoneyRate, formatNumber } from '@/utils/format';
 import { CompanySheet } from '@/features/estate/CompanySheet';
 import { PropertyList } from '@/features/estate/PropertyList';
+import { CustomPropertyList } from '@/features/estate/CustomPropertyList';
 import { PropertySheet } from '@/features/estate/PropertySheet';
+import { FeatureSheet } from '@/features/estate/FeatureSheet';
 import { StockList } from '@/features/estate/StockList';
 import { LandCard } from '@/features/land/LandCard';
 import { LandDetailSheet } from '@/features/land/LandDetailSheet';
@@ -82,6 +84,7 @@ export function MapPage() {
 
   const owned = state.lands.length - 1;
   const ownedProps = Object.keys(state.estate.owned).length;
+  const ownedCustom = Object.keys(state.estate.custom ?? {}).length;
   const holdings = Object.values(state.stocks.companies).filter((c) => c.playerShares > 0).length;
   const defs = LANDS as readonly LandDef[];
   const byCountry = COUNTRY_ORDER.map((c) => ({ c, lands: defs.filter((l) => l.country === c) })).filter((g) => g.lands.length > 0);
@@ -95,7 +98,7 @@ export function MapPage() {
         <div className="stat-grid stat-grid--4">
           <Stat label="所有する土地" value={`${formatNumber(owned, mode)}か所`} extra={`${new Set(state.lands.map((l) => l.country)).size}か国`} />
           <Stat label="輸送費 /秒" value={formatMoneyRate(-derived.transportCost, mode)} tone={derived.transportCost > 0 ? 'loss' : 'default'} />
-          <Stat label="不動産" value={formatMoney(derived.estateValue, mode)} extra={`${ownedProps}件・賃料 ${formatMoneyRate(derived.rentPerSec, mode)}`} />
+          <Stat label="不動産" value={formatMoney(derived.estateValue, mode)} extra={`${ownedProps + ownedCustom}件（地図で買った場所 ${ownedCustom}）・賃料 ${formatMoneyRate(derived.rentPerSec, mode)}`} />
           <Stat label="株式" value={formatMoney(derived.stockValue, mode)} extra={`${holdings}社・配当 ${formatMoneyRate(derived.dividendPerSec, mode)}`} />
           <Stat label="所持金" value={formatMoney(state.company.cash, mode)} />
           <Stat label="総資産" value={formatMoney(derived.assets, mode)} />
@@ -128,7 +131,7 @@ export function MapPage() {
             <RealMap />
           </Suspense>
           <p className="text-sub" style={{ fontSize: 12 }}>
-            ピンをタップすると詳細が開きます。産業用地は施設を建てられる土地、そのほかは賃料が入る物件です。
+            ピンをタップすると詳細が開きます。産業用地は施設を建てられる土地、そのほかは賃料が入る物件です。地図をさらに拡大すると、実在の建物（OpenStreetMap のデータ）が表示され、その場所を買えます。
           </p>
         </>
       )}
@@ -143,13 +146,19 @@ export function MapPage() {
             </div>
           </div>
         ))}
-      {sub === 'properties' && estateUnlocked && <PropertyList />}
+      {sub === 'properties' && estateUnlocked && (
+        <>
+          <CustomPropertyList />
+          <PropertyList />
+        </>
+      )}
       {sub === 'stocks' && estateUnlocked && <StockList />}
       <p className="text-dim" style={{ fontSize: 12 }}>
         物件・会社は架空です。場所と価格の水準だけ実在を参考にしています。
       </p>
       <LandDetailSheet />
       <PropertySheet />
+      <FeatureSheet />
       <CompanySheet />
     </div>
   );

@@ -18,7 +18,7 @@ export function createInitialEstate(): EstateState {
   for (const c of CITIES) cityMult[c.id] = 1;
   const companyOwned: Record<string, string> = {};
   for (const c of COMPANIES) for (const p of c.properties) companyOwned[p] = c.id;
-  return { owned: {}, cityMult, companyOwned, nextUpdateIn: CONFIG.estate.updateSeconds };
+  return { owned: {}, custom: {}, cityMult, companyOwned, nextUpdateIn: CONFIG.estate.updateSeconds };
 }
 
 export function createInitialCompanyStock(): CompanyStockState {

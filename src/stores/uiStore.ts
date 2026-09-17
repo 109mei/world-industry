@@ -1,3 +1,4 @@
+import type { OsmFeature } from '@/game/services/osm/overpass';
 import { create } from 'zustand';
 import type { RecipeCategory } from '@/game/data/recipes';
 import type { ResourceId } from '@/game/data/resources';
@@ -59,6 +60,9 @@ interface UiStore {
   /** ESTATE 画面で開いている物件 */
   selectedProperty: string | null;
   openProperty: (id: string | null) => void;
+  /** 地図で開いている「実在の場所」（OSM の建物・区画） */
+  selectedFeature: OsmFeature | null;
+  openFeature: (f: OsmFeature | null) => void;
   /** ESTATE 画面で開いている会社 */
   selectedCompany: string | null;
   openCompany: (id: string | null) => void;
@@ -109,6 +113,8 @@ export const useUiStore = create<UiStore>((set) => ({
   shiftAchievement: () => set((s) => ({ achievementQueue: s.achievementQueue.slice(1) })),
   selectedProperty: null,
   openProperty: (selectedProperty) => set({ selectedProperty }),
+  selectedFeature: null,
+  openFeature: (selectedFeature) => set({ selectedFeature }),
   selectedCompany: null,
   openCompany: (selectedCompany) => set({ selectedCompany }),
   estateFilter: 'all',

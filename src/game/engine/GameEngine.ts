@@ -18,6 +18,8 @@ import { createEmptyDerived, createInitialState } from './state/createInitialSta
 import { runCompanyMetrics } from './systems/company';
 import { creditRankDef, declineContract, deliverContract, runContracts } from './systems/contracts';
 import { buyProperty, isEstateUnlocked, runEstate, sellProperty } from './systems/estate';
+import { buyCustomProperty, sellCustomProperty } from './systems/customEstate';
+import type { OsmFeature } from '@/game/services/osm/overpass';
 import { computeEventMods, runEvents, triggerEvent } from './systems/events';
 import { runLogistics } from './systems/logistics';
 import { runAutoSell, runMarket, sellResource } from './systems/market';
@@ -299,6 +301,23 @@ export class GameEngine {
 
   sellProperty(id: string): number {
     const got = sellProperty(this.ctx, id);
+    if (got > 0) this.refreshDerived();
+    return got;
+  }
+
+  /** 地図で見つけた実在の場所を買う */
+  buyCustomProperty(feature: OsmFeature): boolean {
+    const ok = buyCustomProperty(this.ctx, feature);
+    if (ok) {
+      this.refreshDerived();
+      runAchievements(this.ctx);
+    }
+    return ok;
+  }
+
+  /** 地図で買った場所を売る */
+  sellCustomProperty(id: string): number {
+    const got = sellCustomProperty(this.ctx, id);
     if (got > 0) this.refreshDerived();
     return got;
   }

@@ -27,6 +27,7 @@ export function PropertySheet() {
   const openCompany = useUiStore((s) => s.openCompany);
   const flyTo = useUiStore((s) => s.flyTo);
   const setFactoryLand = useUiStore((s) => s.setFactoryLand);
+  const setMapSubTab = useUiStore((s) => s.setMapSubTab);
   const setTab = useUiStore((s) => s.setTab);
   const { state, engine } = useGame();
   const mode = state.settings.numberFormat;
@@ -166,9 +167,9 @@ export function PropertySheet() {
             size="sm"
             onClick={() => {
               close();
-              engine.updateSettings({ estateView: 'map' });
-              bumpGame();
-              flyTo(def.lat, def.lon, 14);
+              setMapSubTab('map');
+              setTab('map');
+              flyTo(def.lat, def.lon, 16);
             }}
           >
             地図で見る

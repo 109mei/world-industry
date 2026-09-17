@@ -20,6 +20,7 @@ export function ownedLands(state: GameState): LandState[] {
 
 /** 土地の人口係数（商業施設の収益に掛かる） */
 export function landPopulation(land: LandState): number {
+  if (typeof land.population === 'number') return land.population;
   if (isHq(land.id)) return HQ_POPULATION;
   if (isLandDefId(land.id)) return LAND_MAP[land.id].population;
   const propertyId = landPropertyId(land.id);
