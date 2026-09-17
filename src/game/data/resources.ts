@@ -46,6 +46,14 @@ export const RESOURCES = [
   { id: 'nuclear_fuel', name: '核燃料', nameEn: 'Nuclear Fuel', category: 'material', basePrice: 20000, weight: 0.01, icon: 'icon_grid_fuel_cell', sellable: false, liquidity: 5, description: 'ウラン鉱石を濃縮した燃料。原子力発電所で使う。' },
   { id: 'electronics', name: '電子部品', nameEn: 'Electronics', category: 'part', basePrice: 900, weight: 0.005, icon: 'icon_material_electronics', sellable: true, liquidity: 40, description: '銅と鋼鉄から作る高付加価値の部品。' },
   { id: 'flour', name: '小麦粉', nameEn: 'Flour', category: 'product', basePrice: 15, weight: 0.01, icon: 'icon_food_flour', sellable: true, liquidity: 3000, description: '小麦を製粉した食品。安定して売れる。' },
+  // ---- 巨大産業（自動車・半導体・ロボット） ----
+  { id: 'rubber', name: 'ゴム', nameEn: 'Rubber', category: 'raw', basePrice: 20, weight: 0.01, icon: 'icon_resource_rubber', sellable: true, liquidity: 800, description: 'ゴム農園で採れる。タイヤなど自動車の材料。森林の土地で効率が高い。' },
+  { id: 'glass', name: 'ガラス', nameEn: 'Glass', category: 'material', basePrice: 45, weight: 0.03, icon: 'icon_material_glass', sellable: true, liquidity: 400, description: '砂と石炭から作る。窓や自動車の材料。' },
+  { id: 'plastic', name: 'プラスチック', nameEn: 'Plastic', category: 'material', basePrice: 80, weight: 0.01, icon: 'icon_material_plastic', sellable: true, liquidity: 400, description: '原油から作る素材。自動車や家電の材料。' },
+  { id: 'silicon', name: 'シリコンウエハー', nameEn: 'Silicon Wafer', category: 'material', basePrice: 600, weight: 0.005, icon: 'icon_material_silicon_wafer', sellable: true, liquidity: 60, description: '砂から精製した高純度シリコンの円板。半導体の材料。' },
+  { id: 'semiconductor', name: '半導体', nameEn: 'Semiconductor', category: 'part', basePrice: 8000, weight: 0.001, icon: 'icon_material_semiconductor', sellable: true, liquidity: 20, description: 'シリコンウエハーと銅から作る最先端の部品。非常に高価。' },
+  { id: 'car', name: '自動車', nameEn: 'Car', category: 'product', basePrice: 30000, weight: 1.5, icon: 'icon_logistics_van', sellable: true, liquidity: 5, description: '鋼鉄・プラスチック・ゴム・ガラス・電子部品を組み立てた製品。重いので輸送費がかかる。' },
+  { id: 'robot', name: '産業ロボット', nameEn: 'Industrial Robot', category: 'product', basePrice: 80000, weight: 0.5, icon: 'icon_part_robot_arm', sellable: true, liquidity: 3, description: '半導体と機械部品から作る最高級の製品。' },
 ] as const satisfies readonly ResourceDef[];
 
 export type ResourceId = (typeof RESOURCES)[number]['id'];

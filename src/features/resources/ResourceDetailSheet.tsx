@@ -6,10 +6,11 @@ import { Sheet } from '@/components/ui/Sheet';
 import { Sparkline } from '@/components/ui/Sparkline';
 import { Stat } from '@/components/ui/Stat';
 import { RESOURCE_CATEGORY_LABEL, RESOURCE_MAP } from '@/game/data/resources';
-import { currentPrice, getMarketState } from '@/game/engine/systems/market';
+import { currentPrice, demandFactor, eventPriceMultiplier, getMarketState, sellRevenue } from '@/game/engine/systems/market';
 import { bumpGame, useGame } from '@/stores/gameStore';
 import { useUiStore } from '@/stores/uiStore';
-import { formatAmount, formatMoney, formatNumber, formatRate } from '@/utils/format';
+import { formatAmount, formatMoney, formatNumber, formatPercent, formatRate } from '@/utils/format';
+import { sfx } from '@/utils/sfx';
 
 /** 資源の詳細と売却操作 */
 export function ResourceDetailSheet() {
@@ -35,9 +36,12 @@ export function ResourceDetailSheet() {
   const prod = derived.production[id] ?? 0;
   const cons = derived.consumption[id] ?? 0;
   const modifier = market.modifier;
+  const demand = demandFactor(state, id);
+  const eventMult = eventPriceMultiplier(state, id);
+  const allRevenue = sellRevenue(state, id, Math.floor(amount));
 
   const sell = (n: number | 'all') => {
-    engine.sell(id, n);
+    if (engine.sell(id, n) > 0) sfx('sell');
     bumpGame();
   };
   const applyAuto = (enabled: boolean) => {
@@ -67,10 +71,17 @@ export function ResourceDetailSheet() {
       {def.sellable && (
         <div className="sheet__section">
           <div className="section-title">市場</div>
-          <div className="stat-grid stat-grid--3" style={{ marginTop: 8 }}>
+          <div className="stat-grid stat-grid--4" style={{ marginTop: 8 }}>
             <Stat label="現在価格" value={formatMoney(price, 'full')} extra={`基準 ${formatMoney(def.basePrice, 'full')}`} />
-            <Stat label="価格係数" value={`×${modifier.toFixed(2)}`} tone={modifier >= 1.05 ? 'profit' : modifier <= 0.95 ? 'loss' : 'default'} extra={`${modifier - 1 >= 0 ? '+' : ''}${((modifier - 1) * 100).toFixed(0)}%`} />
-            <Stat label="全部売ると" value={formatMoney(price * Math.floor(amount), mode)} />
+            <Stat label="相場" value={`×${(modifier * eventMult).toFixed(2)}`} tone={modifier * eventMult >= 1.05 ? 'profit' : modifier * eventMult <= 0.95 ? 'loss' : 'default'} extra={eventMult !== 1 ? `イベント ×${eventMult.toFixed(1)}` : `${modifier - 1 >= 0 ? '+' : ''}${((modifier - 1) * 100).toFixed(0)}%`} />
+            <Stat label="需要" value={formatPercent(demand)} tone={demand >= 0.9 ? 'profit' : demand >= 0.6 ? 'warn' : 'loss'} extra={demand >= 0.9 ? '値崩れなし' : demand >= 0.6 ? 'やや飽和' : '飽和中'} />
+            <Stat label="全部売ると" value={formatMoney(allRevenue, mode)} extra={amount >= 1 ? `平均 ${formatMoney(allRevenue / Math.floor(amount), 'full')}/個` : undefined} />
+          </div>
+          <div style={{ marginTop: 6 }}>
+            <ProgressBar ratio={demand} tone={demand >= 0.9 ? 'profit' : demand >= 0.6 ? 'warn' : 'loss'} label="需要" />
+            <div className="text-sub" style={{ fontSize: 11, marginTop: 3 }}>
+              売るほど需要が飽和して価格が下がり、時間で回復します（大量に売るときは分けて売ると有利）。
+            </div>
           </div>
           <Sparkline values={market.history.slice(-40)} tone={modifier >= 1 ? 'profit' : 'loss'} />
           <div className="btn-row" style={{ marginTop: 8 }}>

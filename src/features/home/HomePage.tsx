@@ -3,6 +3,7 @@ import { Stat } from '@/components/ui/Stat';
 import { useGame } from '@/stores/gameStore';
 import { formatMoney, formatMoneyRate, formatNumber, formatPercent } from '@/utils/format';
 import { formatMW } from '@/utils/names';
+import { EventBanner } from './EventBanner';
 import { EventList } from './EventList';
 import { GatherPanel } from './GatherPanel';
 import { KeyResources } from './KeyResources';
@@ -26,6 +27,8 @@ export function HomePage() {
           {state.lands.length > 1 && <Stat label="土地" value={`${state.lands.length - 1}か所`} extra={derived.transportCost > 0 ? `輸送費 ${formatMoney(derived.transportCost, mode)}/秒` : undefined} />}
         </div>
       </Card>
+
+      <EventBanner />
 
       <TutorialCard />
 

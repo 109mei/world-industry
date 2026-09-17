@@ -54,6 +54,15 @@ export function DebugPanel() {
           <Button size="sm" onClick={() => (engine.advance(8 * 3600), after())}>
             +8時間経過
           </Button>
+          <Button size="sm" onClick={() => (engine.debugTriggerEvent(), after())}>
+            イベント発生
+          </Button>
+          <Button size="sm" onClick={() => (engine.debugTriggerEvent('quake'), after())}>
+            地震
+          </Button>
+          <Button size="sm" onClick={() => (engine.debugTriggerEvent('boom'), after())}>
+            相場高騰
+          </Button>
           <Button
             size="sm"
             onClick={() => {

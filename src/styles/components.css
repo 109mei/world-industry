@@ -594,6 +594,11 @@
   border-color: rgba(164, 123, 255, 0.5);
   color: var(--research);
 }
+.toast--event {
+  border-color: rgba(233, 185, 73, 0.7);
+  background: linear-gradient(90deg, rgba(233, 185, 73, 0.16), var(--card-2));
+  color: var(--text);
+}
 
 @media (min-width: 1024px) {
   .toasts {
@@ -699,6 +704,10 @@ textarea.input {
 .event--achievement {
   color: var(--research);
 }
+.event--event {
+  color: var(--warn);
+  font-weight: 600;
+}
 
 /* ---------- 材料表示 ---------- */
 .ingredients {
@@ -803,4 +812,424 @@ textarea.input {
   .debug-fab {
     bottom: 16px;
   }
+}
+
+/* ---------- 進行中のイベント ---------- */
+.event-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.event-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: var(--card);
+  border: 1px solid var(--border-strong);
+  border-left-width: 4px;
+}
+.event-card--profit {
+  border-left-color: var(--profit);
+}
+.event-card--loss {
+  border-left-color: var(--loss);
+}
+.event-card--warn {
+  border-left-color: var(--warn);
+}
+.event-card--research {
+  border-left-color: var(--research);
+}
+.event-card--power {
+  border-left-color: var(--power);
+}
+.event-card__title {
+  font-weight: 700;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.event-card__target {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-sub);
+  background: var(--card-2);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+.event-card__desc {
+  font-size: 12px;
+  color: var(--text-sub);
+  margin: 2px 0 6px;
+}
+.event-card__time {
+  font-size: 12px;
+  color: var(--text-sub);
+  flex: none;
+  min-width: 44px;
+  text-align: right;
+}
+.event-banner--compact .event-card {
+  padding: 6px 10px;
+}
+
+/* ---------- 実績解除の演出 ---------- */
+.achievement-pop {
+  position: fixed;
+  top: calc(var(--header-h) + 10px + env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 70;
+  width: min(92vw, 440px);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #2a2340, #171c24 60%);
+  border: 1px solid rgba(164, 123, 255, 0.6);
+  box-shadow: 0 10px 40px rgba(164, 123, 255, 0.25), var(--shadow);
+  overflow: hidden;
+  cursor: pointer;
+  animation: achievement-in 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.2), achievement-out 0.4s ease-in 3.8s forwards;
+}
+.achievement-pop__shine {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, 0.18) 50%, transparent 70%);
+  transform: translateX(-100%);
+  animation: achievement-shine 1.4s ease-out 0.4s 2;
+  pointer-events: none;
+}
+.achievement-pop__trophy {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle, rgba(233, 185, 73, 0.35), rgba(233, 185, 73, 0.05));
+  animation: achievement-bounce 0.9s ease-in-out 0.3s 2;
+}
+.achievement-pop__body {
+  flex: 1;
+  min-width: 0;
+}
+.achievement-pop__label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--research);
+}
+.achievement-pop__name {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--text);
+}
+.achievement-pop__desc {
+  font-size: 12px;
+  color: var(--text-sub);
+}
+.achievement-pop__icon {
+  flex: none;
+}
+@keyframes achievement-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-24px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+}
+@keyframes achievement-out {
+  to {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-12px);
+  }
+}
+@keyframes achievement-shine {
+  to {
+    transform: translateX(100%);
+  }
+}
+@keyframes achievement-bounce {
+  0%,
+  100% {
+    transform: scale(1) rotate(0);
+  }
+  50% {
+    transform: scale(1.15) rotate(-8deg);
+  }
+}
+@media (min-width: 1024px) {
+  .achievement-pop {
+    top: 16px;
+    left: auto;
+    right: 16px;
+    transform: none;
+  }
+  @keyframes achievement-in {
+    from {
+      opacity: 0;
+      transform: translateY(-24px) scale(0.9);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+  @keyframes achievement-out {
+    to {
+      opacity: 0;
+      transform: translateY(-12px);
+    }
+  }
+}
+.achievement-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--card);
+  opacity: 0.6;
+}
+.achievement-row--done {
+  opacity: 1;
+  border-color: rgba(164, 123, 255, 0.45);
+  background: linear-gradient(90deg, rgba(164, 123, 255, 0.12), var(--card) 55%);
+}
+.achievement-row__icon {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--card-2);
+}
+.achievement-row__icon--done {
+  background: radial-gradient(circle, rgba(233, 185, 73, 0.35), rgba(233, 185, 73, 0.06));
+  box-shadow: 0 0 0 2px rgba(233, 185, 73, 0.35);
+}
+
+/* ---------- 世界地図 ---------- */
+.map {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px;
+}
+.map__stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 875 / 345;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.map__svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.map__sea {
+  fill: #0b1a2c;
+}
+.map__land {
+  fill: #223244;
+  stroke: #34506b;
+  stroke-width: 0.8;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+.map__sea-fill {
+  fill: #0b1a2c;
+}
+.map__route {
+  stroke: rgba(94, 167, 255, 0.55);
+  stroke-width: 1.2;
+  stroke-dasharray: 4 3;
+}
+.map__leader {
+  stroke: rgba(242, 244, 247, 0.5);
+  stroke-width: 1;
+}
+.map__hq {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+.map__hq-box {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  background: var(--power);
+  border: 1.5px solid #fff;
+  box-shadow: 0 0 0 3px rgba(94, 167, 255, 0.25);
+}
+.map__marker {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  -webkit-tap-highlight-color: transparent;
+}
+.map__marker:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 1px;
+}
+.map__dot {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+  transition: transform 0.15s;
+}
+.map__marker:hover .map__dot,
+.map__marker:focus-visible .map__dot {
+  transform: scale(1.25);
+}
+.map__marker--owned .map__dot {
+  background: var(--profit);
+}
+.map__marker--stopped .map__dot {
+  background: var(--warn);
+}
+.map__marker--buyable .map__dot {
+  background: var(--accent);
+}
+.map__marker--unlocked .map__dot {
+  background: #5a6a7e;
+}
+.map__marker--locked .map__dot {
+  background: #3a4452;
+  border-color: #8a94a2;
+}
+.map__pulse {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  animation: map-pulse 1.6s ease-out infinite;
+  pointer-events: none;
+}
+.map__marker--stopped .map__pulse {
+  border-color: var(--warn);
+}
+@keyframes map-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(3);
+    opacity: 0;
+  }
+}
+.map__label {
+  position: absolute;
+  white-space: nowrap;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text);
+  text-shadow: 0 0 3px #0b1a2c, 0 0 3px #0b1a2c, 0 1px 2px #000;
+  pointer-events: none;
+  display: none;
+}
+.map__label--above {
+  top: -3px;
+  left: 50%;
+  transform: translate(-50%, -100%);
+}
+.map__label--below {
+  bottom: -3px;
+  left: 50%;
+  transform: translate(-50%, 100%);
+}
+.map__label--right {
+  left: calc(100% - 5px);
+  top: 50%;
+  transform: translateY(-50%);
+}
+.map__label--left {
+  right: calc(100% - 5px);
+  top: 50%;
+  transform: translateY(-50%);
+}
+.map__marker:hover .map__label,
+.map__marker:focus-visible .map__label {
+  display: block;
+  z-index: 2;
+}
+.map__marker:hover,
+.map__marker:focus-visible {
+  z-index: 3;
+}
+.map__marker--locked .map__label {
+  color: var(--text-dim);
+}
+@media (min-width: 640px) {
+  .map__label {
+    display: block;
+  }
+}
+.map__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--text-sub);
+}
+.map__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.map__legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1.5px solid #fff;
+  display: inline-block;
+}
+.map__legend-dot--hq {
+  border-radius: 3px;
+  background: var(--power);
+}
+.map__legend-dot--owned {
+  background: var(--profit);
+}
+.map__legend-dot--stopped {
+  background: var(--warn);
+}
+.map__legend-dot--buyable {
+  background: var(--accent);
+}
+.map__legend-dot--unlocked {
+  background: #5a6a7e;
+}
+.map__legend-dot--locked {
+  background: #3a4452;
+  border-color: #8a94a2;
 }

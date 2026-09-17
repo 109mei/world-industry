@@ -2,10 +2,11 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Icon } from '@/components/ui/Icon';
 import { RESOURCES, type ResourceId } from '@/game/data/resources';
-import { currentPrice, getMarketState } from '@/game/engine/systems/market';
+import { currentPrice, demandFactor, eventPriceMultiplier, getMarketState } from '@/game/engine/systems/market';
 import { bumpGame, useGame } from '@/stores/gameStore';
 import { useUiStore } from '@/stores/uiStore';
-import { formatAmount, formatMoney } from '@/utils/format';
+import { formatAmount, formatMoney, formatPercent } from '@/utils/format';
+import { sfx } from '@/utils/sfx';
 
 /** 市場の一覧（価格・変動・所持量・売却） */
 export function MarketPanel() {
@@ -16,7 +17,7 @@ export function MarketPanel() {
   return (
     <Card>
       <p className="text-sub" style={{ fontSize: 12, marginBottom: 8 }}>
-        価格は基準価格の 0.70〜1.40 倍で変動します（{Math.round(state.market.nextUpdateIn)}秒後に更新）。売るほど価格は下がり、時間で戻ります。
+        価格は基準価格の 0.70〜1.40 倍で変動します（{Math.round(state.market.nextUpdateIn)}秒後に更新）。売るほど需要が飽和して価格が下がり、時間で回復します。相場高騰などのイベント中は価格が大きく変わります。
       </p>
       <div className="table-wrap">
         <table className="table">
@@ -24,7 +25,8 @@ export function MarketPanel() {
             <tr>
               <th>資源</th>
               <th>価格</th>
-              <th>変動</th>
+              <th className="hide-sm">相場</th>
+              <th>需要</th>
               <th>所持</th>
               <th></th>
             </tr>
@@ -33,7 +35,8 @@ export function MarketPanel() {
             {rows.map((r) => {
               const id = r.id as ResourceId;
               const price = currentPrice(state, id);
-              const m = getMarketState(state, id).modifier;
+              const m = getMarketState(state, id).modifier * eventPriceMultiplier(state, id);
+              const demand = demandFactor(state, id);
               const amount = Math.floor(state.inventory[id] ?? 0);
               const diff = m - 1;
               return (
@@ -45,10 +48,11 @@ export function MarketPanel() {
                     </button>
                   </td>
                   <td>{formatMoney(price, 'full')}</td>
-                  <td className={diff > 0.02 ? 'text-profit' : diff < -0.02 ? 'text-loss' : 'text-sub'}>
+                  <td className={`hide-sm ${diff > 0.02 ? 'text-profit' : diff < -0.02 ? 'text-loss' : 'text-sub'}`}>
                     {diff >= 0 ? '+' : ''}
                     {(diff * 100).toFixed(0)}%
                   </td>
+                  <td className={demand >= 0.9 ? 'text-profit' : demand >= 0.6 ? 'text-warn' : 'text-loss'}>{formatPercent(demand)}</td>
                   <td>{formatAmount(amount, mode)}</td>
                   <td>
                     <Button
@@ -56,7 +60,7 @@ export function MarketPanel() {
                       size="sm"
                       disabled={amount < 1}
                       onClick={() => {
-                        engine.sell(id, 'all');
+                        if (engine.sell(id, 'all') > 0) sfx('sell');
                         bumpGame();
                       }}
                     >

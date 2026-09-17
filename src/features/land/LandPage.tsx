@@ -1,14 +1,16 @@
 import { Card } from '@/components/ui/Card';
 import { Icon } from '@/components/ui/Icon';
 import { ProgressBar } from '@/components/ui/ProgressBar';
+import { Segmented } from '@/components/ui/Segmented';
 import { Stat } from '@/components/ui/Stat';
 import { CONFIG } from '@/game/data/config';
 import { COUNTRY_NAME, COUNTRY_ORDER, LANDS, type LandDef } from '@/game/data/lands';
 import { isLandSystemUnlocked } from '@/game/engine/systems/unlocks';
-import { useGame } from '@/stores/gameStore';
+import { bumpGame, useGame } from '@/stores/gameStore';
 import { formatMoney, formatNumber } from '@/utils/format';
 import { LandCard } from './LandCard';
 import { LandDetailSheet } from './LandDetailSheet';
+import { WorldMap } from './WorldMap';
 
 const GUIDE = [
   { icon: 'icon_marker_survey', title: '調査', text: '未調査 → 簡易調査 → 地質調査 → 試掘 → 確定。地質調査で鉱山を建てられ、試掘で採掘 +20%。' },
@@ -17,8 +19,9 @@ const GUIDE = [
 ];
 
 export function LandPage() {
-  const { state, derived } = useGame();
+  const { state, derived, engine } = useGame();
   const mode = state.settings.numberFormat;
+  const view = state.settings.landView ?? 'map';
   const unlocked = isLandSystemUnlocked(state, derived.assets);
   const target = CONFIG.landUnlockAssets;
   const ratio = derived.assets / target;
@@ -85,16 +88,37 @@ export function LandPage() {
           <Stat label="所持金" value={formatMoney(state.company.cash, mode)} />
         </div>
       </Card>
-      {byCountry.map(({ c, lands }) => (
-        <div key={c}>
-          <div className="section-title">{COUNTRY_NAME[c]}</div>
-          <div className="grid grid--2">
-            {lands.map((l) => (
-              <LandCard key={l.id} def={l} />
-            ))}
+      <Segmented
+        ariaLabel="土地の表示"
+        items={[
+          { id: 'map', label: '地図' },
+          { id: 'list', label: 'リスト' },
+        ]}
+        value={view}
+        onChange={(v) => {
+          engine.updateSettings({ landView: v });
+          bumpGame();
+        }}
+      />
+      {view === 'map' ? (
+        <>
+          <WorldMap />
+          <p className="text-sub" style={{ fontSize: 12 }}>
+            マーカーをタップすると詳細が開きます。本社（日本）と所有地は線で結ばれ、点滅しているのは「購入できる土地」か「停止中の施設がある土地」です。
+          </p>
+        </>
+      ) : (
+        byCountry.map(({ c, lands }) => (
+          <div key={c}>
+            <div className="section-title">{COUNTRY_NAME[c]}</div>
+            <div className="grid grid--2">
+              {lands.map((l) => (
+                <LandCard key={l.id} def={l} />
+              ))}
+            </div>
           </div>
-        </div>
-      ))}
+        ))
+      )}
       <p className="text-dim" style={{ fontSize: 12 }}>
         土地データは実在地域を参考にしたゲーム用の値です。現実の数値そのものではありません。
       </p>

@@ -5,6 +5,7 @@ import type { LandRuntime, LandState } from '@/types/state';
 import { addToStock, clean } from '../inventory';
 import type { EngineContext } from '../context';
 import { facilitiesOn, isLiquid, landCapacity, ownedLands, surveyMultiplier, terrainMultiplier } from '../land';
+import { transportEventMultiplier } from './events';
 
 interface Mode {
   capacity: number;
@@ -19,7 +20,8 @@ function transportModes(ctx: EngineContext, land: LandState): Mode[] {
     if (!isFacilityId(inst.typeId) || !inst.enabled || inst.count <= 0) continue;
     const t = FACILITY_MAP[inst.typeId].transport;
     if (!t) continue;
-    modes.push({ capacity: t.capacity * inst.count * mods.transportCapacity, costPerTon: t.costPerTon * mods.transportCost, liquidOnly: !!t.liquidOnly });
+    const eventMult = transportEventMultiplier(ctx.derived.eventMods, land.id, t.kind);
+    modes.push({ capacity: t.capacity * inst.count * mods.transportCapacity * eventMult, costPerTon: t.costPerTon * mods.transportCost, liquidOnly: !!t.liquidOnly });
   }
   // 安い手段から使う
   return modes.sort((a, b) => a.costPerTon - b.costPerTon);
@@ -33,7 +35,7 @@ function localRates(ctx: EngineContext, land: LandState): { use: Partial<Record<
   for (const inst of facilitiesOn(ctx.state, land.id)) {
     if (!isFacilityId(inst.typeId) || !inst.enabled || inst.count <= 0) continue;
     const def = FACILITY_MAP[inst.typeId];
-    const mult = terrainMultiplier(def, land) * surveyMultiplier(def, land) * (mods.production[def.category] ?? 1);
+    const mult = terrainMultiplier(def, land) * surveyMultiplier(def, land) * (mods.production[def.category] ?? 1) * (ctx.derived.eventMods.landProduction[land.id] ?? 1);
     for (const [rid, rate] of Object.entries(def.production?.inputs ?? {}) as [ResourceId, number][]) use[rid] = (use[rid] ?? 0) + rate * inst.count * mult;
     for (const [rid, rate] of Object.entries(def.fuel ?? {}) as [ResourceId, number][]) use[rid] = (use[rid] ?? 0) + rate * inst.count;
     for (const [rid, rate] of Object.entries(def.production?.outputs ?? {}) as [ResourceId, number][]) make[rid] = (make[rid] ?? 0) + rate * inst.count * mult;

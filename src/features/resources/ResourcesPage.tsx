@@ -6,6 +6,7 @@ import { TOOLS, type ToolId } from '@/game/data/tools';
 import { useGame } from '@/stores/gameStore';
 import { useUiStore } from '@/stores/uiStore';
 import { formatAmount } from '@/utils/format';
+import { EventBanner } from '@/features/home/EventBanner';
 import { MarketPanel } from './MarketPanel';
 import { ResourceCard } from './ResourceCard';
 
@@ -34,6 +35,7 @@ export function ResourcesPage() {
         onChange={setSub}
         ariaLabel="資源の表示切替"
       />
+      {sub === 'market' && <EventBanner compact />}
       {sub === 'inventory' ? (
         <>
           <div className="grid grid--2">

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { GameEngine } from '../GameEngine';
+import { GAME_META } from '@/game/data/meta';
 import { CONFIG } from '@/game/data/config';
 import { LAND_MAP } from '@/game/data/lands';
 import { SURVEY_STAGES } from '@/game/data/survey';
@@ -384,7 +385,7 @@ describe('セーブの移行', () => {
       stats: { taps: 3 },
     };
     const s = migrateSave(v1);
-    expect(s.saveVersion).toBe(2);
+    expect(s.saveVersion).toBe(GAME_META.saveVersion);
     expect(s.lands[0].terrain).toBe('industrial');
     expect(s.lands[0].survey).toBe(4);
     expect(s.lands[0].stock).toEqual({});

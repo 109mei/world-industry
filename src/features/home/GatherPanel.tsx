@@ -5,6 +5,7 @@ import { RESOURCE_MAP } from '@/game/data/resources';
 import { TOOL_MAP } from '@/game/data/tools';
 import { previewGather } from '@/game/engine/actions/gather';
 import { bumpGame, useGame } from '@/stores/gameStore';
+import { sfx } from '@/utils/sfx';
 
 /** 手作業の採集ボタン一覧 */
 export function GatherPanel() {
@@ -25,7 +26,7 @@ export function GatherPanel() {
             variant="secondary"
             disabled={!p.available || full}
             onClick={() => {
-              engine.gather(g.id);
+              if (engine.gather(g.id) > 0) sfx('tap');
               bumpGame();
             }}
             aria-label={`${g.label}（${res.name}）`}

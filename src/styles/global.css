@@ -235,3 +235,10 @@ a {
 .grid--auto {
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
 }
+
+/* 狭い画面では隠す（表の列など） */
+@media (max-width: 479px) {
+  .hide-sm {
+    display: none !important;
+  }
+}

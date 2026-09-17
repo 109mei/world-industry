@@ -10,6 +10,12 @@ export interface Toast {
   message: string;
 }
 
+/** 実績解除の演出（順番に表示する） */
+export interface AchievementPopup {
+  id: number;
+  achievementId: string;
+}
+
 interface UiStore {
   tab: NavTab;
   setTab: (tab: NavTab) => void;
@@ -34,6 +40,9 @@ interface UiStore {
   setFactoryLand: (id: string) => void;
   companySubTab: 'info' | 'research' | 'achievements' | 'settings';
   setCompanySubTab: (t: 'info' | 'research' | 'achievements' | 'settings') => void;
+  achievementQueue: AchievementPopup[];
+  pushAchievement: (achievementId: string) => void;
+  shiftAchievement: () => void;
 }
 
 let toastSeq = 1;
@@ -66,4 +75,7 @@ export const useUiStore = create<UiStore>((set) => ({
   setFactoryLand: (factoryLand) => set({ factoryLand }),
   companySubTab: 'info',
   setCompanySubTab: (companySubTab) => set({ companySubTab }),
+  achievementQueue: [],
+  pushAchievement: (achievementId) => set((s) => ({ achievementQueue: [...s.achievementQueue, { id: toastSeq++, achievementId }] })),
+  shiftAchievement: () => set((s) => ({ achievementQueue: s.achievementQueue.slice(1) })),
 }));

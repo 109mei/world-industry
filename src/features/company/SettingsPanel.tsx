@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/Button';
 import { getRuntime } from '@/game/runtime';
 import { bumpGame, useGame } from '@/stores/gameStore';
 import { formatDuration } from '@/utils/format';
+import { sfx } from '@/utils/sfx';
 
 export function SettingsPanel() {
   const { state, engine } = useGame();
@@ -51,6 +52,46 @@ export function SettingsPanel() {
       <label className="switch">
         <input type="checkbox" checked={state.settings.showTutorial} onChange={(e) => update({ showTutorial: e.target.checked })} />
         チュートリアルを表示する
+      </label>
+
+      <div className="field">
+        <span className="field__label">効果音</span>
+        <label className="switch">
+          <input
+            type="checkbox"
+            checked={state.settings.sound}
+            onChange={(e) => {
+              update({ sound: e.target.checked });
+              if (e.target.checked) sfx('buy');
+            }}
+          />
+          効果音を鳴らす
+        </label>
+        <div className="row" style={{ marginTop: 6 }}>
+          <span className="text-sub" style={{ fontSize: 12, minWidth: 40 }}>
+            音量
+          </span>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            value={Math.round(state.settings.volume * 100)}
+            aria-label="音量"
+            disabled={!state.settings.sound}
+            onChange={(e) => update({ volume: Number(e.target.value) / 100 })}
+            onMouseUp={() => sfx('tap')}
+            onTouchEnd={() => sfx('tap')}
+            style={{ flex: 1 }}
+          />
+          <span className="num text-sub" style={{ fontSize: 12, minWidth: 36, textAlign: 'right' }}>
+            {Math.round(state.settings.volume * 100)}%
+          </span>
+        </div>
+      </div>
+
+      <label className="switch">
+        <input type="checkbox" checked={state.settings.events} onChange={(e) => update({ events: e.target.checked })} />
+        ランダムイベント（相場変動・災害など）を起こす
       </label>
 
       <div className="text-sub" style={{ fontSize: 12 }}>

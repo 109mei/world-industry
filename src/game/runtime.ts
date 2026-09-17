@@ -1,5 +1,6 @@
 import { CONFIG } from '@/game/data/config';
 import { GameEngine } from '@/game/engine/GameEngine';
+import { playSfx, type SfxName } from '@/game/services/audio/sfx';
 import { GameLoop } from '@/game/services/GameLoop';
 import { LocalStorageSaveRepository, MemorySaveRepository, type SaveRepository } from '@/game/services/save/SaveRepository';
 import { SAVE_KEY, SaveService } from '@/game/services/save/SaveService';
@@ -31,10 +32,30 @@ function createRepository(): SaveRepository {
   }
 }
 
+/** エンジンのイベント種別ごとの効果音 */
+const EVENT_SFX: Partial<Record<string, SfxName>> = {
+  unlock: 'unlock',
+  achievement: 'achievement',
+  event: 'event',
+  warn: 'warn',
+  tutorial: 'craft',
+};
+
 function wireEngine(engine: GameEngine): void {
   useGameStore.getState().attach(engine);
   engine.addListener((ev, { toast }) => {
-    if (toast) useUiStore.getState().pushToast(ev.type, ev.message);
+    const ui = useUiStore.getState();
+    if (ev.type === 'achievement' && ev.achievementId) {
+      // 実績はトーストではなく専用の演出で見せる
+      ui.pushAchievement(ev.achievementId);
+    } else if (toast) {
+      ui.pushToast(ev.type, ev.message);
+    }
+    if (toast || ev.type === 'achievement') {
+      const sfxName = EVENT_SFX[ev.type];
+      const settings = engine.state.settings;
+      if (sfxName && settings.sound) playSfx(sfxName, settings.volume);
+    }
   });
 }
 

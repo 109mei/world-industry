@@ -37,6 +37,8 @@ export interface MarketResourceState {
   modifier: number;
   /** 価格の履歴（更新ごとの価格） */
   history: number[];
+  /** 市場に流した量（需要の飽和）。多いほど価格が下がり、時間で減る */
+  saturation: number;
 }
 
 export interface AutoSellConfig {
@@ -73,15 +75,44 @@ export interface StatsState {
   totalCommercialIncome: number;
   /** 累計の輸送費（円） */
   totalTransportCost: number;
+  /** 起きたイベントの回数 */
+  eventsOccurred: number;
+  /** 乗り切った災害の回数 */
+  disasters: number;
 }
 
-export type GameEventType = 'info' | 'success' | 'warn' | 'unlock' | 'achievement' | 'tutorial';
+export type GameEventType = 'info' | 'success' | 'warn' | 'unlock' | 'achievement' | 'tutorial' | 'event';
 
 export interface GameEvent {
   id: number;
   time: number;
   type: GameEventType;
   message: string;
+  /** 実績解除のとき、その実績ID */
+  achievementId?: string;
+  /** ランダムイベントのとき、その定義ID */
+  eventId?: string;
+}
+
+/** 進行中のランダムイベント */
+export interface ActiveEvent {
+  /** 発生ごとの通し番号 */
+  id: number;
+  /** data/events.ts の定義ID */
+  defId: string;
+  /** 対象（資源ID か 土地ID）。全体に効くイベントは null */
+  target: string | null;
+  /** 残り秒数 */
+  remaining: number;
+  total: number;
+  magnitude: number;
+}
+
+export interface EventsState {
+  active: ActiveEvent[];
+  /** 次のイベントまでの秒数 */
+  nextIn: number;
+  nextId: number;
 }
 
 /**
@@ -132,6 +163,14 @@ export interface SettingsState {
   autosaveSeconds: number;
   maxOfflineSeconds: number;
   showTutorial: boolean;
+  /** 効果音 */
+  sound: boolean;
+  /** 効果音の音量 0〜1 */
+  volume: number;
+  /** ランダムイベントを起こす */
+  events: boolean;
+  /** LAND 画面の表示（地図 or リスト） */
+  landView: 'map' | 'list';
 }
 
 export interface GameState {
@@ -155,6 +194,7 @@ export interface GameState {
   achievements: Record<string, number>;
   tutorial: { step: number; completed: boolean };
   research: ResearchState;
+  events: EventsState;
   eventLog: GameEvent[];
   nextEventId: number;
   settings: SettingsState;
@@ -217,10 +257,24 @@ export interface Modifiers {
   surveyTime: number;
   storage: number;
   commercialIncome: number;
+  demandRecovery: number;
+}
+
+/** 進行中のイベントから計算した係数（保存しない） */
+export interface EventModifiers {
+  /** 土地IDごとの生産倍率 */
+  landProduction: Record<string, number>;
+  /** 輸送手段の種類ごとの能力倍率 */
+  transport: Record<string, number>;
+  /** 発電能力の倍率 */
+  power: number;
+  /** 商業施設の収入倍率 */
+  commercial: number;
 }
 
 /** 毎 tick 計算し直す派生情報（保存しない） */
 export interface DerivedState {
+  eventMods: EventModifiers;
   production: Partial<Record<ResourceId, number>>;
   consumption: Partial<Record<ResourceId, number>>;
   capacity: number;

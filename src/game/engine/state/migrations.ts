@@ -26,6 +26,23 @@ const MIGRATIONS: Record<number, Migration> = {
       stats: { ...stats, totalTransported: stats.totalTransported ?? 0, totalGeneratedMWh: stats.totalGeneratedMWh ?? 0, totalCommercialIncome: stats.totalCommercialIncome ?? 0, totalTransportCost: stats.totalTransportCost ?? 0 },
     };
   },
+  // v2 → v3: ランダムイベント、市場の需要（飽和量）、効果音などの設定を追加
+  2: (data) => {
+    const d = data as Partial<GameState> & Record<string, unknown>;
+    const base = createInitialState();
+    const prices: Record<string, unknown> = {};
+    for (const [id, m] of Object.entries(d.market?.prices ?? {})) {
+      if (m && typeof m === 'object') prices[id] = { saturation: 0, ...(m as object) };
+    }
+    return {
+      ...data,
+      saveVersion: 3,
+      market: { ...(d.market ?? base.market), prices },
+      events: d.events ?? base.events,
+      stats: { ...(d.stats ?? {}), eventsOccurred: d.stats?.eventsOccurred ?? 0, disasters: d.stats?.disasters ?? 0 },
+      settings: { ...base.settings, ...(d.settings ?? {}) },
+    };
+  },
 };
 
 export function migrateSave(raw: unknown): GameState {
@@ -78,6 +95,7 @@ export function fillDefaults(data: Record<string, unknown>): GameState {
     achievements: { ...(d.achievements ?? {}) },
     tutorial: { ...base.tutorial, ...(d.tutorial ?? {}) },
     research: { ...base.research, ...(d.research ?? {}) },
+    events: { ...base.events, ...(d.events ?? {}), active: Array.isArray(d.events?.active) ? d.events.active : [] },
     eventLog: Array.isArray(d.eventLog) ? d.eventLog : [],
     nextEventId: typeof d.nextEventId === 'number' ? d.nextEventId : 1,
     settings: { ...base.settings, ...(d.settings ?? {}) },

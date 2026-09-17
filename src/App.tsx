@@ -2,6 +2,7 @@ import type { ReactElement } from 'react';
 import { BottomNav } from '@/components/layout/BottomNav';
 import { Header } from '@/components/layout/Header';
 import { SideNav } from '@/components/layout/SideNav';
+import { AchievementPopup } from '@/components/ui/AchievementPopup';
 import { Toasts } from '@/components/ui/Toasts';
 import { CompanyPage } from '@/features/company/CompanyPage';
 import { CraftPage } from '@/features/craft/CraftPage';
@@ -53,6 +54,7 @@ export function App() {
       <ResourceDetailSheet />
       <OfflineReportModal />
       <Toasts />
+      <AchievementPopup />
       <DebugPanel />
     </div>
   );

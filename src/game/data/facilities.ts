@@ -31,8 +31,20 @@ export interface FacilityProduction {
   outputs?: Partial<Record<ResourceId, number>>;
 }
 
+/** 輸送手段の種類。イベント（地震・嵐）の影響の判定に使う */
+export type TransportKind = 'road' | 'rail' | 'sea' | 'pipe' | 'air';
+
+export const TRANSPORT_KIND_LABEL: Record<TransportKind, string> = {
+  road: '陸路',
+  rail: '鉄道',
+  sea: '海路',
+  pipe: 'パイプライン',
+  air: '空路',
+};
+
 /** 輸送手段としての性能（土地→本社の往復に使う） */
 export interface TransportSpec {
+  kind: TransportKind;
   /** 1単位あたりの輸送能力（t/秒） */
   capacity: number;
   /** 1t あたりの費用（円） */
@@ -162,6 +174,11 @@ export const FACILITIES = [
     description: 'ウラン鉱脈からウラン鉱石を掘る。原子力工学の研究が必要。電力 2MW。', baseCost: 5_000_000, costGrowth: 1.2, employees: 10, powerUse: 2,
     production: { outputs: { uranium_ore: 0.1 } }, extractsDeposit: true, unlock: { type: 'research', research: 'nuclear' }, hiddenUntilUnlocked: true,
   },
+  {
+    id: 'rubber_plantation', name: 'ゴム農園', nameEn: 'Rubber Plantation', category: 'RESOURCE', icon: 'icon_facility_rubber_plantation', site: 'land',
+    description: 'ゴムを育てる。水0.3 → ゴム1（毎秒）。森林で効率2倍、砂漠や寒冷地では育たない。', baseCost: 150_000, costGrowth: 1.15, employees: 5,
+    production: { inputs: { water: 0.3 }, outputs: { rubber: 1 } }, terrainBonus: { forest: 2, river: 1.3, plains: 0.8, desert: 0.1, snow: 0.1, mountain: 0.5, city: 0.3 }, unlock: { type: 'research', research: 'automotive' }, hiddenUntilUnlocked: true,
+  },
   // ---- 加工 ----
   {
     id: 'simple_smelter', name: '簡易製鉄所', nameEn: 'Simple Smelter', category: 'PROCESSING', icon: 'icon_facility_steel_mill', site: 'hq',
@@ -193,6 +210,21 @@ export const FACILITIES = [
     description: 'ウラン鉱石10 → 核燃料1（100秒ごと）。電力 20MW。', baseCost: 20_000_000, costGrowth: 1.25, employees: 30, powerUse: 20,
     production: { inputs: { uranium_ore: 0.1 }, outputs: { nuclear_fuel: 0.01 } }, unlock: { type: 'research', research: 'nuclear' }, hiddenUntilUnlocked: true,
   },
+  {
+    id: 'glass_factory', name: 'ガラス工場', nameEn: 'Glass Factory', category: 'PROCESSING', icon: 'icon_facility_glass_factory', site: 'any',
+    description: '砂3＋石炭0.5 → ガラス1（毎秒）。電力 2MW。', baseCost: 150_000, costGrowth: 1.18, employees: 6, powerUse: 2,
+    production: { inputs: { sand: 3, coal: 0.5 }, outputs: { glass: 1 } }, unlock: { type: 'all', conditions: [{ type: 'obtained', resource: 'sand', min: 500 }, { type: 'obtained', resource: 'coal', min: 50 }] },
+  },
+  {
+    id: 'plastic_plant', name: 'プラスチック工場', nameEn: 'Plastic Plant', category: 'PROCESSING', icon: 'icon_facility_plastic_factory', site: 'any',
+    description: '原油1.5 → プラスチック1（毎秒）。電力 3MW。', baseCost: 300_000, costGrowth: 1.18, employees: 8, powerUse: 3,
+    production: { inputs: { crude_oil: 1.5 }, outputs: { plastic: 1 } }, unlock: { type: 'obtained', resource: 'crude_oil', min: 300 },
+  },
+  {
+    id: 'silicon_plant', name: 'シリコン精製所', nameEn: 'Silicon Plant', category: 'PROCESSING', icon: 'icon_facility_chemical_plant', site: 'any',
+    description: '砂10＋石炭2 → シリコンウエハー0.4（毎秒）。電力 8MW。半導体産業の研究が必要。', baseCost: 5_000_000, costGrowth: 1.2, employees: 15, powerUse: 8,
+    production: { inputs: { sand: 10, coal: 2 }, outputs: { silicon: 0.4 } }, unlock: { type: 'research', research: 'semiconductor' }, hiddenUntilUnlocked: true,
+  },
   // ---- 製造 ----
   {
     id: 'tool_workshop', name: '工具工房', nameEn: 'Tool Workshop', category: 'MANUFACTURING', icon: 'icon_facility_machine_factory', site: 'hq',
@@ -206,8 +238,23 @@ export const FACILITIES = [
   },
   {
     id: 'electronics_factory', name: '電子部品工場', nameEn: 'Electronics Factory', category: 'MANUFACTURING', icon: 'icon_facility_electronics_factory', site: 'any',
-    description: '銅2＋鋼鉄1 → 電子部品1（5秒ごと）。電力 5MW。', baseCost: 2_000_000, costGrowth: 1.2, employees: 20, powerUse: 5,
-    production: { inputs: { copper: 0.4, steel: 0.2 }, outputs: { electronics: 0.2 } }, unlock: { type: 'research', research: 'advanced_materials' }, hiddenUntilUnlocked: true,
+    description: '銅2＋鋼鉄1 → 電子部品1（2.5秒ごと）。電力 5MW。', baseCost: 1_200_000, costGrowth: 1.2, employees: 20, powerUse: 5,
+    production: { inputs: { copper: 0.8, steel: 0.4 }, outputs: { electronics: 0.4 } }, unlock: { type: 'research', research: 'advanced_materials' }, hiddenUntilUnlocked: true,
+  },
+  {
+    id: 'car_factory', name: '自動車工場', nameEn: 'Car Factory', category: 'MANUFACTURING', icon: 'icon_facility_vehicle_factory', site: 'any',
+    description: '鋼鉄2＋プラスチック1＋ゴム1＋ガラス0.5＋電子部品0.2 → 自動車0.1（10秒に1台）。電力 15MW。', baseCost: 8_000_000, costGrowth: 1.2, employees: 60, powerUse: 15,
+    production: { inputs: { steel: 2, plastic: 1, rubber: 1, glass: 0.5, electronics: 0.2 }, outputs: { car: 0.1 } }, unlock: { type: 'research', research: 'automotive' }, hiddenUntilUnlocked: true,
+  },
+  {
+    id: 'chip_fab', name: '半導体工場', nameEn: 'Chip Fab', category: 'MANUFACTURING', icon: 'icon_facility_semiconductor_factory', site: 'any',
+    description: 'シリコンウエハー0.4＋銅1＋水4 → 半導体0.2（5秒に1個）。電力 30MW。', baseCost: 15_000_000, costGrowth: 1.2, employees: 80, powerUse: 30,
+    production: { inputs: { silicon: 0.4, copper: 1, water: 4 }, outputs: { semiconductor: 0.2 } }, unlock: { type: 'research', research: 'semiconductor' }, hiddenUntilUnlocked: true,
+  },
+  {
+    id: 'robot_factory', name: 'ロボット工場', nameEn: 'Robot Factory', category: 'MANUFACTURING', icon: 'icon_part_robot_arm', site: 'any',
+    description: '半導体0.1＋機械部品0.5＋鋼鉄1＋電子部品0.3 → 産業ロボット0.05（20秒に1台）。電力 20MW。', baseCost: 30_000_000, costGrowth: 1.2, employees: 100, powerUse: 20,
+    production: { inputs: { semiconductor: 0.1, machine_parts: 0.5, steel: 1, electronics: 0.3 }, outputs: { robot: 0.05 } }, unlock: { type: 'research', research: 'robotics' }, hiddenUntilUnlocked: true,
   },
   // ---- 倉庫 ----
   {
@@ -259,23 +306,28 @@ export const FACILITIES = [
   // ---- 物流（土地→本社の輸送手段） ----
   {
     id: 'truck', name: 'トラック', nameEn: 'Truck', category: 'LOGISTICS', icon: 'icon_logistics_truck', site: 'land',
-    description: '1台あたり 0.2t/秒を本社と往復で運ぶ。費用 30円/t。', baseCost: 20_000, costGrowth: 1.08, employees: 1,
-    transport: { capacity: 0.2, costPerTon: 30 }, unlock: { type: 'landOwned', min: 1 },
+    description: '1台あたり 0.2t/秒を本社と往復で運ぶ。費用 30円/t。地震で道路が傷むと能力が下がる。', baseCost: 20_000, costGrowth: 1.08, employees: 1,
+    transport: { kind: 'road', capacity: 0.2, costPerTon: 30 }, unlock: { type: 'landOwned', min: 1 },
   },
   {
     id: 'freight_train', name: '貨物列車', nameEn: 'Freight Train', category: 'LOGISTICS', icon: 'icon_logistics_train', site: 'land',
-    description: '1編成あたり 2t/秒。費用 10円/t。', baseCost: 500_000, costGrowth: 1.12, employees: 4,
-    transport: { capacity: 2, costPerTon: 10 }, unlock: { type: 'research', research: 'railway' },
+    description: '1編成あたり 2t/秒。費用 10円/t。地震で線路が傷むと能力が下がる。', baseCost: 500_000, costGrowth: 1.12, employees: 4,
+    transport: { kind: 'rail', capacity: 2, costPerTon: 10 }, unlock: { type: 'research', research: 'railway' },
   },
   {
     id: 'cargo_ship', name: '貨物船', nameEn: 'Cargo Ship', category: 'LOGISTICS', icon: 'icon_logistics_ship', site: 'land',
-    description: '1隻あたり 10t/秒。費用 4円/t。沿岸・都市の土地にしか配備できない。', baseCost: 2_000_000, costGrowth: 1.15, employees: 12,
-    transport: { capacity: 10, costPerTon: 4 }, allowedTerrain: ['coast', 'city'], unlock: { type: 'research', research: 'overseas' },
+    description: '1隻あたり 10t/秒。費用 4円/t。沿岸・都市の土地にしか配備できない。嵐の間は能力が大きく下がる。', baseCost: 2_000_000, costGrowth: 1.15, employees: 12,
+    transport: { kind: 'sea', capacity: 10, costPerTon: 4 }, allowedTerrain: ['coast', 'city'], unlock: { type: 'research', research: 'overseas' },
   },
   {
     id: 'pipeline', name: 'パイプライン', nameEn: 'Pipeline', category: 'LOGISTICS', icon: 'icon_logistics_pipeline', site: 'land',
     description: '1本あたり 5t/秒。費用 2円/t。原油・燃料・水だけ運べる。', baseCost: 1_500_000, costGrowth: 1.2, employees: 2,
-    transport: { capacity: 5, costPerTon: 2, liquidOnly: true }, unlock: { type: 'research', research: 'pipeline' },
+    transport: { kind: 'pipe', capacity: 5, costPerTon: 2, liquidOnly: true }, unlock: { type: 'research', research: 'pipeline' },
+  },
+  {
+    id: 'cargo_plane', name: '貨物機', nameEn: 'Cargo Plane', category: 'LOGISTICS', icon: 'icon_logistics_airplane', site: 'land',
+    description: '1機あたり 3t/秒。費用 40円/t。どの地形にも配備でき、地震の影響を受けない。嵐の間は飛べない。', baseCost: 8_000_000, costGrowth: 1.15, employees: 8,
+    transport: { kind: 'air', capacity: 3, costPerTon: 40 }, unlock: { type: 'research', research: 'aviation' },
   },
   // ---- 商業 ----
   {

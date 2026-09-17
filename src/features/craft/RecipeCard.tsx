@@ -9,6 +9,7 @@ import { TOOL_MAP, isToolId } from '@/game/data/tools';
 import { craftableTimes } from '@/game/engine/actions/craft';
 import { describeCondition, isUnlocked } from '@/game/engine/systems/unlocks';
 import { bumpGame, useGame } from '@/stores/gameStore';
+import { sfx } from '@/utils/sfx';
 
 const NAMES = {
   resource: (id: string) => (isResourceId(id) ? RESOURCE_MAP[id].name : id),
@@ -26,7 +27,7 @@ export function RecipeCard({ recipe }: { recipe: RecipeDef }) {
   const stack = recipe.outputTool ? state.tools[recipe.outputTool] : undefined;
 
   const doCraft = (n: number | 'max') => {
-    engine.craft(id, n);
+    if (engine.craft(id, n) > 0) sfx('craft');
     bumpGame();
   };
 

@@ -15,6 +15,7 @@ export function createBaseModifiers(): Modifiers {
     surveyTime: 1,
     storage: 1,
     commercialIncome: 1,
+    demandRecovery: 1,
   };
 }
 
@@ -50,6 +51,9 @@ export function computeModifiers(state: GameState): Modifiers {
           break;
         case 'commercialIncome':
           m.commercialIncome *= e.mult;
+          break;
+        case 'demandRecovery':
+          m.demandRecovery *= e.mult;
           break;
         default:
           break;

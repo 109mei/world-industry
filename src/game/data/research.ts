@@ -9,6 +9,8 @@ export type ResearchEffect =
   | { type: 'survey'; costMult: number; timeMult: number }
   | { type: 'storage'; mult: number }
   | { type: 'commercialIncome'; mult: number }
+  /** 市場の需要の回復速度 */
+  | { type: 'demandRecovery'; mult: number }
   /** 説明だけの効果（解放は各定義の unlock 条件で参照する） */
   | { type: 'unlock'; text: string };
 
@@ -36,7 +38,13 @@ export const RESEARCH = [
   { id: 'logistics_ai', name: '物流最適化', icon: 'icon_office_dashboard', cost: 400, requires: ['railway'], effects: [{ type: 'transportCapacity', mult: 1.3 }, { type: 'transportCost', mult: 0.75 }], description: '輸送能力 +30%、輸送費 -25%。' },
   { id: 'commerce', name: '商業開発', icon: 'icon_commercial_office', cost: 300, requires: ['overseas'], effects: [{ type: 'unlock', text: 'オフィス・データセンター' }, { type: 'commercialIncome', mult: 1.5 }], description: 'オフィスとデータセンターを建てられる。商業施設の収益 +50%。' },
   { id: 'advanced_materials', name: '先端素材', icon: 'icon_material_semiconductor', cost: 500, requires: ['automation'], effects: [{ type: 'unlock', text: '電子部品工場' }, { type: 'production', category: 'MANUFACTURING', mult: 1.2 }], description: '電子部品工場を建てられる。製造施設の生産 +20%。' },
-  { id: 'nuclear', name: '原子力工学', icon: 'icon_power_nuclear', cost: 2000, requires: ['advanced_materials', 'renewables'], effects: [{ type: 'unlock', text: 'ウラン鉱山・濃縮工場・原子力発電所' }], description: 'ウラン鉱山・核燃料濃縮工場・原子力発電所を建てられる。' },
+  { id: 'nuclear', name: '原子力工学', icon: 'icon_power_nuclear', cost: 3000, requires: ['advanced_materials', 'renewables'], effects: [{ type: 'unlock', text: 'ウラン鉱山・濃縮工場・原子力発電所' }], description: 'ウラン鉱山・核燃料濃縮工場・原子力発電所を建てられる。' },
+  // ---- 航空・市場・巨大産業 ----
+  { id: 'aviation', name: '航空輸送', icon: 'icon_logistics_airplane', cost: 800, requires: ['logistics_ai'], effects: [{ type: 'unlock', text: '貨物機' }], description: 'どの土地にも配備できる貨物機を使える。地震の影響を受けない。' },
+  { id: 'marketing', name: 'マーケティング', icon: 'icon_ui_chart_trend', cost: 600, requires: ['commerce'], effects: [{ type: 'demandRecovery', mult: 1.6 }], description: '市場の需要の回復速度 +60%。大量に売っても値崩れから早く戻る。' },
+  { id: 'automotive', name: '自動車産業', icon: 'icon_facility_vehicle_factory', cost: 1200, requires: ['advanced_materials'], effects: [{ type: 'unlock', text: 'ゴム農園・自動車工場' }], description: 'ゴム農園と自動車工場を建てられる。自動車は1台3万円で売れる。' },
+  { id: 'semiconductor', name: '半導体産業', icon: 'icon_material_semiconductor', cost: 2500, requires: ['advanced_materials', 'commerce'], effects: [{ type: 'unlock', text: 'シリコン精製所・半導体工場' }], description: 'シリコン精製所と半導体工場を建てられる。半導体は1個8,000円。' },
+  { id: 'robotics', name: 'ロボット工学', icon: 'icon_part_robot_arm', cost: 5000, requires: ['semiconductor', 'automotive'], effects: [{ type: 'unlock', text: 'ロボット工場' }, { type: 'production', category: 'all', mult: 1.1 }], description: 'ロボット工場を建てられる。すべての施設の生産 +10%。' },
 ] as const satisfies readonly ResearchDef[];
 
 export type ResearchId = (typeof RESEARCH)[number]['id'];

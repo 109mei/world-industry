@@ -44,7 +44,7 @@ export function runProduction(ctx: EngineContext, dt: number): { commercialIncom
 
     // ---- 商業施設 ----
     if (def.income !== undefined) {
-      const income = def.income * inst.count * landPopulation(land) * mods.commercialIncome * pr;
+      const income = def.income * inst.count * landPopulation(land) * mods.commercialIncome * pr * derived.eventMods.commercial;
       commercialIncome += income;
       runtime[inst.id] = { status: pr <= 1e-6 ? 'no_power' : pr < 0.999 ? 'partial' : 'running', efficiency: pr, missingInputs: [], blockedOutputs: [], powerRatio: pr, depleted: [] };
       continue;
@@ -75,7 +75,7 @@ export function runProduction(ctx: EngineContext, dt: number): { commercialIncom
 
     const stock = stockOf(state, land);
     const capacity = derived.lands[land.id]?.capacity ?? derived.capacity;
-    const mult = terrainMultiplier(def, land) * surveyMultiplier(def, land) * (mods.production[def.category] ?? 1);
+    const mult = terrainMultiplier(def, land) * surveyMultiplier(def, land) * (mods.production[def.category] ?? 1) * (derived.eventMods.landProduction[land.id] ?? 1);
     let efficiency = pr;
     const missingInputs: ResourceId[] = [];
     const blockedOutputs: ResourceId[] = [];

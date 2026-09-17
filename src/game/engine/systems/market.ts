@@ -1,4 +1,5 @@
 import { CONFIG } from '@/game/data/config';
+import { EVENT_MAP, isEventDefId } from '@/game/data/events';
 import { RESOURCE_MAP, type ResourceId } from '@/game/data/resources';
 import type { GameState, MarketResourceState } from '@/types/state';
 import { clean } from '../inventory';
@@ -7,19 +8,77 @@ import type { EngineContext } from '../context';
 export function getMarketState(state: GameState, id: ResourceId): MarketResourceState {
   let m = state.market.prices[id];
   if (!m) {
-    m = { modifier: 1, history: [RESOURCE_MAP[id].basePrice] };
+    m = { modifier: 1, history: [RESOURCE_MAP[id].basePrice], saturation: 0 };
     state.market.prices[id] = m;
   }
+  if (typeof m.saturation !== 'number') m.saturation = 0;
   return m;
 }
 
-export function currentPrice(state: GameState, id: ResourceId): number {
-  return RESOURCE_MAP[id].basePrice * getMarketState(state, id).modifier;
+/** イベント（相場高騰・暴落）による価格倍率 */
+export function eventPriceMultiplier(state: GameState, id: ResourceId): number {
+  let mult = 1;
+  for (const ev of state.events?.active ?? []) {
+    if (ev.target !== id || !isEventDefId(ev.defId)) continue;
+    const kind = EVENT_MAP[ev.defId].kind;
+    if (kind === 'boom' || kind === 'crash') mult *= ev.magnitude;
+  }
+  return mult;
 }
 
-/** 市場の定期変動 */
+/** イベント（需要急増）による需要容量の倍率 */
+export function eventDemandMultiplier(state: GameState, id: ResourceId): number {
+  let mult = 1;
+  for (const ev of state.events?.active ?? []) {
+    if (ev.target !== id || !isEventDefId(ev.defId)) continue;
+    if (EVENT_MAP[ev.defId].kind === 'demand') mult *= ev.magnitude;
+  }
+  return mult;
+}
+
+/** 需要容量。飽和量がこの値に達すると価格が半分になる */
+export function demandCapacity(state: GameState, id: ResourceId): number {
+  return RESOURCE_MAP[id].liquidity * CONFIG.market.demandCapacityMult * eventDemandMultiplier(state, id);
+}
+
+/** 需要係数 0〜1。1 = まったく飽和していない */
+export function demandFactor(state: GameState, id: ResourceId): number {
+  const m = getMarketState(state, id);
+  return 1 / (1 + m.saturation / demandCapacity(state, id));
+}
+
+/** 現在の売値（1個目）。基準価格 × 変動係数 × 需要係数 × イベント倍率 */
+export function currentPrice(state: GameState, id: ResourceId): number {
+  return RESOURCE_MAP[id].basePrice * getMarketState(state, id).modifier * demandFactor(state, id) * eventPriceMultiplier(state, id);
+}
+
+/** 需要を無視した基準の売値（変動係数とイベントのみ） */
+export function referencePrice(state: GameState, id: ResourceId): number {
+  return RESOURCE_MAP[id].basePrice * getMarketState(state, id).modifier * eventPriceMultiplier(state, id);
+}
+
+/** qty 個をまとめて売ったときの売上。需要曲線に沿って1個ごとに価格が下がるぶんを積分する */
+export function sellRevenue(state: GameState, id: ResourceId, qty: number): number {
+  if (qty <= 0) return 0;
+  const ref = referencePrice(state, id);
+  const c = demandCapacity(state, id);
+  const s0 = getMarketState(state, id).saturation;
+  // ∫ ref / (1 + s/c) ds = ref × c × ln((c + s0 + qty) / (c + s0))
+  return ref * c * Math.log((c + s0 + qty) / (c + s0));
+}
+
+/** 市場の定期変動と需要の回復 */
 export function runMarket(ctx: EngineContext, dt: number): void {
-  const { state, rng } = ctx;
+  const { state, rng, derived } = ctx;
+  // 需要の回復（飽和量の指数減衰）
+  const tau = CONFIG.market.demandRecoverySeconds / Math.max(0.1, derived.modifiers.demandRecovery);
+  const decay = Math.exp(-dt / tau);
+  for (const m of Object.values(state.market.prices)) {
+    if (!m || !(m.saturation > 0)) continue;
+    m.saturation *= decay;
+    if (m.saturation < 0.01) m.saturation = 0;
+  }
+
   state.market.nextUpdateIn -= dt;
   let updates = 0;
   while (state.market.nextUpdateIn <= 0 && updates < 1000) {
@@ -44,7 +103,10 @@ export interface SellResult {
   unitPrice: number;
 }
 
-/** 売却。価格は売る前の価格で計算し、売った後に流動性に応じて価格を下げる */
+/**
+ * 売却。売上は需要曲線を積分した額（大量に売るほど1個あたりは安くなる）。
+ * 売った量は市場の飽和量に加わり、短期の変動係数も少し下がる。
+ */
 export function sellResource(ctx: EngineContext, id: ResourceId, amount: number, options: { auto?: boolean } = {}): SellResult {
   const { state } = ctx;
   const def = RESOURCE_MAP[id];
@@ -52,12 +114,13 @@ export function sellResource(ctx: EngineContext, id: ResourceId, amount: number,
   const qty = Math.min(Math.floor(have + 1e-9), Math.floor(amount));
   if (!def.sellable || qty <= 0) return { amount: 0, revenue: 0, unitPrice: currentPrice(state, id) };
   const unitPrice = currentPrice(state, id);
-  const revenue = Math.floor(unitPrice * qty * 100) / 100;
+  const revenue = Math.floor(sellRevenue(state, id, qty) * 100) / 100;
   state.inventory[id] = clean(have - qty);
   state.company.cash += revenue;
   state.company.totalEarned += revenue;
   state.stats.totalSold[id] = (state.stats.totalSold[id] ?? 0) + qty;
   const m = getMarketState(state, id);
+  m.saturation += qty;
   const impact = Math.min(CONFIG.market.maxSellImpact, (qty / def.liquidity) * CONFIG.market.impactPerLiquidity);
   m.modifier = Math.max(CONFIG.market.minModifier, m.modifier * (1 - impact));
   if (!options.auto) {

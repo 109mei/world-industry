@@ -27,4 +27,10 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'freight', name: '大量輸送', description: '累計10,000tを輸送する。', icon: 'icon_logistics_containers', check: (s) => s.stats.totalTransported >= 10_000 },
   { id: 'world_company', name: '世界企業', description: '5か国に土地を所有する。', icon: 'icon_ui_company', check: (s) => new Set(s.lands.map((l) => l.country)).size >= 5 },
   { id: 'atomic_age', name: '原子力時代', description: '原子力発電所を建設する。', icon: 'icon_power_nuclear', check: (s) => s.facilities.some((f) => f.typeId === 'nuclear_plant' && f.count > 0) },
+  { id: 'aviator', name: '空の物流', description: '貨物機を配備する。', icon: 'icon_logistics_airplane', check: (s) => s.facilities.some((f) => f.typeId === 'cargo_plane' && f.count > 0) },
+  { id: 'automaker', name: '自動車メーカー', description: '自動車を累計100台生産する。', icon: 'icon_facility_vehicle_factory', check: (s) => (s.stats.totalProduced['car'] ?? 0) >= 100 },
+  { id: 'chipmaker', name: '半導体の覇者', description: '半導体を累計1,000個生産する。', icon: 'icon_material_semiconductor', check: (s) => (s.stats.totalProduced['semiconductor'] ?? 0) >= 1000 },
+  { id: 'robot_age', name: 'ロボットの時代', description: '産業ロボットを累計10台生産する。', icon: 'icon_part_robot_arm', check: (s) => (s.stats.totalProduced['robot'] ?? 0) >= 10 },
+  { id: 'survivor', name: '災害を乗り越えて', description: '災害（地震・嵐・猛暑）を5回経験する。', icon: 'icon_weather_storm', check: (s) => s.stats.disasters >= 5 },
+  { id: 'tycoon', name: '大財閥', description: '累計売上が10億円に達する。', icon: 'icon_ui_medal', check: (s) => s.company.totalEarned >= 1_000_000_000 },
 ];

@@ -34,6 +34,23 @@ export const CONFIG = {
     impactPerLiquidity: 0.05,
     /** 価格履歴の保持数 */
     historyLength: 120,
+    /**
+     * 需要曲線: 市場に流した量（飽和量）が liquidity × この倍率 に達すると価格が半分になる。
+     * 価格 = 基準 × 変動係数 × 1 / (1 + 飽和量 / 需要容量)
+     */
+    demandCapacityMult: 25,
+    /** 飽和量が 1/e（約37%）に減るまでの秒数（需要の回復の速さ） */
+    demandRecoverySeconds: 180,
+  },
+  /** イベント（相場変動・災害など） */
+  events: {
+    /** 最初のイベントまでの秒数 */
+    firstDelaySeconds: 240,
+    /** イベントの間隔（秒）の下限・上限 */
+    minIntervalSeconds: 180,
+    maxIntervalSeconds: 420,
+    /** 同時に起きるイベントの上限 */
+    maxActive: 3,
   },
   /** イベント履歴の保持数 */
   eventLogLength: 100,

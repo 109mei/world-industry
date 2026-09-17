@@ -34,10 +34,19 @@ App.tsx
 
 ## 市場（systems/market.ts）
 
-- 価格 = 基準価格 × 係数（0.70〜1.40）
-- 30 秒ごとに、1.0 へ戻る力＋ランダムで変動
-- 売却すると `流動性` に応じて係数が下がる（大量売却の抑制）
+- 価格 = 基準価格 × 相場係数（0.70〜1.40）× 需要係数 × イベント倍率
+- 30 秒ごとに、1.0 へ戻る力＋ランダムで相場係数が変動
+- 需要係数 = 1 / (1 + 飽和量 / 需要容量)。売った量が飽和量に加わり、`CONFIG.market.demandRecoverySeconds` の時定数で指数的に減る（研究 `demandRecovery` で速くなる）。需要容量 = `liquidity × demandCapacityMult`（需要急増イベントで倍増）
+- `sellRevenue()` は需要曲線を積分した売上（`ref × C × ln((C + s0 + q) / (C + s0))`）。大量売却ほど1個あたりが安くなる
+- 売却すると `流動性` に応じて相場係数も少し下がる（短期の値崩れ）
 - 履歴は最大 120 点（グラフ用）
+
+## イベント（data/events.ts, systems/events.ts）
+
+- `EVENTS` に種類（boom/crash/demand/quake/storm/heatwave/festival/discovery/subsidy）・継続時間・重み・強さを定義。`runEvents()` が残り時間を減らし、`state.events.nextIn` が 0 になったら重み付きで抽選して `state.events.active` に追加（対象は資源IDか土地ID）
+- 継続効果は `computeEventMods()` で `derived.eventMods`（土地ごとの生産倍率・輸送手段ごとの倍率・発電倍率・商業倍率）にまとめ、生産・電力・物流が参照する。価格系は `market.ts` の `eventPriceMultiplier()` / `eventDemandMultiplier()` が `state.events.active` を直接見る
+- 即時効果（鉱脈発見・補助金）は `applyInstant()`。オフライン計算中（`ctx.offline()`）は新しいイベントを起こさない。設定 `settings.events` で無効化
+- 輸送手段は `TransportSpec.kind`（road/rail/sea/pipe/air）を持ち、地震は road/rail、嵐は sea/air に効く
 
 ## 解放（systems/unlocks.ts）
 
@@ -70,10 +79,16 @@ App.tsx
 
 ## tick の順序（GameEngine.tick）
 
-modifiers・容量 → 調査 → 電力 → 生産（商業収入・研究ポイントもここ）→ 物流 → 市場 → 自動売却 → 研究ポイント加算 → 収入記録 → 会社指標 → 解放 → チュートリアル → 実績
+modifiers・容量・イベント係数 → イベント進行 → 調査 → 電力 → 生産（商業収入・研究ポイントもここ）→ 物流 → 市場（需要の回復・相場変動）→ 自動売却 → 研究ポイント加算 → 収入記録 → 会社指標 → 解放 → チュートリアル → 実績
+
+## UI まわり（v0.4）
+
+- 実績解除はエンジンのイベントに `achievementId` が付き、`runtime.ts` のリスナーが `uiStore.achievementQueue` に積む → `AchievementPopup` が順に表示
+- 効果音は `services/audio/sfx.ts`（Web Audio で合成、音声ファイルなし）。UI の操作は `utils/sfx.ts` の `sfx()`、エンジンのイベント（解放・実績・警告・イベント）は `runtime.ts` で鳴らす。設定 `sound` / `volume`
+- 世界地図は `features/land/worldMapData.ts` の簡略化した輪郭（経度・緯度）を SVG に描き、土地のマーカーは HTML で重ねる（近い土地は `spread()` で押し広げ、ラベルは `placeLabels()` で重ならない側に置く）
 
 ## 今後の拡張ポイント
 
-- 航空輸送・土地間の直接輸送（現在は本社とのハブ＆スポーク）
-- 市場の需要曲線（売り過ぎで価格が下がる幅の資源別調整）
-- イベント（相場の急変・事故）、巨大産業（造船・半導体）
+- 土地間の直接輸送（現在は本社とのハブ＆スポーク）
+- イベントの種類追加（季節・為替・ストライキなど）、実績の報酬
+- BGM（現在は効果音のみ）

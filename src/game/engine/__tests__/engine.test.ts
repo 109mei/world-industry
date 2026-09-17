@@ -139,7 +139,7 @@ describe('自動生産と施設', () => {
   it('入力資源が不足すると加工施設は停止する', () => {
     const e = makeEngine();
     e.debugAddCash(100_000);
-    e.debugUnlockAll();
+    e.state.unlocked['facility:simple_smelter'] = true;
     e.buyFacility('simple_smelter', 1);
     e.tick(1);
     const inst = e.state.facilities.find((f) => f.typeId === 'simple_smelter')!;
@@ -176,8 +176,9 @@ describe('市場', () => {
     const e = makeEngine();
     e.debugAddResource('scrap_metal', 10);
     const revenue = e.sell('scrap_metal', 5);
-    expect(revenue).toBeCloseTo(40, 6);
-    expect(e.state.company.cash).toBeCloseTo(40, 6);
+    // 需要曲線の積分なので 40 円よりわずかに少ない
+    expect(revenue).toBeCloseTo(40, 1);
+    expect(e.state.company.cash).toBeCloseTo(40, 1);
     expect(e.state.inventory.scrap_metal).toBe(5);
     expect(e.state.stats.totalSold.scrap_metal).toBe(5);
   });
@@ -187,7 +188,7 @@ describe('市場', () => {
     e.debugAddResource('stone', 3);
     e.sell('stone', 100);
     expect(e.state.inventory.stone).toBe(0);
-    expect(e.state.company.cash).toBeCloseTo(6, 6);
+    expect(e.state.company.cash).toBeCloseTo(6, 1);
   });
 
   it('価格は 0.7〜1.4 倍の範囲で変動する', () => {

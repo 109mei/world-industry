@@ -10,11 +10,12 @@ import { craft } from './actions/craft';
 import { buyFacility, setFacilityEnabled } from './actions/facility';
 import { gather } from './actions/gather';
 import { buyLand, startSurvey } from './actions/land';
-import type { EngineContext, Rng } from './context';
+import type { EmitOptions, EngineContext, Rng } from './context';
 import { calcCapacity, clean } from './inventory';
 import { landCapacity, ownedLands } from './land';
 import { createEmptyDerived, createInitialState } from './state/createInitialState';
 import { runCompanyMetrics } from './systems/company';
+import { computeEventMods, runEvents, triggerEvent } from './systems/events';
 import { runLogistics } from './systems/logistics';
 import { runAutoSell, runMarket, sellResource } from './systems/market';
 import { computeModifiers } from './systems/modifiers';
@@ -59,7 +60,8 @@ export class GameEngine {
       derived: this.derived,
       rng: this.rng,
       now: this.nowFn,
-      emit: (type, message, opts) => this.emit(type, message, opts?.toast ?? false),
+      emit: (type, message, opts) => this.emit(type, message, opts),
+      offline: () => this.silent,
     };
     this.refreshDerived();
     // 初期解放（always 条件）を反映
@@ -76,8 +78,11 @@ export class GameEngine {
     return () => this.listeners.delete(fn);
   }
 
-  private emit(type: GameEventType, message: string, toast: boolean): GameEvent {
+  private emit(type: GameEventType, message: string, opts: EmitOptions = {}): GameEvent {
+    const toast = opts.toast ?? false;
     const ev: GameEvent = { id: this.state.nextEventId++, time: this.nowFn(), type, message };
+    if (opts.achievementId) ev.achievementId = opts.achievementId;
+    if (opts.eventId) ev.eventId = opts.eventId;
     this.state.eventLog.push(ev);
     if (this.state.eventLog.length > CONFIG.eventLogLength) {
       this.state.eventLog.splice(0, this.state.eventLog.length - CONFIG.eventLogLength);
@@ -93,6 +98,7 @@ export class GameEngine {
   private refreshCapacities(): void {
     const { state, derived } = this;
     derived.modifiers = computeModifiers(state);
+    derived.eventMods = computeEventMods(state);
     derived.capacity = calcCapacity(state, derived.modifiers.storage);
     for (const land of ownedLands(state)) {
       const rt = derived.lands[land.id];
@@ -111,6 +117,7 @@ export class GameEngine {
     const { state } = this;
     this.refreshCapacities();
     this.derived.consumption = {};
+    runEvents(this.ctx, dt);
     runSurveys(this.ctx, dt);
     runPower(this.ctx, dt);
     const { commercialIncome } = runProduction(this.ctx, dt);
@@ -300,6 +307,13 @@ export class GameEngine {
     for (const r of RESEARCH) s.research.completed[r.id] = true;
     s.unlocked['system:land'] = true;
     this.refreshDerived();
-    this.emit('info', 'デバッグ: すべて解放しました', true);
+    this.emit('info', 'デバッグ: すべて解放しました', { toast: true });
+  }
+
+  /** イベントを今すぐ起こす（デバッグ用。defId 省略で抽選） */
+  debugTriggerEvent(defId?: string): boolean {
+    const ok = triggerEvent(this.ctx, defId);
+    if (ok) this.refreshDerived();
+    return ok;
   }
 }

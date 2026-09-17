@@ -15,6 +15,7 @@ import { bumpGame, useGame } from '@/stores/gameStore';
 import { useUiStore } from '@/stores/uiStore';
 import { STATUS_LABEL } from '@/features/factory/FacilityCard';
 import { formatAmount, formatDuration, formatMoney, formatNumber, formatRate } from '@/utils/format';
+import { sfx } from '@/utils/sfx';
 
 /** 土地の詳細（購入・調査・鉱脈・現地在庫・輸送・施設） */
 export function LandDetailSheet() {
@@ -56,7 +57,10 @@ export function LandDetailSheet() {
             block
             disabled={!canBuy}
             onClick={() => {
-              if (engine.buyLand(id)) bumpGame();
+              if (engine.buyLand(id)) {
+                sfx('land');
+                bumpGame();
+              }
             }}
           >
             {canBuy ? `購入する（${formatMoney(def.price, 'full')}）` : `資金不足（あと ${formatMoney(def.price - state.company.cash, mode)}）`}
@@ -121,7 +125,10 @@ export function LandDetailSheet() {
               block
               disabled={state.company.cash < cost}
               onClick={() => {
-                if (engine.startSurvey(land.id)) bumpGame();
+                if (engine.startSurvey(land.id)) {
+                  sfx('buy');
+                  bumpGame();
+                }
               }}
             >
               {stage.actionLabel}（{formatMoney(cost, 'full')}・{formatDuration(duration)}）

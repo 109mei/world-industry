@@ -8,6 +8,7 @@ import { RESEARCH, RESEARCH_MAP, isResearchId, type ResearchDef, type ResearchId
 import { canResearch } from '@/game/engine/systems/research';
 import { bumpGame, useGame } from '@/stores/gameStore';
 import { formatNumber, formatRate } from '@/utils/format';
+import { sfx } from '@/utils/sfx';
 
 /** 研究ツリー。研究所が生む研究ポイントを使って研究する */
 export function ResearchPanel() {
@@ -49,7 +50,10 @@ export function ResearchPanel() {
                 size="sm"
                 disabled={!check.ok}
                 onClick={() => {
-                  if (engine.research(r.id as ResearchId)) bumpGame();
+                  if (engine.research(r.id as ResearchId)) {
+                    sfx('research');
+                    bumpGame();
+                  }
                 }}
               >
                 {check.ok ? '研究する' : `あと ${formatNumber(Math.ceil(r.cost - points), mode)} RP`}

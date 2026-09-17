@@ -13,6 +13,7 @@ import { bumpGame, useGame } from '@/stores/gameStore';
 import type { FacilityStatus } from '@/types/state';
 import { formatMoney, formatNumber, formatPercent, formatRate } from '@/utils/format';
 import { NAMES, formatMW } from '@/utils/names';
+import { sfx } from '@/utils/sfx';
 
 export const STATUS_LABEL: Record<FacilityStatus, { label: string; tone: 'profit' | 'warn' | 'loss' | 'default' }> = {
   running: { label: '稼働中', tone: 'profit' },
@@ -44,10 +45,11 @@ export function FacilityCard({ def, landId = 'hq' }: Props) {
   const status = runtime ? STATUS_LABEL[runtime.status] : null;
   const atMax = def.maxCount !== undefined && count >= def.maxCount;
   const build = land ? canBuildOn(def, land) : { ok: false as const, reason: '土地がありません' };
-  const mult = land ? terrainMultiplier(def, land) * surveyMultiplier(def, land) * (derived.modifiers.production[def.category] ?? 1) : 1;
+  const eventMult = land ? derived.eventMods.landProduction[land.id] ?? 1 : 1;
+  const mult = land ? terrainMultiplier(def, land) * surveyMultiplier(def, land) * (derived.modifiers.production[def.category] ?? 1) * (def.production ? eventMult : 1) : 1;
 
   const buy = (n: number | 'max') => {
-    engine.buyFacility(id, n, landId);
+    if (engine.buyFacility(id, n, landId) > 0) sfx('buy');
     bumpGame();
   };
 
@@ -107,6 +109,11 @@ export function FacilityCard({ def, landId = 'hq' }: Props) {
       {land && terrainMult !== 1 && (
         <div className="text-sub num" style={{ fontSize: 12, marginTop: 4 }}>
           {TERRAINS[land.terrain].name}の補正 ×{terrainMult}
+        </div>
+      )}
+      {land && def.production && eventMult !== 1 && (
+        <div className="text-warn num" style={{ fontSize: 12, marginTop: 4 }}>
+          イベント（地震）の影響 ×{eventMult}
         </div>
       )}
       {io && (

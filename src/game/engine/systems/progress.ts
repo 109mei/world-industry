@@ -31,7 +31,7 @@ export function runAchievements(ctx: EngineContext): void {
     if (state.achievements[a.id]) continue;
     if (a.check(state, derived)) {
       state.achievements[a.id] = now();
-      ctx.emit('achievement', `実績解除: ${a.name}`, { toast: true });
+      ctx.emit('achievement', `実績解除: ${a.name}`, { toast: true, achievementId: a.id });
     }
   }
 }

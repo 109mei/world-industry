@@ -38,7 +38,7 @@ export function runPower(ctx: EngineContext, dt: number): void {
     if (def.powerGen) {
       const land = getLand(state, inst.landId);
       if (!land) continue;
-      let cap = def.powerGen * inst.count * terrainMultiplier(def, land) * mods.powerGeneration;
+      let cap = def.powerGen * inst.count * terrainMultiplier(def, land) * mods.powerGeneration * derived.eventMods.power;
       if (def.renewable) cap *= mods.renewableGeneration;
       const fuelRates = def.fuel ?? {};
       const stock = stockOf(state, land);
