@@ -43,6 +43,92 @@ export const BUILD_COST: Record<PropertyKind, number> = {
   resort: 250_000,
 };
 
+
+/** 知名度（有名な場所ほど高い）。0〜1 */
+export interface Prominence {
+  /** 0（無名）〜1（誰もが知る名所） */
+  score: number;
+  /** 評価額に掛かる倍率 */
+  mult: number;
+  /** 持ち主が手放すのを渋る上乗せ（買うときだけ掛かる） */
+  premium: number;
+  label: string;
+  reasons: string[];
+}
+
+/**
+ * 用途ごとの「名が通りやすさ」。
+ * 同じ大きさでも、駅前のビルは有名になり、郊外の畑や倉庫はそうならない。
+ */
+const PROMINENCE_KIND: Record<PropertyKind, number> = {
+  land: 0.2,
+  farm: 0.2,
+  house: 0.3,
+  warehouse: 0.5,
+  factory: 0.55,
+  apartment: 0.7,
+  office: 1,
+  retail: 1,
+  hotel: 1,
+  resort: 1,
+};
+
+const PROMINENCE_LABEL: readonly { min: number; label: string }[] = [
+  { min: 0, label: '無名の物件' },
+  { min: 0.18, label: '知られた物件' },
+  { min: 0.38, label: '有名な物件' },
+  { min: 0.6, label: '地域の顔' },
+  { min: 0.8, label: '誰もが知る名所' },
+];
+
+function logScore(value: number, from: number, to: number): number {
+  if (value <= from) return 0;
+  return Math.min(1, Math.log(value / from) / Math.log(to / from));
+}
+
+/**
+ * その場所がどれだけ知られているか。
+ * 名前がある・観光地・大きい・高層・地価が高い、のどれかに当てはまるほど高くなる。
+ * 有名な場所はすでに誰かのもので、買うにはかなりの額がかかる。
+ */
+export function prominenceOf(f: Pick<OsmFeature, 'areaSqm' | 'levels' | 'kind'> & { named?: boolean; tags?: OsmFeature['tags'] }, unitPrice: number): Prominence {
+  const reasons: string[] = [];
+  const t = f.tags ?? {};
+  let score = 0;
+  if (f.named) {
+    score += 0.18;
+    reasons.push('名前の通った建物');
+  }
+  const landmark = Boolean(t.tourism || t.historic || t.heritage || t.man_made === 'tower');
+  if (landmark) {
+    score += 0.22;
+    reasons.push('観光地・名所として知られている');
+  }
+  const floorArea = f.areaSqm * Math.max(1, f.levels);
+  const sizeScore = logScore(floorArea, 2_000, 200_000);
+  if (sizeScore > 0.25) reasons.push('規模が大きい');
+  score += sizeScore * 0.25;
+  const levelScore = Math.max(0, Math.min(1, (f.levels - 3) / 27));
+  if (levelScore > 0.25) reasons.push('高層の建物');
+  score += levelScore * 0.15;
+  const priceScore = logScore(unitPrice, 50_000, 2_000_000);
+  if (priceScore > 0.4) reasons.push('一等地に建っている');
+  score += priceScore * 0.2;
+  score = Math.max(0, Math.min(1, score * (PROMINENCE_KIND[f.kind] ?? 1)));
+  if (score < 0.18) reasons.length = 0;
+  let label = PROMINENCE_LABEL[0].label;
+  for (const l of PROMINENCE_LABEL) if (score >= l.min) label = l.label;
+  return {
+    score,
+    // 有名なほど評価額そのものが跳ね上がる（最大 16 倍）
+    mult: 1 + 15 * Math.pow(score, 1.8),
+    // さらに、持ち主が手放すのを渋るぶんの上乗せ（最大 +80%）
+    premium: 1 + score * 0.8,
+    label,
+    reasons,
+  };
+}
+
 export interface CustomQuote {
   /** 地価倍率を掛ける前の評価額（円） */
   basePrice: number;
@@ -55,14 +141,17 @@ export interface CustomQuote {
   cityId: string;
   regionLabel: string;
   country: string;
+  /** 知名度（有名な場所ほど高い） */
+  prominence: Prominence;
 }
 
 /** 面積・階数・場所から評価額を出す */
-export function quoteFeature(f: Pick<OsmFeature, 'kind' | 'areaSqm' | 'levels' | 'lat' | 'lon'>): CustomQuote {
+export function quoteFeature(f: Pick<OsmFeature, 'kind' | 'areaSqm' | 'levels' | 'lat' | 'lon'> & { named?: boolean; tags?: OsmFeature['tags'] }): CustomQuote {
   const v = estimateLandValue({ lat: f.lat, lon: f.lon });
-  const landPart = f.areaSqm * v.unitPrice * LAND_FACTOR[f.kind];
+  const prominence = prominenceOf(f, v.unitPrice);
+  const landPart = f.areaSqm * v.unitPrice * LAND_FACTOR[f.kind] * prominence.mult;
   const floorArea = f.areaSqm * Math.max(1, f.levels);
-  const buildingPart = floorArea * BUILD_COST[f.kind];
+  const buildingPart = floorArea * BUILD_COST[f.kind] * prominence.mult;
   const near = v.distanceKm < 3 ? v.nearestCityName : `${v.nearestCityName}から${Math.round(v.distanceKm)}km`;
   return {
     basePrice: Math.max(10_000, Math.round(landPart + buildingPart)),
@@ -72,6 +161,7 @@ export function quoteFeature(f: Pick<OsmFeature, 'kind' | 'areaSqm' | 'levels' |
     cityId: v.nearestCityId,
     regionLabel: near,
     country: v.country,
+    prominence,
   };
 }
 
@@ -96,7 +186,8 @@ export function customPrice(state: GameState, cp: CustomProperty): number {
 /** 買うときに払う額（手数料込み） */
 export function customBuyCost(state: GameState, quote: CustomQuote): number {
   const fee = creditRankDef(state).estateFee;
-  return Math.ceil(quote.basePrice * multiplierOf(state, quote.cityId) * (1 + fee));
+  // 有名な場所は持ち主が手放すのを渋るので、評価額より高く買うことになる
+  return Math.ceil(quote.basePrice * multiplierOf(state, quote.cityId) * quote.prominence.premium * (1 + fee));
 }
 
 /** 売って受け取る額（手数料引き） */
@@ -105,9 +196,14 @@ export function customSellProceeds(state: GameState, cp: CustomProperty): number
   return Math.floor(customPrice(state, cp) * (1 - fee));
 }
 
-/** 賃料（円/秒） */
+/**
+ * 賃料（円/秒）。
+ * 有名な物件は値段こそ跳ね上がるが、入る家賃までは比例して増えない
+ * （知名度のぶんを割り戻してから利回りを掛ける）。
+ */
 export function customRentPerSec(state: GameState, cp: CustomProperty): number {
-  return (customPrice(state, cp) * PROPERTY_KIND[cp.kind].yield) / 3600;
+  const rentable = customPrice(state, cp) / Math.max(1, cp.prominence ?? 1);
+  return (rentable * PROPERTY_KIND[cp.kind].yield) / 3600;
 }
 
 export function customEstateValue(state: GameState): number {
@@ -199,6 +295,7 @@ export function buyCustomProperty(ctx: EngineContext, f: OsmFeature): boolean {
     levels: f.levels,
     unitPrice: quote.unitPrice,
     basePrice: quote.basePrice,
+    prominence: quote.prominence.mult,
     cityId: isCityId(quote.cityId) ? quote.cityId : 'tokyo',
     regionLabel: quote.regionLabel,
     country: quote.country,

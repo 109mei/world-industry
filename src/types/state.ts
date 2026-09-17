@@ -1,5 +1,7 @@
 import type { PropertyKind } from '@/game/data/properties';
 import type { CompanyPolicy } from '@/game/data/companies';
+import type { RecipeId } from '@/game/data/recipes';
+import type { GatherActionId } from '@/game/data/gathering';
 import type { ResourceId } from '@/game/data/resources';
 import type { TerrainId } from '@/game/data/terrain';
 import type { ToolId } from '@/game/data/tools';
@@ -209,6 +211,8 @@ export interface SettingsState {
   map3D?: boolean;
   /** 本社の場所（地図に出す位置）。未設定なら初期値（大阪） */
   hqLocation?: { lat: number; lon: number; label: string } | null;
+  /** 本社の場所を決めたか（最初に1回だけ決められる） */
+  hqChosen?: boolean;
   /** 施設一覧で「今建てられるものだけ」を表示する */
   factoryOnlyBuildable: boolean;
   /** クラフト一覧で「作れるものだけ」を表示する */
@@ -242,6 +246,8 @@ export interface CustomProperty {
   unitPrice: number;
   /** 地価倍率を掛ける前の評価額（円） */
   basePrice: number;
+  /** 知名度の倍率（有名な場所ほど高い。1 なら無名）。古いセーブにはない */
+  prominence?: number;
   /** 価格が連動する都市 */
   cityId: string;
   /** 表示用の場所（「福岡・飯塚の近く」など） */
@@ -334,11 +340,22 @@ export interface ContractsState {
 
 // ---------- 営業・契約・納品 ----------
 
-/** 取引先ごとの関係 */
-export interface ClientState {
+/** 取引先（地図に実在する建物）。名前はもじった架空名 */
+export interface SalesClient {
+  /** OSM の ID */
+  id: string;
+  name: string;
+  label: string;
+  kind: PropertyKind;
+  lat: number;
+  lon: number;
+  areaSqm: number;
+  levels: number;
+  /** 表示用の場所 */
+  regionLabel: string;
   /** 関係（0〜100）。納品で上がり、落とすと下がる */
   relation: number;
-  /** 最後に営業した時刻（クールダウン用） */
+  /** 最後に営業した時刻（ミリ秒。クールダウン用） */
   lastPitchAt: number;
   /** 結んだ契約の数 */
   deals: number;
@@ -351,7 +368,8 @@ export interface ClientState {
 /** 営業で得た商談（受けるか断るか） */
 export interface DealOffer {
   id: number;
-  companyId: string;
+  /** 取引先（建物）の ID */
+  clientId: string;
   resource: ResourceId;
   /** 1回に納める数 */
   amountPer: number;
@@ -368,7 +386,8 @@ export interface DealOffer {
 /** 結んだ契約 */
 export interface Deal {
   id: number;
-  companyId: string;
+  /** 取引先（建物）の ID */
+  clientId: string;
   resource: ResourceId;
   amountPer: number;
   unitPrice: number;
@@ -383,7 +402,7 @@ export interface Deal {
 }
 
 export interface SalesState {
-  clients: Record<string, ClientState>;
+  clients: Record<string, SalesClient>;
   offers: DealOffer[];
   deals: Deal[];
   nextId: number;
@@ -405,6 +424,20 @@ export interface PrestigeState {
   upgrades?: Record<string, number>;
   history: PrestigeRecord[];
 }
+
+/** 永続アップグレードで買った自動化の ON/OFF と、その進み具合 */
+export interface AutomationState {
+  /** 種類ごとの ON/OFF（買っていないものは出てこない） */
+  on: Partial<Record<AutomationKey, boolean>>;
+  /** 自動で作りつづけるレシピ */
+  recipes: RecipeId[];
+  /** 自動で採集する行動（空なら解放しているものを順番に） */
+  gathers: GatherActionId[];
+  /** 内部の時計（秒）。保存する */
+  timers: Partial<Record<AutomationKey, number>>;
+}
+
+export type AutomationKey = 'gather' | 'craft' | 'deliver' | 'pitch' | 'survey' | 'build';
 
 export interface GameState {
   saveVersion: number;
@@ -434,6 +467,8 @@ export interface GameState {
   /** 営業・契約・納品 */
   sales?: SalesState;
   prestige: PrestigeState;
+  /** 自動化の設定（永続アップグレードで買ったもの） */
+  automation: AutomationState;
   eventLog: GameEvent[];
   nextEventId: number;
   settings: SettingsState;

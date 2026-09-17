@@ -6,7 +6,7 @@ import { LANDS, type LandDefId } from '@/game/data/lands';
 import { RECIPES, type RecipeId } from '@/game/data/recipes';
 import { RESEARCH, type ResearchId } from '@/game/data/research';
 import type { ResourceId } from '@/game/data/resources';
-import type { DerivedState, GameEvent, GameEventType, GameState, OfflineReport } from '@/types/state';
+import type { AutomationKey, DerivedState, GameEvent, GameEventType, GameState, OfflineReport } from '@/types/state';
 import { craft } from './actions/craft';
 import { buyFacility, setFacilityEnabled } from './actions/facility';
 import { gather } from './actions/gather';
@@ -17,19 +17,21 @@ import { landCapacity, ownedLands } from './land';
 import { createEmptyDerived, createInitialState } from './state/createInitialState';
 import { runCompanyMetrics } from './systems/company';
 import { creditRankDef } from './systems/contracts';
-import { acceptOffer, cancelDeal, declineOffer, deliverDeal, pitchTo, runSales } from './systems/sales';
+import { acceptOffer, cancelDeal, declineOffer, deliverDeal, pitchToClient, pitchToPlace, runSales } from './systems/sales';
 import { runInfluence } from './systems/influence';
 import { buyProperty, isEstateUnlocked, runEstate, sellProperty } from './systems/estate';
-import { buyCustomProperty, sellCustomProperty } from './systems/customEstate';
+import { buyCustomProperty, customBuyCost, quoteFeature, sellCustomProperty } from './systems/customEstate';
 import { placeLabel } from './hq';
 import type { OsmFeature } from '@/game/services/osm/overpass';
 import { computeEventMods, runEvents, triggerEvent } from './systems/events';
 import { runLogistics } from './systems/logistics';
 import { runAutoSell, runMarket, sellResource } from './systems/market';
+import { AUTOMATION_KEYS, AUTOMATION_UPGRADE_ID, runAutomation, setAutomation, toggleAutoGather, toggleAutoRecipe } from './systems/automation';
 import { computeModifiers } from './systems/modifiers';
 import { runPower } from './systems/power';
 import { runProduction } from './systems/production';
 import { buildPrestigeState, buyPrestigeUpgrade } from './systems/prestige';
+import { BULK_BUY_LIMIT, levelOf } from '@/game/data/prestigeTree';
 import { runAchievements, runTutorial } from './systems/progress';
 import { completeResearch, runResearchPoints } from './systems/research';
 import { runRivals } from './systems/rivals';
@@ -135,6 +137,7 @@ export class GameEngine {
     const { cost } = runLogistics(this.ctx, dt);
     runMarket(this.ctx, dt);
     runSales(this.ctx, dt);
+    runAutomation(this.ctx, dt);
     runInfluence(this.ctx, dt);
     const sold = runAutoSell(this.ctx);
     runResearchPoints(this.ctx, dt);
@@ -312,26 +315,32 @@ export class GameEngine {
   /** 永続アップグレードを1段階買う */
   buyPrestigeUpgrade(id: string): boolean {
     const ok = buyPrestigeUpgrade(this.state, id);
-    if (ok) this.refreshDerived();
+    if (ok) {
+      // 自動化は買ったらすぐ動きだすほうが分かりやすい
+      const key = (AUTOMATION_KEYS as AutomationKey[]).find((k) => AUTOMATION_UPGRADE_ID[k] === id);
+      if (key) setAutomation(this.state, key, true);
+      this.refreshDerived();
+    }
     return ok;
   }
 
-  /** 本社の場所を変える（地図の表示と「本社の所在地」に反映される） */
+  /** 本社の場所を決める。最初の1回だけ（決めたあとは変えられない） */
   setHqLocation(lat: number, lon: number, label?: string): void {
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+    if (this.state.settings.hqChosen) return;
     const name = label && label.trim() ? label.trim() : placeLabel(lat, lon);
     this.state.settings.hqLocation = { lat, lon, label: name };
+    this.state.settings.hqChosen = true;
     const hq = this.state.lands.find((l) => l.id === 'hq');
     if (hq) hq.region = name;
-    this.emit('success', `本社を${name}に移しました`, { toast: true });
+    this.emit('success', `本社を${name}に置きました。ここが会社の始まりです`, { toast: true });
   }
 
-  /** 本社の場所を初期値（大阪）に戻す */
-  resetHqLocation(): void {
-    this.state.settings.hqLocation = null;
-    const hq = this.state.lands.find((l) => l.id === 'hq');
-    if (hq) hq.region = '本社所在地';
-    this.emit('info', '本社の場所を初期値に戻しました', { toast: true });
+  /** 本社を初期値（大阪）のままにする（これも1回だけの決定） */
+  keepDefaultHq(): void {
+    if (this.state.settings.hqChosen) return;
+    this.state.settings.hqChosen = true;
+    this.emit('info', '本社は大阪のままにしました', { toast: true });
   }
 
   /** 地図で見つけた実在の場所を買う */
@@ -422,9 +431,16 @@ export class GameEngine {
   }
 
   // ---------- 注文 ----------
-  /** 取引先に営業する */
-  pitchTo(companyId: string): { ok: boolean; reason?: string } {
-    const r = pitchTo(this.ctx, companyId);
+  /** 地図で見つけた建物に営業する */
+  pitchToPlace(feature: OsmFeature): { ok: boolean; reason?: string } {
+    const r = pitchToPlace(this.ctx, feature);
+    this.refreshDerived();
+    return { ok: r.ok, reason: r.reason };
+  }
+
+  /** 覚えている取引先に営業する */
+  pitchToClient(clientId: string): { ok: boolean; reason?: string } {
+    const r = pitchToClient(this.ctx, clientId);
     this.refreshDerived();
     return { ok: r.ok, reason: r.reason };
   }
@@ -458,6 +474,70 @@ export class GameEngine {
     return ok;
   }
 
+
+  // ---------- 自動化 ----------
+  /** 自動化のスイッチを切り替える（買っていなければ何も起きない） */
+  setAutomation(key: AutomationKey, on: boolean): void {
+    setAutomation(this.state, key, on);
+  }
+
+  /** 自動クラフトに登録する・外す。上限に達していたら false */
+  toggleAutoRecipe(recipeId: RecipeId): boolean {
+    return toggleAutoRecipe(this.state, recipeId);
+  }
+
+  /** 自動採集する行動を選ぶ・外す */
+  toggleAutoGather(actionId: GatherActionId): void {
+    toggleAutoGather(this.state, actionId);
+  }
+
+  /** すべての資源の自動売却をまとめて入れる・切る（永続アップグレードで解放） */
+  setAllAutoSell(enabled: boolean, keep = 0): number {
+    if (levelOf(this.state.prestige?.upgrades, 'auto_sell') <= 0) return 0;
+    let n = 0;
+    for (const id of Object.keys(this.state.discovered) as ResourceId[]) {
+      const cfg = this.state.market.autoSell[id];
+      this.state.market.autoSell[id] = { enabled, keep: cfg?.keep ?? keep, minPriceRatio: cfg?.minPriceRatio ?? 0 };
+      n += 1;
+    }
+    return n;
+  }
+
+  /** 表示中の物件をまとめて買う（永続アップグレード「一括買収」）。買えた数を返す */
+  bulkBuyFeatures(features: OsmFeature[]): { bought: number; spent: number; reason?: string } {
+    const level = levelOf(this.state.prestige?.upgrades, 'bulk_buy');
+    if (level <= 0) return { bought: 0, spent: 0, reason: '「一括買収」を永続アップグレードで解放すると使えます' };
+    const limit = BULK_BUY_LIMIT[Math.min(level, BULK_BUY_LIMIT.length) - 1];
+    // 所持金を使い切らないよう、半分までに抑える
+    let budget = this.state.company.cash * 0.5;
+    const candidates = features
+      .filter((f) => !this.state.estate.custom?.[f.id])
+      .map((f) => ({ f, cost: customBuyCost(this.state, quoteFeature(f)) }))
+      .filter((c) => c.cost <= budget)
+      .sort((a, b) => a.cost - b.cost);
+    let bought = 0;
+    let spent = 0;
+    this.silent = true;
+    try {
+      for (const c of candidates) {
+        if (bought >= limit) break;
+        if (c.cost > budget) continue;
+        if (!buyCustomProperty(this.ctx, c.f)) continue;
+        bought += 1;
+        spent += c.cost;
+        budget -= c.cost;
+      }
+    } finally {
+      this.silent = false;
+    }
+    if (bought > 0) {
+      this.refreshDerived();
+      runUnlocks(this.ctx);
+      this.emit('success', `表示中の物件を ${bought} 件まとめて買いました (-${Math.round(spent).toLocaleString('ja-JP')}円)`, { toast: true });
+      return { bought, spent };
+    }
+    return { bought: 0, spent: 0, reason: '買える物件が見つかりませんでした（所持金の半分までが目安です）' };
+  }
 
   // ---------- 再出発 ----------
   /** 会社を売却して再出発する。実績・設定・永続ボーナスだけ持ち越す */

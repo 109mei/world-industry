@@ -11,6 +11,8 @@ import { PROPERTY_KIND as KIND_DEF } from '@/game/data/properties';
 import { bumpGame, useGame } from '@/stores/gameStore';
 import { useUiStore } from '@/stores/uiStore';
 import { formatMoney, formatNumber } from '@/utils/format';
+import { sfx } from '@/utils/sfx';
+import { BULK_BUY_LIMIT, levelOf } from '@/game/data/prestigeTree';
 
 const Map3D = lazy(() => import('./Map3D').then((m) => ({ default: m.Map3D })));
 
@@ -59,11 +61,12 @@ export function RealMap() {
   const [osmState, setOsmState] = useState<'idle' | 'loading' | 'error'>('idle');
   const [osmError, setOsmError] = useState<string | null>(null);
   const [bounds, setBounds] = useState<BBox | null>(null);
-  const [geoState, setGeoState] = useState<'idle' | 'asking' | 'denied' | 'unsupported'>('idle');
   const [view, setView] = useState<{ lat: number; lon: number; zoom: number }>({ lat: 36.5, lon: 138.5, zoom: 5 });
   const viewRef = useRef(view);
   viewRef.current = view;
   const [threeDError, setThreeDError] = useState<string | null>(null);
+  const [bulkMsg, setBulkMsg] = useState<string | null>(null);
+  const bulkLevel = levelOf(state.prestige?.upgrades, 'bulk_buy');
   const openFeature = useUiStore((s) => s.openFeature);
   const buildingLayerRef = useRef<L.LayerGroup | null>(null);
   const buildingRendererRef = useRef<L.Canvas | null>(null);
@@ -224,6 +227,7 @@ export function RealMap() {
     if (!ready || !bounds) return;
     if (zoom < BUILDING_ZOOM) {
       setFeatures([]);
+      setBulkMsg(null);
       setOsmState('idle');
       setOsmError(null);
       return;
@@ -232,6 +236,7 @@ export function RealMap() {
     const cachedNow = overpass.cached(bounds);
     if (cachedNow) {
       setFeatures(cachedNow);
+      setBulkMsg(null);
       setOsmState('idle');
       return;
     }
@@ -240,6 +245,7 @@ export function RealMap() {
       void overpass.load(bounds).then((r) => {
         if (cancelled) return;
         setFeatures(r.features);
+        setBulkMsg(null);
         setOsmState(r.error ? 'error' : 'idle');
         setOsmError(r.error ?? null);
       });
@@ -293,31 +299,6 @@ export function RealMap() {
   const use3D = wants3D && !threeDError && canUse3D;
 
   const goJapan = () => mapRef.current?.flyTo([36.5, 137], 5, { duration: 0.6 });
-  const setHqHere = () => {
-    const map = mapRef.current;
-    if (!map) return;
-    const c = map.getCenter();
-    engine.setHqLocation(c.lat, c.lng);
-    bumpGame();
-  };
-  const useMyLocation = () => {
-    if (!navigator.geolocation) {
-      setGeoState('unsupported');
-      return;
-    }
-    setGeoState('asking');
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setGeoState('idle');
-        const { latitude, longitude } = pos.coords;
-        engine.setHqLocation(latitude, longitude);
-        bumpGame();
-        mapRef.current?.flyTo([latitude, longitude], 17, { duration: 0.8 });
-      },
-      () => setGeoState('denied'),
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 },
-    );
-  };
   const goWorld = () => mapRef.current?.setView([20, 10], 2);
   const ownedPoints: [number, number][] = [
     ...Object.values(state.estate.custom ?? {}).map((cp) => [cp.lat, cp.lon] as [number, number]),
@@ -346,12 +327,21 @@ export function RealMap() {
           <Button size="sm" disabled={ownedPoints.length === 0} onClick={goOwned}>
             所有地へ
           </Button>
-          <Button size="sm" onClick={useMyLocation} title="位置情報を使って本社を現在地に置きます">
-            {geoState === 'asking' ? '現在地を取得中…' : '現在地を本社に'}
-          </Button>
-          <Button size="sm" onClick={setHqHere} title="いま地図の中心にしている場所を本社にします">
-            ここを本社に
-          </Button>
+          {bulkLevel > 0 && features.length > 0 && (
+            <Button
+              size="sm"
+              variant="primary"
+              onClick={() => {
+                const r = engine.bulkBuyFeatures(features);
+                setBulkMsg(r.reason ?? `${r.bought}件を買いました`);
+                if (r.bought > 0) sfx('buy');
+                bumpGame();
+              }}
+              title="いま地図に出ている物件を、安いものから所持金の半分までまとめて買います"
+            >
+              表示中を一括買収（最大{BULK_BUY_LIMIT[Math.min(bulkLevel, BULK_BUY_LIMIT.length) - 1]}件）
+            </Button>
+          )}
           {canUse3D && (
             <Button
               size="sm"
@@ -368,11 +358,9 @@ export function RealMap() {
           )}
         </div>
         <span className="text-sub" style={{ fontSize: 11 }}>
-          {geoState === 'denied'
-            ? '位置情報が使えませんでした。ブラウザの設定で許可するか、「ここを本社に」で地図から決められます'
-            : geoState === 'unsupported'
-              ? 'この端末では位置情報が使えません。「ここを本社に」で地図から決められます'
-              : zoom < CITY_ZOOM
+          {bulkMsg
+            ? bulkMsg
+            : zoom < CITY_ZOOM
             ? '丸は物件のある都市。タップで寄る。▲は施設を建てられる産業用地（タップで購入）'
             : zoom < BUILDING_ZOOM
               ? 'ピンをタップで詳細。もう少し寄ると、実在の建物を買えるようになります'

@@ -35,7 +35,8 @@ export function App() {
   const { state, derived } = useGame();
   const theme = useResolvedTheme();
   useEffect(() => applyTheme(theme), [theme]);
-  const Page = PAGES[tab];
+  // 本社を決めるまではホームから動かさない（最初に1回だけ決める）
+  const Page = state.settings.hqChosen ? PAGES[tab] : PAGES.home;
   const stopped = Object.values(derived.facilityRuntime).some((r) => r.status === 'no_input' || r.status === 'storage_full' || r.status === 'no_power' || r.status === 'depleted');
   // LAND: 買える土地があるのにまだ1つも持っていない／輸送手段がなく在庫が溜まっている土地がある
   const landSystem = isLandSystemUnlocked(state, derived.assets);

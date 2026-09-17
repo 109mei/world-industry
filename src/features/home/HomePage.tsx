@@ -9,6 +9,8 @@ import { formatMW } from '@/utils/names';
 import { CompanyPanel } from '@/features/company/CompanyPanel';
 import { ResourcesPanel } from '@/features/resources/ResourcesPanel';
 import { SalesPanel } from '@/features/sales/SalesPanel';
+import { AutomationCard } from './AutomationCard';
+import { HqSetupCard } from './HqSetupCard';
 import { EventBanner } from './EventBanner';
 import { EventList } from './EventList';
 import { GatherPanel } from './GatherPanel';
@@ -40,6 +42,7 @@ export function HomePage() {
         </div>
       </Card>
 
+      {state.settings.hqChosen && (
       <Segmented
         ariaLabel="ホームの切替"
         items={[
@@ -51,11 +54,18 @@ export function HomePage() {
         value={sub}
         onChange={setSub}
       />
+      )}
 
+      {!state.settings.hqChosen && <HqSetupCard />}
+
+      {state.settings.hqChosen && (
+      <>
       {sub === 'home' && (
         <>
           <EventBanner />
           <TutorialCard />
+
+          <AutomationCard />
 
           <div className="section-title">手作業で採集</div>
           <GatherPanel />
@@ -79,6 +89,8 @@ export function HomePage() {
       {sub === 'resources' && <ResourcesPanel />}
       {sub === 'sales' && <SalesPanel />}
       {sub === 'company' && <CompanyPanel />}
+      </>
+      )}
     </div>
   );
 }

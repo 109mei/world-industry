@@ -140,6 +140,8 @@ export function runAutoSell(ctx: EngineContext): number {
   let gained = 0;
   const reserve: Partial<Record<ResourceId, number>> = {};
   for (const c of state.contracts?.active ?? []) reserve[c.resource] = (reserve[c.resource] ?? 0) + Math.max(0, c.amount - c.delivered);
+  // 契約している納品ぶんは売らずに残しておく
+  for (const d of state.sales?.deals ?? []) reserve[d.resource] = (reserve[d.resource] ?? 0) + d.amountPer;
   for (const [id, cfg] of Object.entries(state.market.autoSell) as [ResourceId, AutoSellConfig][]) {
     if (!cfg?.enabled) continue;
     if (cfg.minPriceRatio && referencePrice(state, id) < RESOURCE_MAP[id].basePrice * cfg.minPriceRatio) continue;

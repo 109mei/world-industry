@@ -6,7 +6,7 @@ import { Icon } from '@/components/ui/Icon';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { Stat } from '@/components/ui/Stat';
 import { CONFIG } from '@/game/data/config';
-import { PRESTIGE_UPGRADES, upgradeCost } from '@/game/data/prestigeTree';
+import { AUTOMATION_UPGRADES, PRESTIGE_UPGRADES, type PrestigeUpgradeDef, upgradeCost } from '@/game/data/prestigeTree';
 import { availablePoints, canPrestige, prestigePoints, spentPoints, startingCash } from '@/game/engine/systems/prestige';
 import { bumpGame, useGame } from '@/stores/gameStore';
 import { useUiStore } from '@/stores/uiStore';
@@ -26,6 +26,47 @@ export function PrestigePanel() {
   const available = availablePoints(state);
   const spent = spentPoints(state);
 
+  const renderUpgrade = (u: PrestigeUpgradeDef) => {
+    const level = p.upgrades?.[u.id] ?? 0;
+    const cost = upgradeCost(u.id, level);
+    const maxed = level >= u.maxLevel;
+    const canBuy = !maxed && available >= cost;
+    return (
+      <Card key={u.id} flat>
+        <div className="card__head">
+          <Icon name={u.icon} size={30} fallback={u.name.slice(0, 2)} />
+          <div className="row__grow">
+            <div className="card__title">{u.name}</div>
+            <div className="card__sub">{u.perLevel}</div>
+          </div>
+          <Badge tone={maxed ? 'profit' : level > 0 ? 'research' : 'default'}>
+            {level} / {u.maxLevel}
+          </Badge>
+        </div>
+        <div className="card__body">
+          <ProgressBar ratio={level / u.maxLevel} tone="research" />
+          <div className="text-sub" style={{ fontSize: 12, margin: '6px 0' }}>
+            {u.description}
+          </div>
+          <Button
+            size="sm"
+            block
+            variant={canBuy ? 'primary' : 'secondary'}
+            disabled={!canBuy}
+            onClick={() => {
+              if (engine.buyPrestigeUpgrade(u.id)) {
+                sfx('research');
+                bumpGame();
+              }
+            }}
+          >
+            {maxed ? '最大' : `${cost}pt で上げる`}
+          </Button>
+        </div>
+      </Card>
+    );
+  };
+
   return (
     <div className="list" style={{ gap: 12 }}>
       <Card>
@@ -41,48 +82,17 @@ export function PrestigePanel() {
         </p>
       </Card>
 
-      <div className="section-title">永続アップグレード</div>
+      <div className="section-title">自動化（買うとスイッチが出ます）</div>
+      <p className="text-sub" style={{ fontSize: 12, margin: '0 0 4px' }}>
+        面倒なところを肩代わりしてくれます。買うとすぐ動きだし、ホームの「自動化」で個別に止められます。
+      </p>
       <div className="grid grid--2">
-        {PRESTIGE_UPGRADES.map((u) => {
-          const level = p.upgrades?.[u.id] ?? 0;
-          const cost = upgradeCost(u.id, level);
-          const maxed = level >= u.maxLevel;
-          const canBuy = !maxed && available >= cost;
-          return (
-            <Card key={u.id} flat>
-              <div className="card__head">
-                <Icon name={u.icon} size={30} fallback={u.name.slice(0, 2)} />
-                <div className="row__grow">
-                  <div className="card__title">{u.name}</div>
-                  <div className="card__sub">{u.perLevel}</div>
-                </div>
-                <Badge tone={maxed ? 'profit' : level > 0 ? 'research' : 'default'}>
-                  {level} / {u.maxLevel}
-                </Badge>
-              </div>
-              <div className="card__body">
-                <ProgressBar ratio={level / u.maxLevel} tone="research" />
-                <div className="text-sub" style={{ fontSize: 12, margin: '6px 0' }}>
-                  {u.description}
-                </div>
-                <Button
-                  size="sm"
-                  block
-                  variant={canBuy ? 'primary' : 'secondary'}
-                  disabled={!canBuy}
-                  onClick={() => {
-                    if (engine.buyPrestigeUpgrade(u.id)) {
-                      sfx('research');
-                      bumpGame();
-                    }
-                  }}
-                >
-                  {maxed ? '最大' : `${cost}pt で上げる`}
-                </Button>
-              </div>
-            </Card>
-          );
-        })}
+        {AUTOMATION_UPGRADES.map((u) => renderUpgrade(u))}
+      </div>
+
+      <div className="section-title">能力の強化</div>
+      <div className="grid grid--2">
+        {PRESTIGE_UPGRADES.map((u) => renderUpgrade(u))}
       </div>
 
       <Card>

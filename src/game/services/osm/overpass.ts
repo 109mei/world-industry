@@ -32,7 +32,7 @@ export interface OsmFeature {
 
 /** 地形の判定に使うタグだけ残す */
 function slimTags(tags: OsmTags): OsmTags {
-  const keep = ['landuse', 'natural', 'waterway', 'man_made', 'leisure', 'amenity', 'building', 'shop', 'tourism', 'aeroway'];
+  const keep = ['landuse', 'natural', 'waterway', 'man_made', 'leisure', 'amenity', 'building', 'shop', 'tourism', 'aeroway', 'historic', 'heritage', 'building:levels'];
   const out: OsmTags = {};
   for (const k of keep) if (tags[k]) out[k] = tags[k];
   return out;

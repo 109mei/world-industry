@@ -7,15 +7,16 @@
  * - 不動産をたくさん持つと、不動産業は物件を取られて下がる
  * 影響はゆっくり効き、±30% を超えない。
  */
-import { SECTOR_NEEDS } from '@/game/data/clients';
 import { COMPANIES, COMPANY_MAP, isCompanyId, type CompanyDef, type Sector } from '@/game/data/companies';
 import { CONFIG } from '@/game/data/config';
-import { COMPETITION_SCALE, DEFAULT_SCALE, SECTOR_PRODUCES } from '@/game/data/sectorBusiness';
+import { COMPETITION_SCALE, DEFAULT_SCALE, SECTOR_INPUTS, SECTOR_PRODUCES } from '@/game/data/sectorBusiness';
 import type { ResourceId } from '@/game/data/resources';
 import type { DerivedState, GameState } from '@/types/state';
 
 /** 1時間あたりの効き方（大きいほど急に効く） */
 const RATE_PER_HOUR = 0.25;
+/** 影響の説明（UI 用） */
+export const INFLUENCE_NOTE = '世界は広いので、業界を動かすにはかなりの規模が要ります。';
 /** 影響の上限・下限 */
 const MAX_INFLUENCE = 0.3;
 
@@ -43,9 +44,9 @@ export function influenceOn(state: GameState, derived: DerivedState, def: Compan
     total += v;
   }
 
-  // 追い風: その業種が使う材料を自分が大量に作っている（安く手に入る）
+  // 追い風: その業種が仕入れるもの（＝他の業種が売っているもの）を自分が大量に作っている
   let supply = 0;
-  for (const r of SECTOR_NEEDS[def.sector] ?? []) {
+  for (const r of SECTOR_INPUTS[def.sector] ?? []) {
     const rate = derived.production[r as ResourceId] ?? 0;
     if (rate <= 0) continue;
     const scale = COMPETITION_SCALE[r as ResourceId] ?? DEFAULT_SCALE;
@@ -57,20 +58,12 @@ export function influenceOn(state: GameState, derived: DerivedState, def: Compan
     total += v;
   }
 
-  // 取引: 契約して納品している
-  const deals = (state.sales?.deals ?? []).filter((d) => d.companyId === def.id).length;
-  const relation = state.sales?.clients[def.id]?.relation ?? 0;
-  if (deals > 0 || relation > 0) {
-    const v = Math.min(0.12, deals * 0.04 + relation / 1200);
-    reasons.push({ label: '取引がある', value: v });
-    total += v;
-  }
-
   // 不動産: 自分が土地・建物をたくさん持つと不動産業は苦しい
   if (def.sector === 'realestate') {
     const mine = Object.keys(state.estate.owned).length + Object.keys(state.estate.custom ?? {}).length;
-    if (mine > 0) {
-      const v = -Math.min(0.2, mine * 0.012);
+    if (mine >= 10) {
+      // 世界中に建物は無数にあるので、数十件買い集めてやっと効いてくる
+      const v = -Math.min(0.2, (mine - 9) * 0.004);
       reasons.push({ label: '物件を買い集めている', value: v });
       total += v;
     }
@@ -79,8 +72,8 @@ export function influenceOn(state: GameState, derived: DerivedState, def: Compan
   // 物流: 自分で運ぶほど運輸・海運・航空の仕事が減る
   if (def.sector === 'logistics' || def.sector === 'shipping' || def.sector === 'airline') {
     const carriers = state.facilities.filter((f) => f.count > 0 && ['truck', 'freight_train', 'cargo_ship', 'pipeline', 'cargo_plane'].includes(f.typeId)).reduce((a, f) => a + f.count, 0);
-    if (carriers > 0) {
-      const v = -Math.min(0.18, carriers * 0.01);
+    if (carriers >= 10) {
+      const v = -Math.min(0.18, (carriers - 9) * 0.004);
       reasons.push({ label: '自前で輸送している', value: v });
       total += v;
     }

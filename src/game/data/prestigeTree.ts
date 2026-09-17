@@ -18,6 +18,21 @@ export interface PrestigeUpgradeDef {
 const flat = (n: number) => () => n;
 const rising = (base: number) => (level: number) => base + Math.floor(level / 3);
 
+/** 自動化のアップグレード（買うと ON/OFF のスイッチが出る） */
+export const AUTOMATION_UPGRADES: readonly PrestigeUpgradeDef[] = [
+  { id: 'auto_gather', name: '自動採集', icon: 'icon_facility_worker', perLevel: '毎秒 1回ぶんの手作業が自動で進む', maxLevel: 5, cost: flat(3), description: '解放している採集を、自分でタップしなくても続けてくれる。段階を上げるほど速くなる。' },
+  { id: 'auto_craft', name: '自動クラフト', icon: 'icon_ui_craft', perLevel: '自動で作るレシピを 2つ増やせる', maxLevel: 5, cost: flat(3), description: 'クラフト画面でスイッチを入れたレシピを、材料がある限り自動で作り続ける。' },
+  { id: 'auto_deliver', name: '自動納品', icon: 'icon_logistics_truck', perLevel: '納期が近づいた契約を自動で納品', maxLevel: 1, cost: flat(5), description: '在庫が足りていれば、期限前に自動で納品してくれる。落として関係が下がることがなくなる。' },
+  { id: 'auto_pitch', name: '自動営業', icon: 'icon_office_contract', perLevel: '関係のある取引先へ自動で営業', maxLevel: 1, cost: flat(5), description: '営業のクールダウンが明けるたび、関係の深い相手から順に自動で営業する（費用はかかる）。' },
+  { id: 'auto_survey', name: '自動調査', icon: 'icon_machine_drilling_rig', perLevel: '買った土地を自動で調査', maxLevel: 1, cost: flat(4), description: '買った土地の調査を、お金に余裕があるときに自動で進める。' },
+  { id: 'auto_sell', name: '自動売却の一括設定', icon: 'icon_ui_sell', perLevel: 'すべての資源にまとめて設定できる', maxLevel: 1, cost: flat(3), description: '資源ごとに設定しなくても、まとめて自動売却を入れられるボタンが出る。' },
+  { id: 'bulk_buy', name: '一括買収', icon: 'icon_ui_location', perLevel: '地図でまとめて買える件数が増える（5 → 15 → 40 → 100件）', maxLevel: 4, cost: flat(4), description: '地図に出ている物件を、安い順にまとめて買い取るボタンが出る。所持金の半分までしか使わないので、押しても破産しない。買い占めるほど業界への影響も大きくなる。' },
+  { id: 'auto_build', name: '自動増設', icon: 'icon_ui_factory', perLevel: '止まっていない施設を自動で1台ずつ増設', maxLevel: 3, cost: flat(4), description: '所持金に余裕があるとき、回収の早い施設を自動で増やす。段階を上げるほど頻繁に増える。' },
+];
+
+/** 「一括買収」の段階ごとに、一度に買える件数 */
+export const BULK_BUY_LIMIT: readonly number[] = [5, 15, 40, 100];
+
 export const PRESTIGE_UPGRADES: readonly PrestigeUpgradeDef[] = [
   { id: 'production', name: '生産の効率', icon: 'icon_ui_factory', perLevel: '全施設の生産 +6%', maxLevel: 20, cost: rising(1), description: 'すべての施設の生産量が上がる。' },
   { id: 'gather', name: '手作業の腕', icon: 'icon_ui_hand', perLevel: '採集の量 +12%', maxLevel: 10, cost: rising(1), description: '手で集める量が増える。序盤が軽くなる。' },
@@ -35,7 +50,10 @@ export const PRESTIGE_UPGRADES: readonly PrestigeUpgradeDef[] = [
   { id: 'offline', name: '夜間操業', icon: 'icon_ui_clock', perLevel: 'オフライン進行の上限 +2時間', maxLevel: 8, cost: flat(1), description: '閉じている間に進む時間が延びる。' },
 ];
 
-export const PRESTIGE_UPGRADE_MAP: Record<string, PrestigeUpgradeDef> = Object.fromEntries(PRESTIGE_UPGRADES.map((u) => [u.id, u]));
+/** 自動化＋数値強化のすべて */
+export const ALL_PRESTIGE_UPGRADES: readonly PrestigeUpgradeDef[] = [...AUTOMATION_UPGRADES, ...PRESTIGE_UPGRADES];
+
+export const PRESTIGE_UPGRADE_MAP: Record<string, PrestigeUpgradeDef> = Object.fromEntries(ALL_PRESTIGE_UPGRADES.map((u) => [u.id, u]));
 
 /** その段階を買うのに必要なポイント */
 export function upgradeCost(id: string, level: number): number {

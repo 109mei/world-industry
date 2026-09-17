@@ -27,34 +27,58 @@ export const SECTOR_PRODUCES: Record<Sector, ResourceId[]> = {
   steel: ['steel', 'iron', 'cast_iron'],
 };
 
-/** 競合として「一人前」とみなす生産量（個/秒） */
-export const COMPETITION_SCALE: Partial<Record<ResourceId, number>> = {
-  stone: 200,
-  iron_ore: 80,
-  coal: 80,
-  copper_ore: 40,
-  uranium_ore: 8,
-  crude_oil: 60,
-  wheat: 80,
-  iron: 40,
-  steel: 25,
-  cast_iron: 25,
-  concrete: 40,
-  brick: 40,
-  building_material: 6,
-  machine_parts: 15,
-  electronics: 8,
-  semiconductor: 3,
-  silicon: 6,
-  car: 1.5,
-  robot: 0.6,
-  flour: 30,
-  fuel: 30,
-  nuclear_fuel: 2,
-  tool: 20,
-  cloth: 20,
-  plastic: 20,
-  rubber: 20,
+/** その業種が仕入れるもの（プレイヤーが大量に作ると追い風になる） */
+export const SECTOR_INPUTS: Record<Sector, ResourceId[]> = {
+  realestate: ['building_material', 'concrete', 'brick'],
+  energy: ['coal', 'crude_oil', 'uranium_ore'],
+  mining: ['machine_parts', 'fuel', 'steel'],
+  construction: ['concrete', 'brick', 'steel', 'lumber'],
+  logistics: ['fuel', 'tire', 'machine_parts'],
+  food: ['wheat', 'water'],
+  shipping: ['fuel', 'steel'],
+  finance: [],
+  heavy: ['steel', 'iron', 'copper'],
+  airline: ['fuel', 'electronics'],
+  it: ['semiconductor', 'wire', 'plastic'],
+  semiconductor: ['silicon', 'copper', 'chemical'],
+  trading: ['food', 'clothing', 'furniture'],
+  auto: ['steel', 'machine_parts', 'tire', 'battery', 'paint'],
+  agri: ['fertilizer', 'water', 'fuel'],
+  hotel: ['food', 'cloth', 'furniture'],
+  steel: ['iron_ore', 'coal', 'scrap_metal'],
 };
 
-export const DEFAULT_SCALE = 30;
+/**
+ * 競合として「一人前」とみなす生産量（個/秒）。
+ * 世界は広いので、少し作ったくらいでは業界は動かない（v1.1 で10倍に引き上げ）。
+ */
+export const COMPETITION_SCALE: Partial<Record<ResourceId, number>> = {
+  stone: 2000,
+  iron_ore: 800,
+  coal: 800,
+  copper_ore: 400,
+  uranium_ore: 80,
+  crude_oil: 600,
+  wheat: 800,
+  iron: 400,
+  steel: 250,
+  cast_iron: 250,
+  concrete: 400,
+  brick: 400,
+  building_material: 60,
+  machine_parts: 150,
+  electronics: 80,
+  semiconductor: 30,
+  silicon: 60,
+  car: 15,
+  robot: 6,
+  flour: 300,
+  fuel: 300,
+  nuclear_fuel: 20,
+  tool: 200,
+  cloth: 200,
+  plastic: 200,
+  rubber: 200,
+};
+
+export const DEFAULT_SCALE = 300;

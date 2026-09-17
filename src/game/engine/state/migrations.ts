@@ -3,7 +3,7 @@ import { addCustomLand } from '../systems/customEstate';
 import { createInitialSales } from '../systems/sales';
 import { addPropertyLand } from '../systems/estate';
 import type { GameState, LandState } from '@/types/state';
-import { createHqLand, createInitialCompanyStock, createInitialContracts, createInitialEstate, createInitialPrestige, createInitialState, createInitialStocks } from './createInitialState';
+import { createHqLand, createInitialAutomation, createInitialCompanyStock, createInitialContracts, createInitialEstate, createInitialPrestige, createInitialState, createInitialStocks } from './createInitialState';
 
 /**
  * 古いセーブデータを現在の形式へ変換する。
@@ -95,6 +95,8 @@ const MIGRATIONS: Record<number, Migration> = {
     contracts.active = [];
     return { ...data, saveVersion: 8, contracts, sales: { clients: {}, offers: [], deals: [], nextId: 1 } };
   },
+  // v8 → v9: 自動化（永続アップグレードで買う）の設定を追加
+  8: (data) => ({ ...data, saveVersion: 9, automation: { on: {}, recipes: [], gathers: [], timers: {} } }),
 };
 
 export function migrateSave(raw: unknown): GameState {
@@ -131,6 +133,17 @@ function fixSales(v: Partial<GameState['sales']> | undefined): GameState['sales'
     offers: Array.isArray(v.offers) ? v.offers : [],
     deals: Array.isArray(v.deals) ? v.deals : [],
     nextId: typeof v.nextId === 'number' ? v.nextId : 1,
+  };
+}
+
+function fixAutomation(v: Partial<GameState['automation']> | undefined): GameState['automation'] {
+  const base = createInitialAutomation();
+  if (!v) return base;
+  return {
+    on: { ...(v.on ?? {}) },
+    recipes: Array.isArray(v.recipes) ? v.recipes : [],
+    gathers: Array.isArray(v.gathers) ? v.gathers : [],
+    timers: { ...(v.timers ?? {}) },
   };
 }
 
@@ -203,6 +216,7 @@ export function fillDefaults(data: Record<string, unknown>): GameState {
     contracts: fixContracts(d.contracts),
     sales: fixSales(d.sales),
     prestige: fixPrestige(d.prestige),
+    automation: fixAutomation(d.automation),
     eventLog: Array.isArray(d.eventLog) ? d.eventLog : [],
     nextEventId: typeof d.nextEventId === 'number' ? d.nextEventId : 1,
     settings: { ...base.settings, ...(d.settings ?? {}) },

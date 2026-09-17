@@ -5,7 +5,7 @@ import { createInitialSales } from '../systems/sales';
 import { HQ_LAND_ID, HQ_TERRAIN } from '@/game/data/lands';
 import { GAME_META } from '@/game/data/meta';
 import { RESOURCES, type ResourceDef, type ResourceId } from '@/game/data/resources';
-import type { CompanyStockState, ContractsState, DerivedState, EstateState, GameState, LandState, PrestigeState, StocksState } from '@/types/state';
+import type { AutomationState, CompanyStockState, ContractsState, DerivedState, EstateState, GameState, LandState, PrestigeState, StocksState } from '@/types/state';
 import { createEmptyEventMods } from '../systems/events';
 import { createBaseModifiers } from '../systems/modifiers';
 import { createEmptyPower } from '../systems/power';
@@ -39,6 +39,10 @@ export function createInitialContracts(): ContractsState {
 
 export function createInitialPrestige(): PrestigeState {
   return { count: 0, points: 0, history: [] };
+}
+
+export function createInitialAutomation(): AutomationState {
+  return { on: {}, recipes: [], gathers: [], timers: {} };
 }
 
 export function createInitialState(now = Date.now()): GameState {
@@ -94,6 +98,7 @@ export function createInitialState(now = Date.now()): GameState {
     contracts: createInitialContracts(),
     sales: createInitialSales(),
     prestige: createInitialPrestige(),
+    automation: createInitialAutomation(),
     eventLog: [],
     nextEventId: 1,
     settings: {
@@ -110,6 +115,7 @@ export function createInitialState(now = Date.now()): GameState {
       craftOnlyMakeable: false,
       estateView: 'map',
       hqLocation: null,
+      hqChosen: false,
       map3D: false,
     },
   };

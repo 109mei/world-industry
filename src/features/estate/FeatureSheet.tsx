@@ -7,12 +7,15 @@ import { FACILITY_MAP, isFacilityId } from '@/game/data/facilities';
 import { PROPERTY_KIND, PROPERTY_POPULATION, PROPERTY_TERRAIN } from '@/game/data/properties';
 import { TERRAINS } from '@/game/data/terrain';
 import { customBuyCost, customLandId, customPrice, customRentPerSec, customSellProceeds, getCustom, quoteFeature } from '@/game/engine/systems/customEstate';
+import { KIND_NEEDS, isClientKind, pitchCost, relationTier } from '@/game/data/clients';
+import { getClient, isSalesUnlocked, pitchCooldownLeft, wantedByKind } from '@/game/engine/systems/sales';
 import { estateFee } from '@/game/engine/systems/estate';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { RESOURCE_MAP } from '@/game/data/resources';
 import { SURVEY_LEVEL_LABEL, nextSurveyStage } from '@/game/data/survey';
 import { surveyCost } from '@/game/engine/actions/land';
 import { getLand } from '@/game/engine/land';
+import { useState } from 'react';
 import { bumpGame, useGame } from '@/stores/gameStore';
 import { useUiStore } from '@/stores/uiStore';
 import { formatAmount, formatDuration, formatMoney, formatMoneyRate, formatNumber, formatPercent, formatRate } from '@/utils/format';
@@ -31,6 +34,7 @@ export function FeatureSheet() {
   const setTab = useUiStore((s) => s.setTab);
   const { state, derived, engine } = useGame();
   const mode = state.settings.numberFormat;
+  const [pitchMsg, setPitchMsg] = useState('');
   if (!feature) return null;
   const close = () => openFeature(null);
   const owned = getCustom(state, feature.id);
@@ -45,6 +49,11 @@ export function FeatureSheet() {
   const proceeds = owned ? customSellProceeds(state, owned) : 0;
   const floorArea = feature.areaSqm * Math.max(1, feature.levels);
   const land = getLand(state, landId);
+  const salesUnlocked = isSalesUnlocked(state);
+  const client = getClient(state, feature.id);
+  const wants = wantedByKind(state, feature.kind);
+  const pitchFee = pitchCost(derived.assets);
+  const pitchWait = client ? pitchCooldownLeft(state, feature.id, Date.now()) : 0;
   const depositList = Object.entries(land?.deposits ?? {}).filter(([, d]) => (d?.total ?? 0) > 0);
   const stage = land ? nextSurveyStage(land.survey) : null;
   const surveyPrice = land && stage ? surveyCost(state, landId, land.survey, derived.modifiers.surveyCost) : 0;
@@ -63,6 +72,7 @@ export function FeatureSheet() {
           <Badge tone="power">{owned?.label ?? feature.label}</Badge>
           {owned ? <Badge tone="profit">所有中</Badge> : <Badge tone={canBuy ? 'profit' : 'default'}>{canBuy ? '購入できる' : '資金不足'}</Badge>}
           {feature.named && <Badge tone="default">名前は架空</Badge>}
+          {quote.prominence.score >= 0.18 && <Badge tone="research">{quote.prominence.label}</Badge>}
         </div>
         <p className="card__sub">
           実在する建物の位置と大きさ（OpenStreetMap）をもとにした物件です。名前は実在の施設をもじった架空のもので、実際の所有者・営業とは関係ありません。
@@ -75,6 +85,13 @@ export function FeatureSheet() {
           <Stat label="土地の分" value={formatMoney(quote.landPart, mode)} />
           <Stat label="建物の分" value={formatMoney(quote.buildingPart, mode)} />
         </div>
+        {!owned && quote.prominence.score >= 0.18 && (
+          <p className="text-sub" style={{ fontSize: 12, margin: '8px 0 0' }}>
+            ここは{quote.prominence.label}です（{quote.prominence.reasons.join('・')}）。すでに持ち主がいて手放したがらないため、
+            評価額そのものが ×{quote.prominence.mult.toFixed(1)}、さらに買収の上乗せが +{formatPercent(quote.prominence.premium - 1, 0)} かかります。
+            買っても賃料は知名度ぶんまでは増えません。
+          </p>
+        )}
       </div>
       <div className="sheet__section">
         {!owned && (
@@ -95,6 +112,41 @@ export function FeatureSheet() {
             {!canBuy && (
               <div className="text-sub" style={{ fontSize: 12, marginTop: 6 }}>
                 所持金 {formatMoney(state.company.cash, mode)}。あと {formatMoney(cost - state.company.cash, mode)} 必要。
+              </div>
+            )}
+            {salesUnlocked && isClientKind(feature.kind) && (
+              <div style={{ marginTop: 12, borderTop: '1px solid var(--line, rgba(255,255,255,.08))', paddingTop: 10 }}>
+                <div className="row row--between" style={{ marginBottom: 4 }}>
+                  <span className="field__label">ここに営業する</span>
+                  {client && <Badge tone={client.relation >= 45 ? 'profit' : 'default'}>{relationTier(client.relation).label}</Badge>}
+                </div>
+                <p className="text-sub" style={{ fontSize: 12, margin: '0 0 6px' }}>
+                  欲しがるもの: {(KIND_NEEDS[feature.kind] ?? []).map((r) => RESOURCE_MAP[r].name).join('・')}
+                  {client ? `・これまで ${client.deliveries}回 納品` : ''}
+                </p>
+                <Button
+                  size="sm"
+                  block
+                  variant={wants.length > 0 && pitchWait <= 0 ? 'primary' : 'secondary'}
+                  disabled={wants.length === 0 || pitchWait > 0 || state.company.cash < pitchFee}
+                  onClick={() => {
+                    const r = engine.pitchToPlace(feature);
+                    setPitchMsg(r.reason ?? (r.ok ? '' : '営業できませんでした'));
+                    bumpGame();
+                  }}
+                >
+                  {pitchWait > 0 ? `次の営業まで ${Math.ceil(pitchWait)}秒` : `この会社に営業する（${formatMoney(pitchFee, mode)}）`}
+                </Button>
+                {wants.length === 0 && (
+                  <div className="text-sub" style={{ fontSize: 12, marginTop: 6 }}>
+                    ここが欲しがるものを、まだ作ったことがありません。
+                  </div>
+                )}
+                {pitchMsg && (
+                  <div className="text-sub" style={{ fontSize: 12, marginTop: 6 }}>
+                    {pitchMsg}
+                  </div>
+                )}
               </div>
             )}
           </>

@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { getRuntime } from '@/game/runtime';
 import { bumpGame, useGame } from '@/stores/gameStore';
-import { useUiStore } from '@/stores/uiStore';
 import { hqLocation } from '@/game/engine/hq';
 import { formatDuration } from '@/utils/format';
 import { sfx } from '@/utils/sfx';
@@ -14,8 +13,6 @@ export function SettingsPanel() {
   const [exportText, setExportText] = useState('');
   const [message, setMessage] = useState('');
   const [confirmReset, setConfirmReset] = useState(false);
-  const setTab = useUiStore((st) => st.setTab);
-  const setMapSubTab = useUiStore((st) => st.setMapSubTab);
 
   const update = (patch: Partial<typeof state.settings>) => {
     engine.updateSettings(patch);
@@ -43,54 +40,9 @@ export function SettingsPanel() {
 
       <div className="field">
         <span className="field__label">本社の場所</span>
-        <div className="text-sub" style={{ fontSize: 12, marginBottom: 6 }}>
-          いまの本社: {hqLocation(state).label}（{hqLocation(state).lat.toFixed(4)}, {hqLocation(state).lon.toFixed(4)}）。地図にこの場所で本社が出ます。
-        </div>
-        <div className="btn-row">
-          <Button
-            size="sm"
-            variant="primary"
-            onClick={() => {
-              if (!navigator.geolocation) {
-                setMessage('この端末では位置情報が使えません。地図の「ここを本社に」で決められます');
-                return;
-              }
-              setMessage('位置情報を取得しています…');
-              navigator.geolocation.getCurrentPosition(
-                (pos) => {
-                  engine.setHqLocation(pos.coords.latitude, pos.coords.longitude);
-                  bumpGame();
-                  setMessage('本社を現在地にしました');
-                },
-                () => setMessage('位置情報を取得できませんでした。ブラウザの設定で許可するか、地図の「ここを本社に」で決められます'),
-                { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 },
-              );
-            }}
-          >
-            現在地にする
-          </Button>
-          <Button
-            size="sm"
-            onClick={() => {
-              setTab('map');
-              setMapSubTab('map');
-              setMessage('地図を動かして「ここを本社に」を押してください');
-            }}
-          >
-            地図で選ぶ
-          </Button>
-          <Button
-            size="sm"
-            variant="secondary"
-            disabled={!state.settings.hqLocation}
-            onClick={() => {
-              engine.resetHqLocation();
-              bumpGame();
-              setMessage('本社の場所を初期値（大阪）に戻しました');
-            }}
-          >
-            初期値に戻す
-          </Button>
+        <div className="text-sub" style={{ fontSize: 12 }}>
+          {hqLocation(state).label}（{hqLocation(state).lat.toFixed(4)}, {hqLocation(state).lon.toFixed(4)}）
+          {state.settings.hqChosen ? '。最初に決めた場所なので、変えられません。' : '。まだ決めていません。ホームの「本社をどこに置きますか」から決められます。'}
         </div>
       </div>
 

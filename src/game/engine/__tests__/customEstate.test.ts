@@ -171,15 +171,24 @@ describe('セーブの移行 v6 → v7', () => {
 });
 
 describe('本社の場所', () => {
-  it('初期値は大阪、変えると保存され、戻せる', () => {
+  it('最初に1回だけ決められて、そのあとは変えられない', () => {
     const e = makeEngine();
     expect(hqLocation(e.state).label).toBe('大阪');
+    expect(e.state.settings.hqChosen).toBe(false);
     e.setHqLocation(33.6459, 130.6915);
-    expect(e.state.settings.hqLocation).toBeTruthy();
     expect(hqLocation(e.state).lat).toBeCloseTo(33.6459, 4);
     expect(hqLocation(e.state).label).toContain('飯塚');
-    e.resetHqLocation();
-    expect(e.state.settings.hqLocation).toBeNull();
+    expect(e.state.settings.hqChosen).toBe(true);
+    // 2回目は無視される
+    e.setHqLocation(35.68, 139.76);
+    expect(hqLocation(e.state).lat).toBeCloseTo(33.6459, 4);
+  });
+
+  it('大阪のままにする選択も1回で確定する', () => {
+    const e = makeEngine();
+    e.keepDefaultHq();
+    expect(e.state.settings.hqChosen).toBe(true);
+    e.setHqLocation(33.6459, 130.6915);
     expect(hqLocation(e.state).label).toBe('大阪');
   });
 
