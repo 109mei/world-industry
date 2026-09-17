@@ -113,6 +113,8 @@ export class OverpassService {
   private inflight: Promise<FetchResult> | null = null;
   private lastAt = 0;
   private endpoint = 0;
+  /** 新しい要求が来たら古い要求は捨てる（地図を動かしている間に何度も取りに行かないため） */
+  private ticket = 0;
 
   constructor(
     private fetchImpl: typeof fetch = typeof fetch === 'function' ? fetch.bind(globalThis) : (() => Promise.reject(new Error('fetch がありません'))) as unknown as typeof fetch,
@@ -135,7 +137,15 @@ export class OverpassService {
     const key = bboxKey(b);
     const hit = this.cache.get(key);
     if (hit) return { features: hit };
-    if (this.inflight) return this.inflight;
+    const myTicket = ++this.ticket;
+    // ほかの取得が動いていれば終わるのを待つ。その間に新しい要求が来たら自分の番は捨てる
+    let guard = 0;
+    while (this.inflight && guard++ < 20) {
+      await this.inflight.catch(() => undefined);
+      if (myTicket !== this.ticket) return { features: this.cache.get(key) ?? [] };
+      const cachedAfter = this.cache.get(key);
+      if (cachedAfter) return { features: cachedAfter };
+    }
     const wait = Math.max(0, MIN_INTERVAL_MS - (this.now() - this.lastAt));
     this.inflight = (async () => {
       try {

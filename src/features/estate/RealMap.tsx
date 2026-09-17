@@ -79,7 +79,16 @@ export function RealMap() {
   useEffect(() => {
     const el = containerRef.current;
     if (!el || mapRef.current) return;
-    const map = L.map(el, { center: [36.5, 138.5], zoom: 5, zoomControl: true, attributionControl: true, worldCopyJump: true, minZoom: 2, maxZoom: 17 });
+    const start = useUiStore.getState().mapTarget;
+    const map = L.map(el, {
+      center: start ? [start.lat, start.lon] : [36.5, 138.5],
+      zoom: start ? start.zoom : 5,
+      zoomControl: true,
+      attributionControl: true,
+      worldCopyJump: true,
+      minZoom: 2,
+      maxZoom: 17,
+    });
     mapRef.current = map;
     layerRef.current = L.layerGroup().addTo(map);
     buildingLayerRef.current = L.layerGroup().addTo(map);
