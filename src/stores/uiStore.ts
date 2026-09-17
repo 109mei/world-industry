@@ -10,9 +10,9 @@ export type CraftCategoryFilter = 'all' | RecipeCategory;
 
 export type CompanySubTab = 'info' | 'achievements' | 'prestige';
 /** ホーム画面の中の切替（資源・会社をここに統合した） */
-export type HomeSubTab = 'home' | 'resources' | 'company';
+export type HomeSubTab = 'home' | 'resources' | 'sales' | 'company';
 /** 地図画面の中の切替（土地・物件・株をここに統合した） */
-export type MapSubTab = 'map' | 'lands' | 'properties' | 'stocks';
+export type MapSubTab = 'map' | 'owned' | 'stocks';
 
 export interface Toast {
   id: number;

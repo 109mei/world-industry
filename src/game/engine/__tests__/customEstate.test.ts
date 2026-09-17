@@ -189,3 +189,52 @@ describe('本社の場所', () => {
     expect(e.state.settings.hqLocation ?? null).toBeNull();
   });
 });
+
+describe('買った実在の土地で採掘できる', () => {
+  it('地形に応じた埋蔵が入り、調査してから鉱山を建てられる', () => {
+    const e = makeEngine(5_000_000_000);
+    // 山あいの広い土地（農地・森でない区画）
+    const f = feature({ id: 'w500', kind: 'land', label: '空き地', name: '空き地', areaSqm: 40_000, levels: 1, lat: 33.53, lon: 130.72, tags: { landuse: 'quarry' } });
+    expect(e.buyCustomProperty(f)).toBe(true);
+    const land = getLand(e.state, customLandId('w500'))!;
+    expect(land.terrain).toBe('mountain');
+    expect(Object.keys(land.deposits).length).toBeGreaterThan(0);
+    expect(land.survey).toBe(0);
+    // 未調査では鉱山を建てられない（地質調査が要る）
+    e.debugUnlockAll();
+    const before = canBuildOn(FACILITY_MAP.iron_mine, land);
+    expect(before.ok).toBe(false);
+    if (!before.ok) expect(before.reason).toContain('地質調査');
+    // 調査を2段階進める
+    for (let i = 0; i < 2; i++) {
+      expect(e.startSurvey(land.id)).toBe(true);
+      e.tick(400);
+    }
+    const after = getLand(e.state, customLandId('w500'))!;
+    expect(after.survey).toBeGreaterThanOrEqual(2);
+    const check = canBuildOn(FACILITY_MAP.iron_mine, after);
+    // 鉄鉱石が埋まっていれば建てられる。なければ「鉱脈がありません」になる
+    if ((after.deposits.iron_ore?.total ?? 0) > 0) expect(check.ok).toBe(true);
+    else if (!check.ok) expect(check.reason).toContain('鉱脈');
+  });
+
+  it('同じ地域・同じ地形なら似た埋蔵になる', () => {
+    const e = makeEngine(5_000_000_000);
+    const a = feature({ id: 'w601', kind: 'farm', label: '農地', name: '農地', areaSqm: 20_000, lat: 33.50, lon: 130.70, tags: { landuse: 'farmland' } });
+    const b = feature({ id: 'w602', kind: 'farm', label: '農地', name: '農地', areaSqm: 20_000, lat: 33.51, lon: 130.71, tags: { landuse: 'farmland' } });
+    e.buyCustomProperty(a);
+    e.buyCustomProperty(b);
+    const la = getLand(e.state, customLandId('w601'))!;
+    const lb = getLand(e.state, customLandId('w602'))!;
+    expect(Object.keys(la.deposits).sort()).toEqual(Object.keys(lb.deposits).sort());
+  });
+
+  it('街なかの店には鉱脈がなく、調査も要らない', () => {
+    const e = makeEngine(5_000_000_000);
+    const f = feature({ id: 'w700', tags: { building: 'retail', shop: 'convenience' }, lat: 33.6459, lon: 130.6915 });
+    e.buyCustomProperty(f);
+    const land = getLand(e.state, customLandId('w700'))!;
+    expect(land.terrain).toBe('city');
+    expect(land.survey).toBe(4);
+  });
+});

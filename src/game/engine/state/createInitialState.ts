@@ -1,6 +1,7 @@
 import { CITIES } from '@/game/data/cities';
 import { COMPANIES } from '@/game/data/companies';
 import { CONFIG } from '@/game/data/config';
+import { createInitialSales } from '../systems/sales';
 import { HQ_LAND_ID, HQ_TERRAIN } from '@/game/data/lands';
 import { GAME_META } from '@/game/data/meta';
 import { RESOURCES, type ResourceDef, type ResourceId } from '@/game/data/resources';
@@ -91,6 +92,7 @@ export function createInitialState(now = Date.now()): GameState {
     estate: createInitialEstate(),
     stocks: createInitialStocks(),
     contracts: createInitialContracts(),
+    sales: createInitialSales(),
     prestige: createInitialPrestige(),
     eventLog: [],
     nextEventId: 1,

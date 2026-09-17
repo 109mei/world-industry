@@ -5,26 +5,23 @@ import { ProgressBar } from '@/components/ui/ProgressBar';
 import { Segmented } from '@/components/ui/Segmented';
 import { Stat } from '@/components/ui/Stat';
 import { CONFIG } from '@/game/data/config';
-import { COUNTRY_NAME, COUNTRY_ORDER, LANDS, type LandDef } from '@/game/data/lands';
 import { isEstateSystemUnlocked, isLandSystemUnlocked } from '@/game/engine/systems/unlocks';
 import { useGame } from '@/stores/gameStore';
 import { useUiStore } from '@/stores/uiStore';
 import { formatMoney, formatMoneyRate, formatNumber } from '@/utils/format';
 import { CompanySheet } from '@/features/estate/CompanySheet';
-import { PropertyList } from '@/features/estate/PropertyList';
-import { CustomPropertyList } from '@/features/estate/CustomPropertyList';
+import { OwnedPlaces } from './OwnedPlaces';
 import { PropertySheet } from '@/features/estate/PropertySheet';
 import { FeatureSheet } from '@/features/estate/FeatureSheet';
 import { StockList } from '@/features/estate/StockList';
-import { LandCard } from '@/features/land/LandCard';
 import { LandDetailSheet } from '@/features/land/LandDetailSheet';
 
 // Leaflet は大きいので、地図を開いたときだけ読み込む
 const RealMap = lazy(() => import('@/features/estate/RealMap').then((m) => ({ default: m.RealMap })));
 
 const GUIDE = [
-  { icon: 'icon_ui_location', title: '実在の地図で土地を買う', text: '産業用地（鉱山や農園を建てる土地）も、銀座のビルや北海道の原野も、同じ地図から買える。価格はその場所の実勢に近い水準。' },
-  { icon: 'icon_facility_iron_mine', title: '買った土地に建てる', text: '土地を調査して鉱山・農園・発電所・研究所・商業施設を建てる。輸送手段を置くと生産物が本社へ届く。' },
+  { icon: 'icon_ui_location', title: '実在の場所を買う', text: '地図を拡大すると、実際に建っている建物や区画が出てくる。家でも店でも工場でも農地でも、気になった場所をそのまま買える。価格はその場所の実勢に近い水準。' },
+  { icon: 'icon_facility_iron_mine', title: '買った場所に建てる', text: '買った土地を調査すると、そこに何が埋まっているかが分かる。鉱山・農園・発電所・研究所・商業施設を建て、輸送手段を置くと生産物が本社へ届く。' },
   { icon: 'icon_ui_chart', title: '賃料と株', text: '住宅やビルは賃料が毎秒入る。架空の28社の株を売買して配当も得られ、3分の2を持つと経営権を握れる。' },
 ];
 
@@ -86,13 +83,11 @@ export function MapPage() {
   const ownedProps = Object.keys(state.estate.owned).length;
   const ownedCustom = Object.keys(state.estate.custom ?? {}).length;
   const holdings = Object.values(state.stocks.companies).filter((c) => c.playerShares > 0).length;
-  const defs = LANDS as readonly LandDef[];
-  const byCountry = COUNTRY_ORDER.map((c) => ({ c, lands: defs.filter((l) => l.country === c) })).filter((g) => g.lands.length > 0);
 
   return (
     <div className="page">
       <h1 className="page__title">
-        地図<small>土地・不動産・株</small>
+        地図<small>実在の場所を買って育てる</small>
       </h1>
       <Card>
         <div className="stat-grid stat-grid--4">
@@ -108,13 +103,8 @@ export function MapPage() {
         ariaLabel="地図の表示"
         items={[
           { id: 'map', label: '地図' },
-          { id: 'lands', label: '産業用地' },
-          ...(estateUnlocked
-            ? [
-                { id: 'properties' as const, label: '物件' },
-                { id: 'stocks' as const, label: '株式' },
-              ]
-            : []),
+          { id: 'owned', label: '所有地' },
+          ...(estateUnlocked ? [{ id: 'stocks' as const, label: '株式' }] : []),
         ]}
         value={sub}
         onChange={setSub}
@@ -135,26 +125,10 @@ export function MapPage() {
           </p>
         </>
       )}
-      {sub === 'lands' &&
-        byCountry.map(({ c, lands }) => (
-          <div key={c}>
-            <div className="section-title">{COUNTRY_NAME[c]}</div>
-            <div className="grid grid--2">
-              {lands.map((l) => (
-                <LandCard key={l.id} def={l} />
-              ))}
-            </div>
-          </div>
-        ))}
-      {sub === 'properties' && estateUnlocked && (
-        <>
-          <CustomPropertyList />
-          <PropertyList />
-        </>
-      )}
+      {sub === 'owned' && <OwnedPlaces />}
       {sub === 'stocks' && estateUnlocked && <StockList />}
       <p className="text-dim" style={{ fontSize: 12 }}>
-        物件・会社は架空です。場所と価格の水準だけ実在を参考にしています。
+        建物の形と位置は OpenStreetMap（ODbL）のデータ、名前はそれをもじった架空のものです。価格は実勢を参考にしたゲーム用の値で、会社はすべて架空です。
       </p>
       <LandDetailSheet />
       <PropertySheet />

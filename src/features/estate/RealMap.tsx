@@ -1,17 +1,13 @@
 import L from 'leaflet';
-import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/Button';
-import { CITIES, type CityDef } from '@/game/data/cities';
-import { COMPANIES, COMPANY_MAP, SECTOR_LABEL, type CompanyDef } from '@/game/data/companies';
+import { COMPANIES, SECTOR_LABEL, type CompanyDef } from '@/game/data/companies';
 import { LANDS, type LandDef } from '@/game/data/lands';
 import { hqLocation } from '@/game/engine/hq';
-import { PROPERTIES, PROPERTY_KIND, type PropertyDef } from '@/game/data/properties';
 import { getLand } from '@/game/engine/land';
-import { propertyBuyCost, propertyOwner, propertyPrice } from '@/game/engine/systems/estate';
 import { customLandId, customPrice, getCustom, quoteFeature } from '@/game/engine/systems/customEstate';
 import { overpass, type BBox, type OsmFeature } from '@/game/services/osm/overpass';
 import { PROPERTY_KIND as KIND_DEF } from '@/game/data/properties';
-import { isUnlocked } from '@/game/engine/systems/unlocks';
 import { bumpGame, useGame } from '@/stores/gameStore';
 import { useUiStore } from '@/stores/uiStore';
 import { formatMoney, formatNumber } from '@/utils/format';
@@ -33,14 +29,6 @@ const THREE_D_ZOOM = 16;
 const TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 const ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors';
 
-type Owner = 'player' | 'company' | 'market';
-
-function propertyIcon(def: PropertyDef, owner: Owner, affordable: boolean): L.DivIcon {
-  const color = PROPERTY_KIND[def.kind].color;
-  const cls = ['rm-pin', `rm-pin--${owner}`, affordable && owner === 'market' ? 'rm-pin--affordable' : ''].filter(Boolean).join(' ');
-  return L.divIcon({ className: 'rm-icon', html: `<span class="${cls}" style="--pin:${color}"></span>`, iconSize: [26, 26], iconAnchor: [13, 13] });
-}
-
 function companyIcon(owned: number, control: boolean, dissolved: boolean): L.DivIcon {
   const cls = ['rm-hq', control ? 'rm-hq--control' : owned > 0 ? 'rm-hq--owned' : '', dissolved ? 'rm-hq--dissolved' : ''].filter(Boolean).join(' ');
   // 物件のピンと重ならないよう、本社は少し右上に浮かせる
@@ -51,18 +39,12 @@ function landIcon(owned: boolean): L.DivIcon {
   return L.divIcon({ className: 'rm-icon', html: `<span class="rm-land${owned ? ' rm-land--owned' : ''}">▲</span>`, iconSize: [26, 26], iconAnchor: [28, -2] });
 }
 
-function cityIcon(owned: number, affordable: number): L.DivIcon {
-  const cls = ['rm-city', owned > 0 ? 'rm-city--owned' : '', affordable > 0 ? 'rm-city--affordable' : ''].filter(Boolean).join(' ');
-  return L.divIcon({ className: 'rm-icon', html: `<span class="${cls}">●</span>`, iconSize: [30, 30], iconAnchor: [15, 15] });
-}
-
 /**
  * 実在の地図（OpenStreetMap のタイル）の上に、物件・会社の本社・産業用地を置く。
  * ズームアウト時は都市ごとにまとめ、タップでその都市へ寄る。
  */
 export function RealMap() {
   const { state, derived, engine } = useGame();
-  const openProperty = useUiStore((s) => s.openProperty);
   const openCompany = useUiStore((s) => s.openCompany);
   const openLand = useUiStore((s) => s.openLand);
   const mapTarget = useUiStore((s) => s.mapTarget);
@@ -162,10 +144,6 @@ export function RealMap() {
     .map(([p, c]) => `${p}:${c}`)
     .sort()
     .join(',');
-  const affordableKey = (PROPERTIES as readonly PropertyDef[])
-    .filter((p) => state.company.cash >= propertyBuyCost(state, p.id))
-    .map((p) => p.id)
-    .join(',');
   const holdingsKey = Object.entries(state.stocks.companies)
     .map(([id, s]) => `${id}:${s.playerShares > 0 ? (derived.companies[id]?.ownership ?? 0) >= 2 / 3 ? 'c' : 'o' : ''}${s.dissolved ? 'x' : ''}`)
     .join(',');
@@ -177,73 +155,14 @@ export function RealMap() {
     .map((m) => m.toFixed(2))
     .join(',');
 
-  const cities = useMemo(() => {
-    const byCity = new Map<string, PropertyDef[]>();
-    for (const p of PROPERTIES as readonly PropertyDef[]) {
-      const arr = byCity.get(p.city) ?? [];
-      arr.push(p);
-      byCity.set(p.city, arr);
-    }
-    return byCity;
-  }, []);
-
   useEffect(() => {
     const map = mapRef.current;
     const layer = layerRef.current;
     if (!map || !layer) return;
     layer.clearLayers();
-    const affordable = new Set(affordableKey.split(',').filter(Boolean));
     const mode = state.settings.numberFormat;
 
-    if (zoom < CITY_ZOOM) {
-      // 近い都市（画面上で重なる）はまとめる
-      type Group = { cities: CityDef[]; props: PropertyDef[]; x: number; y: number };
-      const groups: Group[] = [];
-      for (const c of CITIES as readonly CityDef[]) {
-        const props = cities.get(c.id) ?? [];
-        if (props.length === 0) continue;
-        const pt = map.project([c.lat, c.lon], zoom);
-        const g = groups.find((gr) => Math.hypot(gr.x - pt.x, gr.y - pt.y) < 40);
-        if (g) {
-          g.cities.push(c);
-          g.props.push(...props);
-        } else {
-          groups.push({ cities: [c], props: [...props], x: pt.x, y: pt.y });
-        }
-      }
-      for (const g of groups) {
-        const lat = g.cities.reduce((a, c) => a + c.lat, 0) / g.cities.length;
-        const lon = g.cities.reduce((a, c) => a + c.lon, 0) / g.cities.length;
-        const owned = g.props.filter((p) => propertyOwner(state, p.id).type === 'player').length;
-        const buyable = g.props.filter((p) => affordable.has(p.id) && propertyOwner(state, p.id).type === 'market').length;
-        const names = g.cities.map((c) => c.name).join('・');
-        const m = L.marker([lat, lon], { icon: cityIcon(owned, buyable), title: names, zIndexOffset: 1000 });
-        m.bindTooltip(names, { direction: 'top', offset: [0, -12] });
-        m.on('click', () => {
-          if (g.cities.length === 1) {
-            map.flyTo([g.cities[0].lat, g.cities[0].lon], 13, { duration: 0.7 });
-          } else {
-            // 複数の都市のまとまりは全体が入る倍率へ。ただしピンが出る倍率（CITY_ZOOM）より手前では止めない
-            const bounds = L.latLngBounds(g.cities.map((c) => [c.lat, c.lon] as [number, number])).pad(0.4);
-            const z = Math.max(CITY_ZOOM, Math.min(13, map.getBoundsZoom(bounds)));
-            map.flyTo(bounds.getCenter(), z, { duration: 0.7 });
-          }
-        });
-        m.addTo(layer);
-      }
-    } else {
-      for (const p of PROPERTIES as readonly PropertyDef[]) {
-        const owner = propertyOwner(state, p.id).type;
-        const m = L.marker([p.lat, p.lon], { icon: propertyIcon(p, owner, affordable.has(p.id)), title: p.name });
-        const price = formatMoney(propertyPrice(state, p.id), mode);
-        const status = owner === 'player' ? '所有中' : owner === 'company' ? `${COMPANY_MAP[state.estate.companyOwned[p.id] as keyof typeof COMPANY_MAP]?.name ?? '他社'}が所有` : affordable.has(p.id) ? '購入できる' : '資金不足';
-        const builtHere = owner === 'player' ? state.facilities.filter((f) => f.landId === `prop:${p.id}`).reduce((a, f) => a + f.count, 0) : 0;
-        m.bindTooltip(`${p.name}<br>${PROPERTY_KIND[p.kind].label}・${price}・${status}${owner === 'player' ? `<br>施設 ${formatNumber(builtHere, mode)}（ここに建てられます）` : ''}`, { direction: 'top', offset: [0, -12] });
-        m.on('click', () => openProperty(p.id));
-        m.addTo(layer);
-      }
-    }
-    // 会社の本社（寄ったときだけ。遠いときは都市のまとまりに含める）
+    // 会社の本社（寄ったときだけ）
     for (const c of COMPANIES as readonly CompanyDef[]) {
       if (zoom < CITY_ZOOM) break;
       const s = state.stocks.companies[c.id];
@@ -255,19 +174,12 @@ export function RealMap() {
       m.on('click', () => openCompany(c.id));
       m.addTo(layer);
     }
-    // 産業用地（施設を建てられる売り物の土地）。世界地図のままでも買えるように、ズームで隠さない
+    // 前のバージョンで買った産業用地（持っているものだけ出す）
     for (const l of LANDS as readonly LandDef[]) {
-      if (!isUnlocked(state, 'land', l.id) && !getLand(state, l.id)) continue;
-      const owned = !!getLand(state, l.id);
-      const built = owned ? state.facilities.filter((f) => f.landId === l.id).reduce((a, f) => a + f.count, 0) : 0;
-      const m = L.marker([l.lat, l.lon], { icon: landIcon(owned), title: l.name, zIndexOffset: 50 });
-      const area = `${formatNumber(l.areaSqm, mode)}㎡ × ${formatMoney(l.unitPrice, 'full')}/㎡`;
-      m.bindTooltip(
-        owned
-          ? `${l.name}（産業用地・所有）<br>${area}<br>施設 ${formatNumber(built, mode)}`
-          : `${l.name}（産業用地・売り出し中）<br>${area}<br>${formatMoney(l.price, mode)}`,
-        { direction: 'top', offset: [0, -12] },
-      );
+      if (!getLand(state, l.id)) continue;
+      const built = state.facilities.filter((f) => f.landId === l.id).reduce((a, f) => a + f.count, 0);
+      const m = L.marker([l.lat, l.lon], { icon: landIcon(true), title: l.name, zIndexOffset: 50 });
+      m.bindTooltip(`${l.name}（所有）<br>施設 ${formatNumber(built, mode)}`, { direction: 'top', offset: [0, -12] });
       m.on('click', () => openLand(l.id));
       m.addTo(layer);
     }
@@ -303,7 +215,7 @@ export function RealMap() {
     hq.on('click', () => openLand('hq'));
     hq.addTo(layer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [zoom, ownedKey, companyOwnedKey, affordableKey, holdingsKey, landsKey, builtKey, priceKey, customKeyForMarkers, hqKey, ready, state.settings.numberFormat]);
+  }, [zoom, ownedKey, companyOwnedKey, holdingsKey, landsKey, builtKey, priceKey, customKeyForMarkers, hqKey, ready, state.settings.numberFormat]);
 
   // --- 実在の建物（OpenStreetMap）: 寄ったときだけ読み込む ---
   const customKey = Object.keys(state.estate.custom ?? {}).sort().join(',');
@@ -380,7 +292,6 @@ export function RealMap() {
   const wants3D = state.settings.map3D === true;
   const use3D = wants3D && !threeDError && canUse3D;
 
-  const ownedProps = Object.keys(state.estate.owned);
   const goJapan = () => mapRef.current?.flyTo([36.5, 137], 5, { duration: 0.6 });
   const setHqHere = () => {
     const map = mapRef.current;
@@ -408,14 +319,18 @@ export function RealMap() {
     );
   };
   const goWorld = () => mapRef.current?.setView([20, 10], 2);
+  const ownedPoints: [number, number][] = [
+    ...Object.values(state.estate.custom ?? {}).map((cp) => [cp.lat, cp.lon] as [number, number]),
+    ...(LANDS as readonly LandDef[]).filter((l) => getLand(state, l.id)).map((l) => [l.lat, l.lon] as [number, number]),
+  ];
   const goOwned = () => {
     const map = mapRef.current;
-    if (!map || ownedProps.length === 0) return;
-    const pts = ownedProps.map((id) => {
-      const p = PROPERTIES.find((q) => q.id === id)!;
-      return [p.lat, p.lon] as [number, number];
-    });
-    map.fitBounds(L.latLngBounds(pts).pad(0.3), { maxZoom: 12 });
+    if (!map || ownedPoints.length === 0) return;
+    if (ownedPoints.length === 1) {
+      map.flyTo(ownedPoints[0], 17, { duration: 0.8 });
+      return;
+    }
+    map.fitBounds(L.latLngBounds(ownedPoints).pad(0.3), { maxZoom: 15 });
   };
 
   return (
@@ -428,8 +343,8 @@ export function RealMap() {
           <Button size="sm" onClick={goWorld}>
             世界
           </Button>
-          <Button size="sm" disabled={ownedProps.length === 0} onClick={goOwned}>
-            所有物件へ
+          <Button size="sm" disabled={ownedPoints.length === 0} onClick={goOwned}>
+            所有地へ
           </Button>
           <Button size="sm" onClick={useMyLocation} title="位置情報を使って本社を現在地に置きます">
             {geoState === 'asking' ? '現在地を取得中…' : '現在地を本社に'}
@@ -534,7 +449,7 @@ export function RealMap() {
         </span>
       </div>
       <p className="text-dim" style={{ fontSize: 11 }}>
-        地図: © OpenStreetMap contributors。物件・会社は架空で、価格は公示地価などを参考にしたゲーム用の値です。色は種類（{Object.values(PROPERTY_KIND).map((k) => k.label).join('・')}）。
+        地図・建物のデータ: © OpenStreetMap contributors（ODbL）。名前は実在の施設をもじった架空のもので、価格は公示地価などを参考にしたゲーム用の値です。会社はすべて架空です。
       </p>
     </div>
   );

@@ -11,6 +11,7 @@ import { CONFIG } from '@/game/data/config';
 import { PROPERTY_MAP, isPropertyId } from '@/game/data/properties';
 import { companyProperties, propertyPrice } from '@/game/engine/systems/estate';
 import { acquireCost, buyQuote, expandCost, liquidationValue, maxAffordableShares, sellQuote, sharesToControl } from '@/game/engine/systems/stocks';
+import { influenceLabel } from '@/game/engine/systems/influence';
 import { bumpGame, useGame } from '@/stores/gameStore';
 import { useUiStore } from '@/stores/uiStore';
 import { formatMoney, formatMoneyRate, formatNumber, formatPercent, formatRate } from '@/utils/format';
@@ -57,6 +58,7 @@ export function CompanySheet() {
   const expand = expandCost(state, id);
   const acquire = acquireCost(state, id, evMult);
   const liquidation = liquidationValue(state, id);
+  const influence = influenceLabel(id, state, derived);
 
   const title = (
     <span>
@@ -99,6 +101,28 @@ export function CompanySheet() {
           <Stat label="あなたの持株" value={`${formatNumber(s.playerShares, mode)}株`} extra={`${formatPercent(rt.ownership, 2)}・評価額 ${formatMoney(rt.price * s.playerShares, mode)}`} />
           <Stat label="配当 /秒" value={formatMoneyRate(rt.dividendPerSec, mode)} tone={rt.dividendPerSec > 0 ? 'profit' : 'default'} extra={s.playerShares > 0 ? `平均取得 ${formatMoney(s.avgCost, 'full')}・評価損益 ${formatRate(unrealized, mode)}円` : '株を持つと配当が入る'} />
         </div>
+        {!s.dissolved && influence && influence.reasons.length > 0 && (
+          <div style={{ marginTop: 10 }}>
+            <div className="row row--between" style={{ fontSize: 12 }}>
+              <span className="text-sub">あなたの事業がこの会社に与えている影響</span>
+              <span className={`num ${influence.total >= 0 ? 'text-profit' : 'text-loss'}`}>
+                {influence.total >= 0 ? '+' : ''}
+                {(influence.total * 100).toFixed(1)}%
+              </span>
+            </div>
+            <div className="list" style={{ marginTop: 4 }}>
+              {influence.reasons.map((r) => (
+                <div key={r.label} className="row" style={{ fontSize: 12 }}>
+                  <span className="row__grow text-sub">{r.label}</span>
+                  <span className={`num ${r.value >= 0 ? 'text-profit' : 'text-loss'}`}>
+                    {r.value >= 0 ? '+' : ''}
+                    {(r.value * 100).toFixed(1)}%
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         {!s.dissolved && !control && (
           <div style={{ marginTop: 10 }}>
             <div className="row" style={{ justifyContent: 'space-between', fontSize: 12 }}>

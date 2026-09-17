@@ -381,6 +381,77 @@ export const FACILITIES = [
     description: '研究ポイントを 0.2/秒 生み出す。研究は会社画面から行う。', baseCost: 30_000, costGrowth: 1.25, employees: 5,
     researchRate: 0.2, unlock: { type: 'assets', min: 100_000 },
   },
+  // ---- v1.0 追加の施設 ----
+  {
+    id: 'sap_grove', name: '樹液林', nameEn: 'Sap Grove', category: 'RESOURCE', icon: 'icon_chemical_resin', site: 'land',
+    description: '木から樹液を集める。森林で効率2倍、平原で1.2倍。', baseCost: 35_000, costGrowth: 1.15, employees: 3,
+    production: { outputs: { sap: 2 } }, terrainBonus: { forest: 2, plains: 1.2, mountain: 0.8, desert: 0.1, snow: 0.3, city: 0.2 }, unlock: { type: 'obtained', resource: 'sap', min: 20 },
+  },
+  {
+    id: 'charcoal_kiln', name: '炭焼き窯', nameEn: 'Charcoal Kiln', category: 'PROCESSING', icon: 'icon_resource_coal', site: 'any',
+    description: '木3 → 木炭2（毎秒）。石炭の代わりに使える。', baseCost: 30_000, costGrowth: 1.18, employees: 2,
+    production: { inputs: { wood: 3 }, outputs: { charcoal: 2 } }, unlock: { type: 'crafted', recipe: 'make_charcoal', min: 3 },
+  },
+  {
+    id: 'sawmill', name: '製材所', nameEn: 'Sawmill', category: 'PROCESSING', icon: 'icon_material_plywood', site: 'any',
+    description: '木4 → 板材6（毎秒）。', baseCost: 45_000, costGrowth: 1.18, employees: 3,
+    production: { inputs: { wood: 4 }, outputs: { lumber: 6 } }, unlock: { type: 'crafted', recipe: 'saw_lumber', min: 5 },
+  },
+  {
+    id: 'paper_mill', name: '製紙工場', nameEn: 'Paper Mill', category: 'PROCESSING', icon: 'icon_facility_paper_mill', site: 'any',
+    description: '植物繊維5＋水2 → 紙4（毎秒）。電力 1MW。', baseCost: 90_000, costGrowth: 1.18, employees: 5, powerUse: 1,
+    production: { inputs: { plant_fiber: 5, water: 2 }, outputs: { paper: 4 } }, unlock: { type: 'obtained', resource: 'paper', min: 30 },
+  },
+  {
+    id: 'rubber_boiler', name: 'ゴム加工場', nameEn: 'Rubber Works', category: 'PROCESSING', icon: 'icon_material_rubber', site: 'any',
+    description: '樹液4＋木炭1 → ゴム2（毎秒）。', baseCost: 70_000, costGrowth: 1.18, employees: 4,
+    production: { inputs: { sap: 4, charcoal: 1 }, outputs: { rubber: 2 } }, unlock: { type: 'crafted', recipe: 'boil_sap', min: 3 },
+  },
+  {
+    id: 'wire_mill', name: '電線工場', nameEn: 'Wire Mill', category: 'PROCESSING', icon: 'icon_material_wire', site: 'any',
+    description: '銅1 → 電線2.2（毎秒）。電力 2MW。', baseCost: 200_000, costGrowth: 1.18, employees: 5, powerUse: 2,
+    production: { inputs: { copper: 1 }, outputs: { wire: 2.2 } }, unlock: { type: 'obtained', resource: 'wire', min: 20 },
+  },
+  {
+    id: 'chemical_plant', name: '化学工場', nameEn: 'Chemical Plant', category: 'PROCESSING', icon: 'icon_material_chemical', site: 'any',
+    description: '原油2＋水1 → 化学薬品2（毎秒）。電力 3MW。', baseCost: 350_000, costGrowth: 1.18, employees: 8, powerUse: 3,
+    production: { inputs: { crude_oil: 2, water: 1 }, outputs: { chemical: 2 } }, unlock: { type: 'obtained', resource: 'chemical', min: 20 },
+  },
+  {
+    id: 'paint_factory', name: '塗料工場', nameEn: 'Paint Factory', category: 'MANUFACTURING', icon: 'icon_chemical_paint', site: 'any',
+    description: '化学薬品1＋砂2 → 塗料1.5（毎秒）。電力 2MW。', baseCost: 300_000, costGrowth: 1.18, employees: 6, powerUse: 2,
+    production: { inputs: { chemical: 1, sand: 2 }, outputs: { paint: 1.5 } }, unlock: { type: 'obtained', resource: 'paint', min: 15 },
+  },
+  {
+    id: 'fertilizer_plant', name: '肥料工場', nameEn: 'Fertilizer Plant', category: 'MANUFACTURING', icon: 'icon_material_fertilizer', site: 'any',
+    description: '化学薬品1＋水2 → 肥料2（毎秒）。電力 2MW。', baseCost: 280_000, costGrowth: 1.18, employees: 6, powerUse: 2,
+    production: { inputs: { chemical: 1, water: 2 }, outputs: { fertilizer: 2 } }, unlock: { type: 'obtained', resource: 'fertilizer', min: 15 },
+  },
+  {
+    id: 'food_factory', name: '食品工場', nameEn: 'Food Factory', category: 'MANUFACTURING', icon: 'icon_facility_food_factory', site: 'any',
+    description: '小麦粉2＋水1 → 加工食品2.5（毎秒）。電力 1MW。', baseCost: 120_000, costGrowth: 1.18, employees: 6, powerUse: 1,
+    production: { inputs: { flour: 2, water: 1 }, outputs: { food: 2.5 } }, unlock: { type: 'obtained', resource: 'food', min: 20 },
+  },
+  {
+    id: 'clothing_factory', name: '衣料工場', nameEn: 'Clothing Factory', category: 'MANUFACTURING', icon: 'icon_material_leather', site: 'any',
+    description: '布2＋縄1 → 衣類1.2（毎秒）。電力 1MW。', baseCost: 160_000, costGrowth: 1.18, employees: 7, powerUse: 1,
+    production: { inputs: { cloth: 2, rope: 1 }, outputs: { clothing: 1.2 } }, unlock: { type: 'obtained', resource: 'clothing', min: 10 },
+  },
+  {
+    id: 'furniture_factory', name: '家具工場', nameEn: 'Furniture Factory', category: 'MANUFACTURING', icon: 'icon_office_chair', site: 'any',
+    description: '板材6＋布2 → 家具1（毎秒）。電力 2MW。', baseCost: 400_000, costGrowth: 1.18, employees: 8, powerUse: 2,
+    production: { inputs: { lumber: 6, cloth: 2 }, outputs: { furniture: 1 } }, unlock: { type: 'obtained', resource: 'furniture', min: 5 },
+  },
+  {
+    id: 'tire_factory', name: 'タイヤ工場', nameEn: 'Tire Factory', category: 'MANUFACTURING', icon: 'icon_machine_wheel_loader', site: 'any',
+    description: 'ゴム3＋布1 → タイヤ1.2（毎秒）。電力 2MW。', baseCost: 350_000, costGrowth: 1.18, employees: 7, powerUse: 2,
+    production: { inputs: { rubber: 3, cloth: 1 }, outputs: { tire: 1.2 } }, unlock: { type: 'obtained', resource: 'tire', min: 10 },
+  },
+  {
+    id: 'battery_factory', name: '電池工場', nameEn: 'Battery Factory', category: 'MANUFACTURING', icon: 'icon_facility_battery_factory', site: 'any',
+    description: '電線2＋プラスチック1＋化学薬品1 → バッテリー1（毎秒）。電力 4MW。', baseCost: 900_000, costGrowth: 1.18, employees: 10, powerUse: 4,
+    production: { inputs: { wire: 2, plastic: 1, chemical: 1 }, outputs: { battery: 1 } }, unlock: { type: 'obtained', resource: 'battery', min: 5 },
+  },
 ] as const satisfies readonly FacilityDef[];
 
 export type FacilityId = (typeof FACILITIES)[number]['id'];

@@ -8,6 +8,8 @@ import { CITY_MAP, isCityId } from '@/game/data/cities';
 import { estimateLandValue } from '@/game/data/landValue';
 import { COUNTRY_NAME } from '@/game/data/lands';
 import { PROPERTY_KIND, PROPERTY_POPULATION, PROPERTY_TERRAIN, type PropertyKind } from '@/game/data/properties';
+import { depositsFor, terrainFromTags } from './geology';
+import type { TerrainId } from '@/game/data/terrain';
 import type { OsmFeature } from '@/game/services/osm/overpass';
 import type { CustomProperty, GameState, LandState } from '@/types/state';
 import type { EngineContext } from '../context';
@@ -136,22 +138,41 @@ function countryCodeOf(name: string): LandState['country'] {
   return 'JP';
 }
 
+/** その場所と一番近い都市の距離（km） */
+function quoteDistanceKm(f: Pick<OsmFeature, 'lat' | 'lon'>): number {
+  return estimateLandValue({ lat: f.lat, lon: f.lon }).distanceKm;
+}
+
 /** 買った場所を「施設を建てられる土地」として登録する */
-export function addCustomLand(state: GameState, cp: CustomProperty): void {
+export function addCustomLand(state: GameState, cp: CustomProperty, depositMult = 1): void {
   const landId = customLandId(cp.id);
   if (state.lands.some((l) => l.id === landId)) return;
+  const terrain: TerrainId = cp.terrain ?? PROPERTY_TERRAIN[cp.kind];
+  // 建物が建っている場所は掘れない（更地・農地・工場用地・倉庫用地・リゾートだけ）
+  const diggable = cp.kind === 'land' || cp.kind === 'farm' || cp.kind === 'factory' || cp.kind === 'warehouse' || cp.kind === 'resort';
+  const deposits = diggable ? depositsFor(cp.lat, cp.lon, cp.areaSqm, terrain) : {};
+  if (depositMult !== 1) {
+    for (const d of Object.values(deposits)) {
+      if (!d) continue;
+      d.total = Math.round(d.total * depositMult);
+      d.remaining = Math.round(d.remaining * depositMult);
+    }
+  }
+  const hasDeposit = Object.keys(deposits).length > 0;
   state.lands.push({
     id: landId,
     name: `${cp.name}（${cp.label}）`,
     region: cp.regionLabel,
     country: countryCodeOf(cp.country),
-    terrain: PROPERTY_TERRAIN[cp.kind],
+    terrain,
     purchasedAt: cp.boughtAt,
-    survey: 4,
+    // 埋蔵がありそうな土地は「未調査」から始める（調査すると何が埋まっているか分かる）
+    survey: hasDeposit ? 0 : 4,
     surveyProgress: null,
-    deposits: {},
+    deposits,
     stock: {},
     population: PROPERTY_POPULATION[cp.kind],
+    value: cp.basePrice,
   });
 }
 
@@ -165,7 +186,9 @@ export function buyCustomProperty(ctx: EngineContext, f: OsmFeature): boolean {
   if (state.company.cash + 1e-9 < cost) return false;
   state.company.cash -= cost;
   state.company.totalSpent += cost;
+  const quoteTerrain = terrainFromTags(f.tags ?? {}, f.kind, f.lat, quoteDistanceKm(f));
   const cp: CustomProperty = {
+    terrain: quoteTerrain,
     id: f.id,
     name: f.name,
     label: f.label,
@@ -184,7 +207,7 @@ export function buyCustomProperty(ctx: EngineContext, f: OsmFeature): boolean {
   };
   state.estate.custom[f.id] = cp;
   state.stats.propertiesBought += 1;
-  addCustomLand(state, cp);
+  addCustomLand(state, cp, ctx.derived.modifiers?.depositAmount ?? 1);
   ctx.emit('success', `${cp.name}（${cp.label}）を購入しました (-${cost.toLocaleString('ja-JP')}円)。施設を建てられます`, { toast: true });
   return true;
 }

@@ -73,7 +73,7 @@ export function LandDetailSheet() {
   // ---- 所有 ----
   const rt = derived.lands[land.id];
   const stage = nextSurveyStage(land.survey);
-  const cost = stage ? surveyCost(land.id, land.survey, derived.modifiers.surveyCost) : 0;
+  const cost = stage ? surveyCost(state, land.id, land.survey, derived.modifiers.surveyCost) : 0;
   const duration = stage ? Math.round(stage.duration * derived.modifiers.surveyTime) : 0;
   const progress = land.surveyProgress;
   const depositIds = Object.keys(land.deposits) as ResourceId[];

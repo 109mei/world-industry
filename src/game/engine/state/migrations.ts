@@ -1,5 +1,6 @@
 import { GAME_META } from '@/game/data/meta';
 import { addCustomLand } from '../systems/customEstate';
+import { createInitialSales } from '../systems/sales';
 import { addPropertyLand } from '../systems/estate';
 import type { GameState, LandState } from '@/types/state';
 import { createHqLand, createInitialCompanyStock, createInitialContracts, createInitialEstate, createInitialPrestige, createInitialState, createInitialStocks } from './createInitialState';
@@ -87,6 +88,13 @@ const MIGRATIONS: Record<number, Migration> = {
     if (!estate.custom) estate.custom = {};
     return { ...data, saveVersion: 7, estate };
   },
+  // v7 → v8: 「注文」を「営業・契約・納品」に置き換え
+  7: (data) => {
+    const d = data as Partial<GameState> & Record<string, unknown>;
+    const contracts = { ...((d.contracts ?? {}) as Record<string, unknown>) };
+    contracts.active = [];
+    return { ...data, saveVersion: 8, contracts, sales: { clients: {}, offers: [], deals: [], nextId: 1 } };
+  },
 };
 
 export function migrateSave(raw: unknown): GameState {
@@ -113,6 +121,17 @@ function fixEstate(e: Partial<GameState['estate']> | undefined): GameState['esta
   const companyOwned = { ...(e.companyOwned ?? base.companyOwned) };
   for (const id of Object.keys(owned)) delete companyOwned[id];
   return { ...base, ...e, owned, custom: { ...(e.custom ?? {}) }, cityMult: { ...base.cityMult, ...(e.cityMult ?? {}) }, companyOwned, nextUpdateIn: typeof e.nextUpdateIn === 'number' ? e.nextUpdateIn : base.nextUpdateIn };
+}
+
+function fixSales(v: Partial<GameState['sales']> | undefined): GameState['sales'] {
+  const base = createInitialSales();
+  if (!v) return base;
+  return {
+    clients: { ...(v.clients ?? {}) },
+    offers: Array.isArray(v.offers) ? v.offers : [],
+    deals: Array.isArray(v.deals) ? v.deals : [],
+    nextId: typeof v.nextId === 'number' ? v.nextId : 1,
+  };
 }
 
 function fixStocks(s: Partial<GameState['stocks']> | undefined): GameState['stocks'] {
@@ -182,6 +201,7 @@ export function fillDefaults(data: Record<string, unknown>): GameState {
     estate: fixEstate(d.estate),
     stocks: fixStocks(d.stocks),
     contracts: fixContracts(d.contracts),
+    sales: fixSales(d.sales),
     prestige: fixPrestige(d.prestige),
     eventLog: Array.isArray(d.eventLog) ? d.eventLog : [],
     nextEventId: typeof d.nextEventId === 'number' ? d.nextEventId : 1,

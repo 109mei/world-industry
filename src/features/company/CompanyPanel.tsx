@@ -61,8 +61,8 @@ export function CompanyPanel() {
               <Stat label="プレイ時間" value={formatDuration(state.stats.playtimeSeconds)} />
               <Stat label="タップ回数" value={formatNumber(state.stats.taps, mode)} />
               <Stat label="壊れた道具" value={formatNumber(state.stats.toolsBroken, mode)} />
-              <Stat label="信用ランク" value={derived.creditRank} tone="research" extra={`注文 達成 ${state.stats.contractsCompleted}・期限切れ ${state.stats.contractsFailed}`} />
-              <Stat label="注文の報酬（累計）" value={formatMoney(state.stats.contractRewards, mode)} tone="profit" />
+              <Stat label="信用ランク" value={derived.creditRank} tone="research" extra={`契約 達成 ${state.stats.contractsCompleted}・打ち切り ${state.stats.contractsFailed}`} />
+              <Stat label="納品の売上（累計）" value={formatMoney(state.stats.contractRewards, mode)} tone="profit" />
               <Stat label="再出発" value={`${state.prestige.count}回・${state.prestige.points}pt`} tone="research" />
             </div>
           </Card>

@@ -2,7 +2,7 @@ import { CONFIG } from '@/game/data/config';
 import { LAND_MAP, isLandDefId, type LandDefId } from '@/game/data/lands';
 import type { ResourceId } from '@/game/data/resources';
 import { nextSurveyStage } from '@/game/data/survey';
-import type { LandState } from '@/types/state';
+import type { GameState, LandState } from '@/types/state';
 import type { EngineContext } from '../context';
 import { getLand } from '../land';
 import { isUnlocked } from '../systems/unlocks';
@@ -40,11 +40,19 @@ export function buyLand(ctx: EngineContext, id: LandDefId): boolean {
   return true;
 }
 
-export function surveyCost(landId: string, level: number, costMult: number): number {
-  if (!isLandDefId(landId)) return 0;
+/** その土地の値段（調査費用の基準）。地図で買った場所は買ったときの評価額を使う */
+export function landValueOf(state: GameState, landId: string): number {
+  if (isLandDefId(landId)) return LAND_MAP[landId].price;
+  return getLand(state, landId)?.value ?? 0;
+}
+
+export function surveyCost(state: GameState, landId: string, level: number, costMult: number): number {
   const stage = nextSurveyStage(level as 0 | 1 | 2 | 3 | 4);
   if (!stage) return 0;
-  return Math.ceil(LAND_MAP[landId].price * stage.costRatio * costMult);
+  const base = landValueOf(state, landId);
+  if (base <= 0) return 0;
+  // 高すぎる土地でも調査費が跳ね上がらないように上限を付ける
+  return Math.ceil(Math.min(base, 5_000_000_000) * stage.costRatio * costMult);
 }
 
 /** 次の段階の調査を始める */
@@ -54,7 +62,7 @@ export function startSurvey(ctx: EngineContext, landId: string): boolean {
   if (!land || land.id === 'hq' || land.surveyProgress) return false;
   const stage = nextSurveyStage(land.survey);
   if (!stage) return false;
-  const cost = surveyCost(landId, land.survey, derived.modifiers.surveyCost);
+  const cost = surveyCost(state, landId, land.survey, derived.modifiers.surveyCost);
   if (state.company.cash + 1e-9 < cost) return false;
   state.company.cash -= cost;
   state.company.totalSpent += cost;

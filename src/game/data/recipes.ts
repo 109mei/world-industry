@@ -45,6 +45,20 @@ export const RECIPES = [
   // ---- 製品 ----
   { id: 'craft_tool', name: '工具', category: 'products', icon: 'icon_tool_wrench', inputs: { iron: 2, wood: 1 }, outputs: { tool: 1 }, unlock: { type: 'obtained', resource: 'iron', min: 1 }, description: '鉄2と木1から工具1を作る。市場で高く売れる。' },
   { id: 'craft_building_material', name: '建材セット', category: 'products', icon: 'icon_marker_construction', inputs: { brick: 10, concrete: 4, rope: 2 }, outputs: { building_material: 1 }, unlock: { type: 'obtained', resource: 'brick', min: 20 }, description: 'レンガ10・コンクリート4・縄2から建材セット1。高く売れる。' },
+  // ---- v1.0 追加 ----
+  { id: 'make_charcoal', name: '木炭を焼く', category: 'materials', icon: 'icon_resource_coal', inputs: { wood: 3 }, outputs: { charcoal: 2 }, unlock: { type: 'obtained', resource: 'wood', min: 20 }, description: '木3から木炭2。石炭の代わりの燃料になる。' },
+  { id: 'saw_lumber', name: '板材に挽く', category: 'materials', icon: 'icon_material_plywood', inputs: { wood: 2 }, outputs: { lumber: 3 }, unlock: { type: 'obtained', resource: 'wood', min: 10 }, description: '木2から板材3。家具や建材のもと。' },
+  { id: 'make_paper', name: '紙を漉く', category: 'materials', icon: 'icon_material_paper', inputs: { plant_fiber: 4, water: 2 }, outputs: { paper: 3 }, unlock: { type: 'obtained', resource: 'plant_fiber', min: 20 }, description: '植物繊維4と水2から紙3。' },
+  { id: 'boil_sap', name: '樹液を煮る', category: 'materials', icon: 'icon_material_rubber', inputs: { sap: 4, charcoal: 1 }, outputs: { rubber: 2 }, unlock: { type: 'obtained', resource: 'sap', min: 6 }, description: '樹液4と木炭1からゴム2。ゴム農園がなくても作れる。' },
+  { id: 'draw_wire', name: '電線を引く', category: 'parts', icon: 'icon_material_wire', inputs: { copper: 1 }, outputs: { wire: 2 }, unlock: { type: 'obtained', resource: 'copper', min: 5 }, description: '銅1から電線2。' },
+  { id: 'mix_chemical', name: '化学薬品を作る', category: 'materials', icon: 'icon_material_chemical', inputs: { crude_oil: 2, water: 1 }, outputs: { chemical: 2 }, unlock: { type: 'obtained', resource: 'crude_oil', min: 10 }, description: '原油2と水1から化学薬品2。' },
+  { id: 'mix_paint', name: '塗料を作る', category: 'materials', icon: 'icon_chemical_paint', inputs: { chemical: 1, sand: 2 }, outputs: { paint: 1 }, unlock: { type: 'obtained', resource: 'chemical', min: 4 }, description: '化学薬品1と砂2から塗料1。' },
+  { id: 'mix_fertilizer', name: '肥料を作る', category: 'materials', icon: 'icon_material_fertilizer', inputs: { chemical: 1, water: 2 }, outputs: { fertilizer: 2 }, unlock: { type: 'obtained', resource: 'chemical', min: 4 }, description: '化学薬品1と水2から肥料2。' },
+  { id: 'cook_food', name: '食品を作る', category: 'products', icon: 'icon_food_bread', inputs: { flour: 2, water: 1 }, outputs: { food: 2 }, unlock: { type: 'obtained', resource: 'flour', min: 5 }, description: '小麦粉2と水1から加工食品2。' },
+  { id: 'sew_clothing', name: '衣類を仕立てる', category: 'products', icon: 'icon_material_leather', inputs: { cloth: 2, rope: 1 }, outputs: { clothing: 1 }, unlock: { type: 'obtained', resource: 'cloth', min: 4 }, description: '布2と縄1から衣類1。' },
+  { id: 'make_furniture', name: '家具を作る', category: 'products', icon: 'icon_office_chair', inputs: { lumber: 6, cloth: 2, tool: 1 }, outputs: { furniture: 1 }, unlock: { type: 'obtained', resource: 'lumber', min: 20 }, description: '板材6・布2・工具1から家具1。高く売れる。' },
+  { id: 'make_tire', name: 'タイヤを作る', category: 'parts', icon: 'icon_machine_wheel_loader', inputs: { rubber: 3, cloth: 1 }, outputs: { tire: 1 }, unlock: { type: 'obtained', resource: 'rubber', min: 10 }, description: 'ゴム3と布1からタイヤ1。' },
+  { id: 'make_battery', name: 'バッテリーを作る', category: 'parts', icon: 'icon_material_battery', inputs: { wire: 2, plastic: 1, chemical: 1 }, outputs: { battery: 1 }, unlock: { type: 'obtained', resource: 'wire', min: 10 }, description: '電線2・プラスチック1・化学薬品1からバッテリー1。' },
 ] as const satisfies readonly RecipeDef[];
 
 export type RecipeId = (typeof RECIPES)[number]['id'];

@@ -39,9 +39,10 @@ export function craft(ctx: EngineContext, recipeId: RecipeId, times = 1): number
   if (made <= 0) return 0;
 
   removeResources(state, def.inputs, made);
+  const yieldMult = derived.modifiers?.craftYield ?? 1;
   if (def.outputs) {
     for (const [id, n] of Object.entries(def.outputs) as [ResourceId, number][]) {
-      addResource(state, id, n * made, derived.capacity, 'crafted');
+      addResource(state, id, n * made * yieldMult, derived.capacity, 'crafted');
     }
   }
   if (def.outputTool) addTool(state, def.outputTool, made);

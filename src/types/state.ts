@@ -176,6 +176,8 @@ export interface LandState {
   stock: Partial<Record<ResourceId, number>>;
   /** 人口・交通量の係数（商業施設の収入に掛かる）。地図で買った建物はここに入る */
   population?: number;
+  /** その土地の価値（円）。調査費用の計算などに使う。地図で買った場所に入る */
+  value?: number;
 }
 
 export interface ResearchState {
@@ -244,6 +246,8 @@ export interface CustomProperty {
   cityId: string;
   /** 表示用の場所（「福岡・飯塚の近く」など） */
   regionLabel: string;
+  /** 地形（買ったときに決まる） */
+  terrain?: TerrainId;
   country: string;
   boughtAt: number;
   boughtPrice: number;
@@ -328,6 +332,63 @@ export interface ContractsState {
   credit: number;
 }
 
+// ---------- 営業・契約・納品 ----------
+
+/** 取引先ごとの関係 */
+export interface ClientState {
+  /** 関係（0〜100）。納品で上がり、落とすと下がる */
+  relation: number;
+  /** 最後に営業した時刻（クールダウン用） */
+  lastPitchAt: number;
+  /** 結んだ契約の数 */
+  deals: number;
+  /** 納品した回数 */
+  deliveries: number;
+  /** 落とした回数 */
+  missed: number;
+}
+
+/** 営業で得た商談（受けるか断るか） */
+export interface DealOffer {
+  id: number;
+  companyId: string;
+  resource: ResourceId;
+  /** 1回に納める数 */
+  amountPer: number;
+  /** 単価（円） */
+  unitPrice: number;
+  /** 納品の回数 */
+  deliveries: number;
+  /** 1回ぶんの納期（秒） */
+  intervalSec: number;
+  /** この商談が消えるまでの秒数 */
+  expiresIn: number;
+}
+
+/** 結んだ契約 */
+export interface Deal {
+  id: number;
+  companyId: string;
+  resource: ResourceId;
+  amountPer: number;
+  unitPrice: number;
+  /** 残りの納品回数 */
+  deliveriesLeft: number;
+  intervalSec: number;
+  /** 次の納期までの残り秒数 */
+  remaining: number;
+  /** 落とした回数（規定を超えると打ち切り） */
+  missed: number;
+  startedAt: number;
+}
+
+export interface SalesState {
+  clients: Record<string, ClientState>;
+  offers: DealOffer[];
+  deals: Deal[];
+  nextId: number;
+}
+
 // ---------- 再出発（プレステージ） ----------
 export interface PrestigeRecord {
   at: number;
@@ -338,8 +399,10 @@ export interface PrestigeRecord {
 export interface PrestigeState {
   /** 再出発した回数 */
   count: number;
-  /** 累計ポイント（永続ボーナスの元） */
+  /** 累計ポイント（永続アップグレードに使う） */
   points: number;
+  /** 永続アップグレードの段階 */
+  upgrades?: Record<string, number>;
   history: PrestigeRecord[];
 }
 
@@ -368,6 +431,8 @@ export interface GameState {
   estate: EstateState;
   stocks: StocksState;
   contracts: ContractsState;
+  /** 営業・契約・納品 */
+  sales?: SalesState;
   prestige: PrestigeState;
   eventLog: GameEvent[];
   nextEventId: number;
@@ -438,6 +503,22 @@ export interface Modifiers {
   demandRecovery: number;
   /** 研究ポイントの倍率（再出発ボーナス） */
   researchRate: number;
+  /** 手作業の採集量の倍率 */
+  gatherAmount: number;
+  /** クラフトの出来高の倍率 */
+  craftYield: number;
+  /** 売値の倍率 */
+  sellPrice: number;
+  /** 買った土地の埋蔵量の倍率 */
+  depositAmount: number;
+  /** 営業が通る確率に足す値 */
+  pitchChance: number;
+  /** 契約の単価の倍率 */
+  dealPrice: number;
+  /** 納品で上がる関係の倍率 */
+  relationGain: number;
+  /** オフライン進行の上限に足す秒数 */
+  offlineBonusSec: number;
 }
 
 /** 進行中のイベントから計算した係数（保存しない） */

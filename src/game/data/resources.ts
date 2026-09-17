@@ -59,6 +59,20 @@ export const RESOURCES = [
   { id: 'semiconductor', name: '半導体', nameEn: 'Semiconductor', category: 'part', basePrice: 8000, weight: 0.001, icon: 'icon_material_semiconductor', sellable: true, liquidity: 20, description: 'シリコンウエハーと銅から作る最先端の部品。非常に高価。' },
   { id: 'car', name: '自動車', nameEn: 'Car', category: 'product', basePrice: 30000, weight: 1.5, icon: 'icon_logistics_van', sellable: true, liquidity: 5, description: '鋼鉄・プラスチック・ゴム・ガラス・電子部品を組み立てた製品。重いので輸送費がかかる。' },
   { id: 'robot', name: '産業ロボット', nameEn: 'Industrial Robot', category: 'product', basePrice: 80000, weight: 0.5, icon: 'icon_part_robot_arm', sellable: true, liquidity: 3, description: '半導体と機械部品から作る最高級の製品。' },
+  // ---- v1.0 追加の素材・製品 ----
+  { id: 'sap', name: '樹液', nameEn: 'Sap', category: 'raw', basePrice: 9, weight: 0.01, icon: 'icon_chemical_resin', sellable: true, liquidity: 1500, description: '森でとれる樹液。煮詰めるとゴムになる。ゴム農園がなくても集められる。' },
+  { id: 'charcoal', name: '木炭', nameEn: 'Charcoal', category: 'material', basePrice: 14, weight: 0.01, icon: 'icon_resource_coal', sellable: true, liquidity: 2000, description: '木を蒸し焼きにしたもの。石炭の代わりに燃料として使える。' },
+  { id: 'lumber', name: '板材', nameEn: 'Lumber', category: 'material', basePrice: 11, weight: 0.02, icon: 'icon_material_plywood', sellable: true, liquidity: 2500, description: '製材した板。家具や建材になる。' },
+  { id: 'paper', name: '紙', nameEn: 'Paper', category: 'material', basePrice: 20, weight: 0.005, icon: 'icon_material_paper', sellable: true, liquidity: 2000, description: '繊維と水から作る紙。梱包や事務に使う。' },
+  { id: 'wire', name: '電線', nameEn: 'Wire', category: 'part', basePrice: 95, weight: 0.01, icon: 'icon_material_wire', sellable: true, liquidity: 800, description: '銅を引き伸ばした線。電池や電子部品に使う。' },
+  { id: 'chemical', name: '化学薬品', nameEn: 'Chemicals', category: 'material', basePrice: 130, weight: 0.01, icon: 'icon_material_chemical', sellable: true, liquidity: 600, description: '原油と水から作る。塗料・肥料・電池のもと。' },
+  { id: 'paint', name: '塗料', nameEn: 'Paint', category: 'material', basePrice: 190, weight: 0.01, icon: 'icon_chemical_paint', sellable: true, liquidity: 500, description: '化学薬品と砂から作る。自動車や建物に使う。' },
+  { id: 'fertilizer', name: '肥料', nameEn: 'Fertilizer', category: 'product', basePrice: 110, weight: 0.02, icon: 'icon_material_fertilizer', sellable: true, liquidity: 700, description: '農園の収穫を助ける。売っても高い。' },
+  { id: 'food', name: '加工食品', nameEn: 'Processed Food', category: 'product', basePrice: 70, weight: 0.01, icon: 'icon_food_bread', sellable: true, liquidity: 1200, description: '小麦粉と水から作る食品。街で安定して売れる。' },
+  { id: 'clothing', name: '衣類', nameEn: 'Clothing', category: 'product', basePrice: 260, weight: 0.005, icon: 'icon_material_leather', sellable: true, liquidity: 500, description: '布と縄から仕立てた衣類。' },
+  { id: 'furniture', name: '家具', nameEn: 'Furniture', category: 'product', basePrice: 950, weight: 0.2, icon: 'icon_office_chair', sellable: true, liquidity: 150, description: '板材と布から作る家具。住宅やオフィスに売れる。' },
+  { id: 'tire', name: 'タイヤ', nameEn: 'Tire', category: 'part', basePrice: 430, weight: 0.08, icon: 'icon_machine_wheel_loader', sellable: true, liquidity: 300, description: 'ゴムと布から作る。自動車に必要。' },
+  { id: 'battery', name: 'バッテリー', nameEn: 'Battery', category: 'part', basePrice: 1400, weight: 0.05, icon: 'icon_material_battery', sellable: true, liquidity: 120, description: '電線・プラスチック・化学薬品から作る。電気自動車やロボットに使う。' },
 ] as const satisfies readonly ResourceDef[];
 
 export type ResourceId = (typeof RESOURCES)[number]['id'];

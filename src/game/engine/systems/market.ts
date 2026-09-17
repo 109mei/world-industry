@@ -113,8 +113,9 @@ export function sellResource(ctx: EngineContext, id: ResourceId, amount: number,
   const have = state.inventory[id] ?? 0;
   const qty = Math.min(Math.floor(have + 1e-9), Math.floor(amount));
   if (!def.sellable || qty <= 0) return { amount: 0, revenue: 0, unitPrice: currentPrice(state, id) };
-  const unitPrice = currentPrice(state, id);
-  const revenue = Math.floor(sellRevenue(state, id, qty) * 100) / 100;
+  const priceMult = ctx.derived.modifiers?.sellPrice ?? 1;
+  const unitPrice = currentPrice(state, id) * priceMult;
+  const revenue = Math.floor(sellRevenue(state, id, qty) * priceMult * 100) / 100;
   state.inventory[id] = clean(have - qty);
   state.company.cash += revenue;
   state.company.totalEarned += revenue;

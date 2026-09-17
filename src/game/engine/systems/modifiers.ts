@@ -1,4 +1,3 @@
-import { CONFIG } from '@/game/data/config';
 import { FACILITY_CATEGORIES } from '@/game/data/facilities';
 import { RESEARCH, type ResearchDef } from '@/game/data/research';
 import type { GameState, Modifiers } from '@/types/state';
@@ -18,21 +17,44 @@ export function createBaseModifiers(): Modifiers {
     commercialIncome: 1,
     demandRecovery: 1,
     researchRate: 1,
+    gatherAmount: 1,
+    craftYield: 1,
+    sellPrice: 1,
+    depositAmount: 1,
+    pitchChance: 0,
+    dealPrice: 1,
+    relationGain: 1,
+    offlineBonusSec: 0,
   };
 }
 
-/** 再出発の永続ボーナス（生産・研究の倍率） */
-export function prestigeBonus(points: number): { production: number; research: number } {
-  const p = Math.max(0, points);
-  return { production: 1 + CONFIG.prestige.productionPerPoint * p, research: 1 + CONFIG.prestige.researchPerPoint * p };
+/** 永続アップグレードの効果をまとめる */
+export function applyPrestigeUpgrades(state: GameState, m: Modifiers): void {
+  const up = state.prestige?.upgrades ?? {};
+  const lv = (id: string) => Math.max(0, up[id] ?? 0);
+  const prod = 1 + 0.06 * lv('production');
+  for (const c of Object.keys(m.production)) m.production[c] *= prod;
+  m.gatherAmount *= 1 + 0.12 * lv('gather');
+  m.craftYield *= 1 + 0.1 * lv('craft');
+  m.researchRate *= 1 + 0.1 * lv('research');
+  m.sellPrice *= 1 + 0.03 * lv('sell_price');
+  m.surveyCost *= Math.pow(0.92, lv('survey'));
+  m.surveyTime *= Math.pow(0.95, lv('survey'));
+  m.transportCost *= Math.pow(0.92, lv('transport'));
+  m.transportCapacity *= 1 + 0.06 * lv('transport');
+  m.depositAmount *= 1 + 0.15 * lv('deposit');
+  m.pitchChance += 0.08 * lv('sales');
+  m.dealPrice *= 1 + 0.03 * lv('sales');
+  m.relationGain *= 1 + 0.25 * lv('relation');
+  m.powerGeneration *= 1 + 0.1 * lv('power');
+  m.storage *= 1 + 0.15 * lv('storage');
+  m.offlineBonusSec += 7200 * lv('offline');
 }
 
 /** 完了した研究と再出発ボーナスから係数をまとめて計算する */
 export function computeModifiers(state: GameState): Modifiers {
   const m = createBaseModifiers();
-  const bonus = prestigeBonus(state.prestige?.points ?? 0);
-  for (const c of Object.keys(m.production)) m.production[c] *= bonus.production;
-  m.researchRate *= bonus.research;
+  applyPrestigeUpgrades(state, m);
   for (const r of RESEARCH as readonly ResearchDef[]) {
     if (!state.research.completed[r.id]) continue;
     for (const e of r.effects) {

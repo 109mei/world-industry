@@ -8,9 +8,14 @@ import { PROPERTY_KIND, PROPERTY_POPULATION, PROPERTY_TERRAIN } from '@/game/dat
 import { TERRAINS } from '@/game/data/terrain';
 import { customBuyCost, customLandId, customPrice, customRentPerSec, customSellProceeds, getCustom, quoteFeature } from '@/game/engine/systems/customEstate';
 import { estateFee } from '@/game/engine/systems/estate';
+import { ProgressBar } from '@/components/ui/ProgressBar';
+import { RESOURCE_MAP } from '@/game/data/resources';
+import { SURVEY_LEVEL_LABEL, nextSurveyStage } from '@/game/data/survey';
+import { surveyCost } from '@/game/engine/actions/land';
+import { getLand } from '@/game/engine/land';
 import { bumpGame, useGame } from '@/stores/gameStore';
 import { useUiStore } from '@/stores/uiStore';
-import { formatMoney, formatMoneyRate, formatNumber, formatPercent, formatRate } from '@/utils/format';
+import { formatAmount, formatDuration, formatMoney, formatMoneyRate, formatNumber, formatPercent, formatRate } from '@/utils/format';
 import { sfx } from '@/utils/sfx';
 
 function areaLabel(area: number): string {
@@ -24,7 +29,7 @@ export function FeatureSheet() {
   const openFeature = useUiStore((s) => s.openFeature);
   const setFactoryLand = useUiStore((s) => s.setFactoryLand);
   const setTab = useUiStore((s) => s.setTab);
-  const { state, engine } = useGame();
+  const { state, derived, engine } = useGame();
   const mode = state.settings.numberFormat;
   if (!feature) return null;
   const close = () => openFeature(null);
@@ -39,6 +44,10 @@ export function FeatureSheet() {
   const rent = owned ? customRentPerSec(state, owned) : (quote.basePrice * kind.yield) / 3600;
   const proceeds = owned ? customSellProceeds(state, owned) : 0;
   const floorArea = feature.areaSqm * Math.max(1, feature.levels);
+  const land = getLand(state, landId);
+  const depositList = Object.entries(land?.deposits ?? {}).filter(([, d]) => (d?.total ?? 0) > 0);
+  const stage = land ? nextSurveyStage(land.survey) : null;
+  const surveyPrice = land && stage ? surveyCost(state, landId, land.survey, derived.modifiers.surveyCost) : 0;
   const title = (
     <span>
       {owned?.name ?? feature.name}{' '}
@@ -107,6 +116,56 @@ export function FeatureSheet() {
                     <span className="num text-sub">×{f.count}</span>
                   </div>
                 ))}
+              </div>
+            )}
+            {land && (
+              <div className="sheet__section" style={{ padding: 0, marginBottom: 10 }}>
+                <div className="row row--between" style={{ marginBottom: 4 }}>
+                  <span className="field__label">地下資源の調査</span>
+                  <Badge tone={land.survey >= 2 ? 'profit' : 'default'}>{SURVEY_LEVEL_LABEL[land.survey]}</Badge>
+                </div>
+                {land.survey >= 1 && depositList.length > 0 && (
+                  <div className="list" style={{ marginBottom: 6 }}>
+                    {depositList.map(([r, d]) => (
+                      <div key={r} className="row" style={{ fontSize: 13 }}>
+                        <Icon name={RESOURCE_MAP[r as keyof typeof RESOURCE_MAP]?.icon ?? 'icon_ui_box'} size={22} />
+                        <span className="row__grow">{RESOURCE_MAP[r as keyof typeof RESOURCE_MAP]?.name ?? r}</span>
+                        <span className="num text-sub">
+                          {land.survey >= 2 ? `残り ${formatAmount(d?.remaining ?? 0, mode)}` : '埋蔵あり'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {land.survey === 0 && depositList.length > 0 && (
+                  <p className="text-sub" style={{ fontSize: 12, margin: '0 0 6px' }}>
+                    調査すると、この土地に何が埋まっているかが分かります。地質調査まで進めると鉱山や農園を建てられます。
+                  </p>
+                )}
+                {land.survey >= 1 && depositList.length === 0 && (
+                  <p className="text-sub" style={{ fontSize: 12, margin: '0 0 6px' }}>
+                    この土地に採れる資源はありませんでした。施設を建てる土地としては使えます。
+                  </p>
+                )}
+                {land.surveyProgress ? (
+                  <ProgressBar ratio={1 - land.surveyProgress.remaining / land.surveyProgress.total} tone="research" label={`調査中 残り ${formatDuration(land.surveyProgress.remaining)}`} />
+                ) : (
+                  stage && (
+                    <Button
+                      size="sm"
+                      block
+                      disabled={state.company.cash < surveyPrice}
+                      onClick={() => {
+                        if (engine.startSurvey(landId)) {
+                          sfx('buy');
+                          bumpGame();
+                        }
+                      }}
+                    >
+                      {stage.actionLabel}（{formatMoney(surveyPrice, mode)}・{formatDuration(stage.duration)}）
+                    </Button>
+                  )
+                )}
               </div>
             )}
             <Button

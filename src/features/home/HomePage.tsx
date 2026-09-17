@@ -8,7 +8,7 @@ import { formatMoney, formatMoneyRate, formatNumber, formatPercent } from '@/uti
 import { formatMW } from '@/utils/names';
 import { CompanyPanel } from '@/features/company/CompanyPanel';
 import { ResourcesPanel } from '@/features/resources/ResourcesPanel';
-import { ContractsCard } from './ContractsCard';
+import { SalesPanel } from '@/features/sales/SalesPanel';
 import { EventBanner } from './EventBanner';
 import { EventList } from './EventList';
 import { GatherPanel } from './GatherPanel';
@@ -45,6 +45,7 @@ export function HomePage() {
         items={[
           { id: 'home', label: 'ホーム' },
           { id: 'resources', label: '資源' },
+          { id: 'sales', label: '取引' },
           { id: 'company', label: '会社' },
         ]}
         value={sub}
@@ -58,9 +59,6 @@ export function HomePage() {
 
           <div className="section-title">手作業で採集</div>
           <GatherPanel />
-
-          <div className="section-title">注文</div>
-          <ContractsCard />
 
           <div className="section-title">主要資源</div>
           <KeyResources />
@@ -79,6 +77,7 @@ export function HomePage() {
       )}
 
       {sub === 'resources' && <ResourcesPanel />}
+      {sub === 'sales' && <SalesPanel />}
       {sub === 'company' && <CompanyPanel />}
     </div>
   );

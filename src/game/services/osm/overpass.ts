@@ -26,6 +26,16 @@ export interface OsmFeature {
   areaSqm: number;
   levels: number;
   polygon: LatLon[];
+  /** 地形の判定に使う元のタグ（必要なものだけ） */
+  tags?: OsmTags;
+}
+
+/** 地形の判定に使うタグだけ残す */
+function slimTags(tags: OsmTags): OsmTags {
+  const keep = ['landuse', 'natural', 'waterway', 'man_made', 'leisure', 'amenity', 'building', 'shop', 'tourism', 'aeroway'];
+  const out: OsmTags = {};
+  for (const k of keep) if (tags[k]) out[k] = tags[k];
+  return out;
 }
 
 export interface BBox {
@@ -120,6 +130,7 @@ export function parseElements(elements: OverpassElement[]): OsmFeature[] {
       areaSqm,
       levels: levelsFromTags(tags, info.kind),
       polygon,
+      tags: slimTags(tags),
     });
   }
   return out;

@@ -16,7 +16,9 @@ import { calcCapacity, clean } from './inventory';
 import { landCapacity, ownedLands } from './land';
 import { createEmptyDerived, createInitialState } from './state/createInitialState';
 import { runCompanyMetrics } from './systems/company';
-import { creditRankDef, declineContract, deliverContract, runContracts } from './systems/contracts';
+import { creditRankDef } from './systems/contracts';
+import { acceptOffer, cancelDeal, declineOffer, deliverDeal, pitchTo, runSales } from './systems/sales';
+import { runInfluence } from './systems/influence';
 import { buyProperty, isEstateUnlocked, runEstate, sellProperty } from './systems/estate';
 import { buyCustomProperty, sellCustomProperty } from './systems/customEstate';
 import { placeLabel } from './hq';
@@ -27,7 +29,7 @@ import { runAutoSell, runMarket, sellResource } from './systems/market';
 import { computeModifiers } from './systems/modifiers';
 import { runPower } from './systems/power';
 import { runProduction } from './systems/production';
-import { buildPrestigeState } from './systems/prestige';
+import { buildPrestigeState, buyPrestigeUpgrade } from './systems/prestige';
 import { runAchievements, runTutorial } from './systems/progress';
 import { completeResearch, runResearchPoints } from './systems/research';
 import { runRivals } from './systems/rivals';
@@ -132,7 +134,8 @@ export class GameEngine {
     const { commercialIncome } = runProduction(this.ctx, dt);
     const { cost } = runLogistics(this.ctx, dt);
     runMarket(this.ctx, dt);
-    runContracts(this.ctx, dt);
+    runSales(this.ctx, dt);
+    runInfluence(this.ctx, dt);
     const sold = runAutoSell(this.ctx);
     runResearchPoints(this.ctx, dt);
     const { rent } = runEstate(this.ctx, dt);
@@ -187,7 +190,7 @@ export class GameEngine {
   }
 
   /** オフライン進行を適用して報告を返す。maxSeconds を超える分は切り捨てる */
-  applyOffline(elapsedSeconds: number, maxSeconds = this.state.settings.maxOfflineSeconds): OfflineReport {
+  applyOffline(elapsedSeconds: number, maxSeconds = this.state.settings.maxOfflineSeconds + (this.derived.modifiers?.offlineBonusSec ?? 0)): OfflineReport {
     const simulated = Math.max(0, Math.min(elapsedSeconds, maxSeconds));
     const before = { ...this.state.inventory };
     const cashBefore = this.state.company.cash;
@@ -306,6 +309,13 @@ export class GameEngine {
     return got;
   }
 
+  /** 永続アップグレードを1段階買う */
+  buyPrestigeUpgrade(id: string): boolean {
+    const ok = buyPrestigeUpgrade(this.state, id);
+    if (ok) this.refreshDerived();
+    return ok;
+  }
+
   /** 本社の場所を変える（地図の表示と「本社の所在地」に反映される） */
   setHqLocation(lat: number, lon: number, label?: string): void {
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
@@ -412,18 +422,42 @@ export class GameEngine {
   }
 
   // ---------- 注文 ----------
-  deliverContract(contractId: number, amount?: number): number {
-    const n = deliverContract(this.ctx, contractId, amount);
-    if (n > 0) {
+  /** 取引先に営業する */
+  pitchTo(companyId: string): { ok: boolean; reason?: string } {
+    const r = pitchTo(this.ctx, companyId);
+    this.refreshDerived();
+    return { ok: r.ok, reason: r.reason };
+  }
+
+  /** 商談を受けて契約する */
+  acceptOffer(offerId: number): boolean {
+    const ok = acceptOffer(this.ctx, offerId);
+    if (ok) this.refreshDerived();
+    return ok;
+  }
+
+  /** 商談を断る */
+  declineOffer(offerId: number): boolean {
+    return declineOffer(this.state, offerId);
+  }
+
+  /** 契約の1回ぶんを納品する */
+  deliverDeal(dealId: number): boolean {
+    const ok = deliverDeal(this.ctx, dealId);
+    if (ok) {
       this.refreshDerived();
       runAchievements(this.ctx);
     }
-    return n;
+    return ok;
   }
 
-  declineContract(contractId: number): boolean {
-    return declineContract(this.ctx, contractId);
+  /** 契約を打ち切る */
+  cancelDeal(dealId: number): boolean {
+    const ok = cancelDeal(this.ctx, dealId);
+    if (ok) this.refreshDerived();
+    return ok;
   }
+
 
   // ---------- 再出発 ----------
   /** 会社を売却して再出発する。実績・設定・永続ボーナスだけ持ち越す */

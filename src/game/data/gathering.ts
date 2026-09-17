@@ -26,6 +26,7 @@ export const GATHER_ACTIONS = [
   { id: 'gather_plant_fiber', resource: 'plant_fiber', label: '繊維を採る', baseAmount: 1, tools: [], requiresTool: false, unlock: { type: 'always' }, hint: '' },
   { id: 'gather_clay', resource: 'clay', label: '粘土を掘る', baseAmount: 1, tools: ['shovel'], requiresTool: false, unlock: { type: 'always' }, hint: 'シャベルがあると3倍' },
   { id: 'gather_scrap', resource: 'scrap_metal', label: '鉄くずを回収', baseAmount: 1, tools: ['stone_hammer'], requiresTool: true, unlock: { type: 'always' }, hint: '石のハンマーが必要' },
+  { id: 'gather_sap', resource: 'sap', label: '樹液を採る', baseAmount: 1, tools: ['stone_axe'], requiresTool: false, unlock: { type: 'obtained', resource: 'wood', min: 15 }, hint: '石の斧があると3倍' },
   { id: 'gather_iron_ore', resource: 'iron_ore', label: '鉄鉱石を掘る', baseAmount: 2, tools: ['steel_pickaxe', 'iron_pickaxe', 'stone_pickaxe'], requiresTool: true, unlock: { type: 'toolCrafted', tool: 'stone_pickaxe' }, hint: 'つるはしが必要' },
 ] as const satisfies readonly GatherActionDef[];
 

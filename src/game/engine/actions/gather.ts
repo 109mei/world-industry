@@ -45,5 +45,6 @@ export function gather(ctx: EngineContext, actionId: GatherActionId): number {
     return 0;
   }
   if (preview.toolId) consumeTool(ctx, preview.toolId);
-  return addResource(state, def.resource, preview.amount, derived.capacity, 'gathered');
+  const amount = preview.amount * (derived.modifiers?.gatherAmount ?? 1);
+  return addResource(state, def.resource, amount, derived.capacity, 'gathered');
 }
