@@ -10,7 +10,7 @@ import { Stat } from '@/components/ui/Stat';
 import { ADS, AD_MAP, type AdDef, BUSINESS_MAP, SQM_PER_PARKING, awarenessLabel, brandLabel } from '@/game/data/business';
 import { PROJECT_MAP, projectsOf } from '@/game/data/projects';
 import { RESOURCE_MAP, type ResourceId } from '@/game/data/resources';
-import { claimDeposits, customersPerSec, competition, devPerSec, digPerSec, shopCapacity, shopModel, staffRatio, variety, divisionProfitPerSec, divisionWage, footfall, getDivision, isProjectAvailable, parkingSpaces, retailPrice } from '@/game/engine/systems/business';
+import { claimDeposits, customersPerSec, competition, devPerSec, digPerSec, localDemand, shopCapacity, shopModel, staffRatio, topDemand, variety, divisionProfitPerSec, divisionWage, footfall, getDivision, isProjectAvailable, parkingSpaces, retailPrice } from '@/game/engine/systems/business';
 import { getCustom, landCustomId } from '@/game/engine/systems/customEstate';
 import { bumpGame, useGame } from '@/stores/gameStore';
 import { useUiStore } from '@/stores/uiStore';
@@ -188,6 +188,12 @@ export function DivisionSheet() {
             ))}
           </ul>
           <BarChart
+            label="この街で求められているもの"
+            max={2.2}
+            data={topDemand(state, div.landId, def.goods ?? []).map((d) => ({ label: RESOURCE_MAP[d.id].name, value: d.mult, tone: 'profit' as const }))}
+            format={(v) => `×${v.toFixed(2)}`}
+          />
+          <BarChart
             label="この店の状態"
             max={1}
             data={[
@@ -212,7 +218,7 @@ export function DivisionSheet() {
                   <div className="row__grow">
                     <div style={{ fontSize: 13 }}>{res.name}</div>
                     <div className="text-sub num" style={{ fontSize: 11 }}>
-                      店頭 {formatMoney(price, mode)}（相場比 +{formatPercent(price / Math.max(1, res.basePrice) - 1, 0)}）
+                      店頭 {formatMoney(price, mode)}（相場比 +{formatPercent(price / Math.max(1, res.basePrice) - 1, 0)}・この街の人気 ×{localDemand(state, div.landId, g).toFixed(2)}）
                     </div>
                   </div>
                   <span className="num" style={{ fontSize: 13 }}>

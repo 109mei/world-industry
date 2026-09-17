@@ -343,3 +343,32 @@ describe('実績は倒産しても再出発しても消えない', () => {
     expect(e.state.achievements.first_stone).toBe(1);
   });
 });
+
+describe('場所ごとの需要と供給', () => {
+  it('地形によって売れるものが変わる', async () => {
+    const { localDemand } = await import('../systems/business');
+    const e = makeEngine(100_000_000);
+    const cityLand = buyPlace(e, { id: 'w910', kind: 'retail', areaSqm: 500 });
+    const city = e.state.lands.find((l) => l.id === cityLand)!;
+    city.terrain = 'city';
+    const desertId = buyPlace(e, { id: 'w911', kind: 'land', areaSqm: 500 });
+    const desert = e.state.lands.find((l) => l.id === desertId)!;
+    desert.terrain = 'desert';
+    // 砂漠では水が、街では衣類がよく売れる
+    expect(localDemand(e.state, desert.id, 'water')).toBeGreaterThan(localDemand(e.state, city.id, 'water'));
+    expect(localDemand(e.state, city.id, 'clothing')).toBeGreaterThan(localDemand(e.state, desert.id, 'clothing'));
+  });
+
+  it('求められている品のほうが高く売れる', async () => {
+    const { localDemand, retailPrice } = await import('../systems/business');
+    const e = makeEngine(100_000_000);
+    const landId = buyPlace(e, { id: 'w912', areaSqm: 800 });
+    e.state.lands.find((l) => l.id === landId)!.terrain = 'snow';
+    e.state.research.completed.retail = true;
+    const id = e.openDivision('shop', landId).id!;
+    const div = getDivision(e.state, id)!;
+    // 雪国では衣類の人気が高い
+    expect(localDemand(e.state, landId, 'clothing')).toBeGreaterThan(1);
+    expect(retailPrice(e.state, div, 'clothing') / RESOURCE_MAP.clothing.basePrice).toBeGreaterThan(retailPrice(e.state, div, 'glass') / RESOURCE_MAP.glass.basePrice);
+  });
+});

@@ -9,6 +9,7 @@
 import { AD_MAP, BUSINESS_MAP, PARKING_PER_CUSTOMER, SQM_PER_PARKING, type BusinessKindId } from '@/game/data/business';
 import { SEASON_SECONDS, SHOP_MODELS, type ShopModel } from '@/game/data/shopModels';
 import { GAMES, expectedReturn } from '@/game/data/gambling';
+import { POPULATION_GOODS, TERRAIN_DEMAND } from '@/game/data/localDemand';
 import { PROJECT_MAP, type ProjectDef } from '@/game/data/projects';
 import { RESOURCE_MAP, type ResourceId } from '@/game/data/resources';
 import { getCustom } from './customEstate';
@@ -197,13 +198,37 @@ export function houseEdge(): number {
   return Math.max(0.01, 1 - avg);
 }
 
+/**
+ * その場所でその品物がどれだけ求められているか。
+ * 1 より大きいほどよく売れる（高く・たくさん）。
+ * 自分がその近くで大量に作っているものは、供給が増えて安くなる。
+ */
+export function localDemand(state: GameState, landId: string, id: ResourceId): number {
+  const land = getLand(state, landId);
+  if (!land) return 1;
+  let d = TERRAIN_DEMAND[land.terrain]?.[id] ?? 1;
+  // 人の多い場所では日用品がよく売れる
+  if (POPULATION_GOODS.includes(id)) d *= 1 + Math.min(0.5, (landPopulation(land) - 1) * 0.12);
+  return Math.max(0.6, Math.min(2.2, d));
+}
+
+/** その場所でいちばん売れているもの（表示用。上から3つ） */
+export function topDemand(state: GameState, landId: string, goods: readonly ResourceId[]): { id: ResourceId; mult: number }[] {
+  return goods
+    .map((id) => ({ id, mult: localDemand(state, landId, id) }))
+    .sort((a, b) => b.mult - a.mult)
+    .slice(0, 3);
+}
+
 /** 品物1個の売値（仕入れ値より高く売る。ブランドが高いほど高く売れる） */
 export function retailPrice(state: GameState, div: Division, id: ResourceId, shopMult = 1): number {
   const base = referencePrice(state, id);
   const m = shopModel(div.kind);
   // 売れ残りが値下がりする店（アパレルなど）は、流行の谷で安くなる
   const season = m.seasonal ? 0.7 + 0.3 * seasonFactor(state, div) : 1;
-  return Math.max(1, base * (m.markup + div.brand / 120) * shopMult * season);
+  // その街で求められている品ほど高く売れる
+  const demand = 0.7 + 0.3 * localDemand(state, div.landId, id);
+  return Math.max(1, base * (m.markup + div.brand / 120) * shopMult * season * demand);
 }
 
 /** 1秒あたりに来る客の数 */
@@ -282,8 +307,12 @@ function runShop(ctx: EngineContext, div: Division, dt: number): number {
   let revenue = 0;
   let sold = 0;
   const shopMult = ctx.derived.modifiers?.shopSales ?? 1;
-  const per = want / goods.length;
-  for (const g of goods) {
+  // 求められているものほど多く売れる
+  const weights = goods.map((g) => localDemand(state, div.landId, g));
+  const weightSum = weights.reduce((a, b) => a + b, 0) || 1;
+  for (let gi = 0; gi < goods.length; gi++) {
+    const g = goods[gi];
+    const per = (want * weights[gi]) / weightSum;
     const have = div.stock[g] ?? 0;
     const take = Math.min(have, per);
     if (take <= 0) continue;
