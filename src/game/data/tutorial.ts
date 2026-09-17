@@ -35,7 +35,7 @@ export const TUTORIAL_STEPS: TutorialStepDef[] = [
     check: (s) => obtained(s, 'scrap_metal') >= 1,
   },
   {
-    id: 'sell', title: '最初の商品を販売する', text: 'RESOURCES画面で資源をタップして売却しよう。鉄くずは1個8円前後で売れます。', tab: 'resources',
+    id: 'sell', title: '最初の商品を販売する', text: 'RESOURCES画面で資源をタップして売却しよう。鉄くずは1個8円前後で売れます。', tab: 'home',
     check: (s) => s.company.totalEarned > 0,
   },
   {
@@ -43,7 +43,7 @@ export const TUTORIAL_STEPS: TutorialStepDef[] = [
     check: (s) => s.facilities.some((f) => f.count > 0),
   },
   {
-    id: 'auto', title: '初めての自動生産', text: '作業員が資源を生産するのを待とう。RESOURCES画面の「+/秒」が生産速度です。', tab: 'resources',
+    id: 'auto', title: '初めての自動生産', text: '作業員が資源を生産するのを待とう。RESOURCES画面の「+/秒」が生産速度です。', tab: 'home',
     check: (s) => Object.values(s.stats.totalProduced).some((v) => (v ?? 0) >= 1),
   },
 ];

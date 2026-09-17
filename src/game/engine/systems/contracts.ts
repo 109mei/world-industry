@@ -65,6 +65,13 @@ export function createContract(ctx: EngineContext): Contract | null {
   return { id: state.contracts.nextId++, client, resource: pick.id, amount, delivered: 0, reward, credit, remaining: total, total };
 }
 
+/** 注文で取り置きが必要な数量（資源ID → 個数） */
+export function contractReserve(state: GameState): Partial<Record<ResourceId, number>> {
+  const out: Partial<Record<ResourceId, number>> = {};
+  for (const c of state.contracts?.active ?? []) out[c.resource] = (out[c.resource] ?? 0) + Math.max(0, c.amount - c.delivered);
+  return out;
+}
+
 /** 注文の発生と期限の管理 */
 export function runContracts(ctx: EngineContext, dt: number): void {
   const { state, rng } = ctx;

@@ -3,8 +3,8 @@ import { GameEngine } from '@/game/engine/GameEngine';
 import { playSfx, type SfxName } from '@/game/services/audio/sfx';
 import { GameLoop } from '@/game/services/GameLoop';
 import { LocalStorageSaveRepository, MemorySaveRepository, type SaveRepository } from '@/game/services/save/SaveRepository';
-import { SAVE_KEY, SaveService } from '@/game/services/save/SaveService';
-import { bumpGame, useGameStore } from '@/stores/gameStore';
+import { SAVE_KEY, SaveService, hasProgress, savedHasProgress, serializeState } from '@/game/services/save/SaveService';
+import { bumpGame, setChangeHook, useGameStore } from '@/stores/gameStore';
 import { useUiStore } from '@/stores/uiStore';
 import type { GameState, OfflineReport } from '@/types/state';
 
@@ -14,9 +14,13 @@ export interface GameRuntime {
   loop: GameLoop;
   saveService: SaveService;
   save: () => Promise<void>;
+  /** 操作のたびに呼ぶ。少しまとめてから保存する */
+  scheduleSave: () => void;
   reset: () => Promise<void>;
   importState: (text: string) => Promise<void>;
   exportState: () => string;
+  /** 自動バックアップから復元する */
+  restoreBackup: () => Promise<boolean>;
 }
 
 let runtime: GameRuntime | null = null;
@@ -64,10 +68,16 @@ export async function createRuntime(): Promise<GameRuntime> {
   const saveService = new SaveService(createRepository());
 
   let loaded: GameState | null = null;
+  let loadError: string | undefined;
+  let fromBackup = false;
   try {
-    loaded = await saveService.load();
+    const result = await saveService.loadSafe();
+    loaded = result.state;
+    loadError = result.error;
+    fromBackup = result.fromBackup === true;
   } catch (e) {
-    console.error('セーブデータの読み込みに失敗しました。新規開始します。', e);
+    loadError = e instanceof Error ? e.message : String(e);
+    console.error('セーブデータの読み込みに失敗しました。', e);
   }
   let engine = new GameEngine(loaded ? { state: loaded } : {});
   wireEngine(engine);
@@ -81,12 +91,46 @@ export async function createRuntime(): Promise<GameRuntime> {
     }
   }
 
+  let saveFailureNotified = false;
   const doSave = async () => {
     try {
       engine.refreshDerived();
       await saveService.save(engine.state);
+      saveFailureNotified = false;
     } catch (e) {
       console.error('保存に失敗しました', e);
+      if (!saveFailureNotified) {
+        saveFailureNotified = true;
+        useUiStore.getState().pushToast('warn', e instanceof Error ? e.message : 'セーブデータを保存できませんでした');
+      }
+    }
+  };
+
+  // 操作のたびに保存する（短い間にまとめて1回にする）
+  let saveTimer: ReturnType<typeof setTimeout> | null = null;
+  const scheduleSave = () => {
+    if (saveTimer !== null) return;
+    saveTimer = setTimeout(() => {
+      saveTimer = null;
+      void doSave();
+    }, CONFIG.saveDebounceMs);
+  };
+
+  /** タブを閉じる・再読み込みするときは、その場で書き込む（待ちを挟まない） */
+  const saveNowSync = () => {
+    if (saveTimer !== null) {
+      clearTimeout(saveTimer);
+      saveTimer = null;
+    }
+    try {
+      engine.refreshDerived();
+      // 進行中のセーブを初期状態で上書きしない
+      if (!hasProgress(engine.state) && savedHasProgress(localStorage.getItem(SAVE_KEY))) return;
+      const now = Date.now();
+      engine.state.meta.lastSaveTime = now;
+      localStorage.setItem(SAVE_KEY, serializeState(engine.state, now));
+    } catch {
+      /* 保存できない環境では何もしない */
     }
   };
 
@@ -110,12 +154,15 @@ export async function createRuntime(): Promise<GameRuntime> {
     loop,
     saveService,
     save: doSave,
+    scheduleSave,
     reset: async () => {
-      await saveService.clear();
+      await saveService.clearAll();
       replaceEngine();
+      await doSave();
     },
     importState: async (text) => {
       const state = saveService.import(text);
+      await saveService.clearAll();
       replaceEngine(state);
       await doSave();
     },
@@ -123,15 +170,35 @@ export async function createRuntime(): Promise<GameRuntime> {
       engine.refreshDerived();
       return saveService.export(engine.state);
     },
+    restoreBackup: async () => {
+      const state = await saveService.loadBackup();
+      if (!state) return false;
+      replaceEngine(state);
+      await doSave();
+      return true;
+    },
   };
+
+  // 操作（bumpGame）のたびに保存を予約する
+  setChangeHook(scheduleSave);
 
   loop.start();
 
-  // タブを閉じる／裏に回るときに保存
+  // タブを閉じる／裏に回る／再読み込みするときは、その場で書き込む
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') void doSave();
+    if (document.visibilityState === 'hidden') saveNowSync();
   });
-  window.addEventListener('pagehide', () => void doSave());
+  window.addEventListener('pagehide', saveNowSync);
+  window.addEventListener('beforeunload', saveNowSync);
+
+  // 読み込みでつまずいたことは黙って初期化せずに伝える
+  if (loadError && fromBackup) {
+    useUiStore.getState().pushToast('warn', 'セーブデータを読めなかったため、自動バックアップから復元しました');
+  } else if (loadError) {
+    useUiStore.getState().pushToast('warn', `セーブデータを読み込めませんでした（${loadError}）。元のデータは残してあります`);
+  }
+  // 開いた直後の状態も保存しておく（すぐ閉じても残るように）
+  void doSave();
 
   return runtime;
 }

@@ -4,7 +4,7 @@ import { CONFIG } from '@/game/data/config';
 import { HQ_LAND_ID, HQ_TERRAIN } from '@/game/data/lands';
 import { GAME_META } from '@/game/data/meta';
 import { RESOURCES, type ResourceDef, type ResourceId } from '@/game/data/resources';
-import type { AutomationState, CompanyStockState, ContractsState, DerivedState, EstateState, GameState, LandState, PrestigeState, StocksState } from '@/types/state';
+import type { CompanyStockState, ContractsState, DerivedState, EstateState, GameState, LandState, PrestigeState, StocksState } from '@/types/state';
 import { createEmptyEventMods } from '../systems/events';
 import { createBaseModifiers } from '../systems/modifiers';
 import { createEmptyPower } from '../systems/power';
@@ -31,17 +31,6 @@ export function createInitialStocks(): StocksState {
   return { companies, nextUpdateIn: CONFIG.stocks.updateSeconds, rivalIn: CONFIG.rivals.buyIntervalSeconds, issueIn: CONFIG.rivals.issueIntervalSeconds };
 }
 
-export function createInitialAutomation(): AutomationState {
-  return {
-    managers: {},
-    craftTargets: {},
-    smartSell: false,
-    invest: { reserve: 1_000_000, facilities: true, dividends: true, properties: false, maxPaybackSeconds: 7200 },
-    templates: [],
-    timer: CONFIG.automation.intervalSeconds,
-    dividendPool: 0,
-  };
-}
 
 export function createInitialContracts(): ContractsState {
   return { active: [], nextIn: CONFIG.contracts.firstDelaySeconds, nextId: 1, credit: 0 };
@@ -92,9 +81,6 @@ export function createInitialState(now = Date.now()): GameState {
       contractsCompleted: 0,
       contractsFailed: 0,
       contractRewards: 0,
-      salariesPaid: 0,
-      autoGathered: 0,
-      autoCrafted: 0,
       bestSale: null,
     },
     unlocked: {},
@@ -104,7 +90,6 @@ export function createInitialState(now = Date.now()): GameState {
     events: { active: [], nextIn: CONFIG.events.firstDelaySeconds, nextId: 1 },
     estate: createInitialEstate(),
     stocks: createInitialStocks(),
-    automation: createInitialAutomation(),
     contracts: createInitialContracts(),
     prestige: createInitialPrestige(),
     eventLog: [],
@@ -119,6 +104,8 @@ export function createInitialState(now = Date.now()): GameState {
       volume: 0.6,
       events: true,
       landView: 'map',
+      factoryOnlyBuildable: false,
+      craftOnlyMakeable: false,
       estateView: 'map',
     },
   };
@@ -151,7 +138,6 @@ export function createEmptyDerived(): DerivedState {
     stockValue: 0,
     dividendPerSec: 0,
     companies: {},
-    salaryPerSec: 0,
     creditRank: 'E',
   };
 }

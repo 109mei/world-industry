@@ -1,8 +1,9 @@
 import { CITIES, CITY_MAP, isCityId, type CityId } from '@/game/data/cities';
 import { COMPANY_MAP, isCompanyId } from '@/game/data/companies';
 import { CONFIG } from '@/game/data/config';
-import { PROPERTIES, PROPERTY_MAP, isPropertyId, propertyYield, type PropertyDef } from '@/game/data/properties';
-import type { GameState } from '@/types/state';
+import { PROPERTIES, PROPERTY_MAP, PROPERTY_POPULATION, PROPERTY_TERRAIN, isPropertyId, propertyYield, type PropertyDef } from '@/game/data/properties';
+import { COUNTRY_NAME } from '@/game/data/lands';
+import type { GameState, LandState } from '@/types/state';
 import type { EngineContext, Rng } from '../context';
 import { createInitialEstate } from '../state/createInitialState';
 import { creditRankDef } from './contracts';
@@ -142,7 +143,9 @@ export function buyProperty(ctx: EngineContext, id: string): boolean {
   state.estate.owned[id] = { boughtAt: ctx.now(), boughtPrice: cost };
   state.stats.propertiesBought += 1;
   const def = PROPERTY_MAP[id];
-  ctx.emit('success', `${def.name}を購入しました (-${cost.toLocaleString('ja-JP')}円)`, { toast: true });
+  // 買った物件はそのまま「施設を建てられる土地」になる
+  addPropertyLand(state, id, ctx.now());
+  ctx.emit('success', `${def.name}を購入しました (-${cost.toLocaleString('ja-JP')}円)。施設を建てられます`, { toast: true });
   return true;
 }
 
@@ -153,6 +156,10 @@ export function sellProperty(ctx: EngineContext, id: string): number {
   const proceeds = propertySellProceeds(state, id);
   const bought = state.estate.owned[id].boughtPrice;
   delete state.estate.owned[id];
+  // 土地としての登録と、そこに建てた施設を外す
+  const landId = propertyLandId(id);
+  state.lands = state.lands.filter((l) => l.id !== landId);
+  state.facilities = state.facilities.filter((f) => f.landId !== landId);
   state.company.cash += proceeds;
   state.company.totalEarned += proceeds;
   state.stats.propertiesSold += 1;
@@ -161,6 +168,51 @@ export function sellProperty(ctx: EngineContext, id: string): number {
   const diff = proceeds - bought;
   ctx.emit('info', `${def?.name ?? id}を売却しました (+${proceeds.toLocaleString('ja-JP')}円、${diff >= 0 ? '利益' : '損失'} ${Math.abs(Math.round(diff)).toLocaleString('ja-JP')}円)`, { toast: true });
   return proceeds;
+}
+
+/** 都市の国名（日本語）から国コードを引く */
+function countryCodeOf(name: string): LandState['country'] {
+  for (const [code, label] of Object.entries(COUNTRY_NAME)) {
+    if (label === name) return code as LandState['country'];
+  }
+  return 'JP';
+}
+
+/** 物件の土地の人口・交通量の係数（商業施設の収入に掛かる） */
+export function propertyPopulation(propertyId: string): number {
+  if (!isPropertyId(propertyId)) return 0.5;
+  return PROPERTY_POPULATION[PROPERTY_MAP[propertyId].kind];
+}
+
+/** 物件に対応する土地の ID */
+export function propertyLandId(propertyId: string): string {
+  return `prop:${propertyId}`;
+}
+
+/** 土地 ID が物件のものならその物件 ID を返す */
+export function landPropertyId(landId: string): string | null {
+  return landId.startsWith('prop:') ? landId.slice(5) : null;
+}
+
+/** 買った物件を「施設を建てられる土地」として登録する */
+export function addPropertyLand(state: GameState, propertyId: string, now: number): void {
+  if (!isPropertyId(propertyId)) return;
+  const landId = propertyLandId(propertyId);
+  if (state.lands.some((l) => l.id === landId)) return;
+  const def = PROPERTY_MAP[propertyId];
+  const city = CITY_MAP[def.city];
+  state.lands.push({
+    id: landId,
+    name: def.name,
+    region: city.name,
+    country: countryCodeOf(city.country),
+    terrain: PROPERTY_TERRAIN[def.kind],
+    purchasedAt: now,
+    survey: 4,
+    surveyProgress: null,
+    deposits: {},
+    stock: {},
+  });
 }
 
 /** 都市ごとの物件（表示用） */

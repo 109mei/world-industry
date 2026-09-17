@@ -3,15 +3,12 @@ import { GameEngine } from '../GameEngine';
 import { COMPANIES } from '@/game/data/companies';
 import { CONFIG } from '@/game/data/config';
 import { creditRankOf } from '@/game/data/contracts';
-import { MANAGERS } from '@/game/data/managers';
 import { GAME_META } from '@/game/data/meta';
 import { PROPERTIES } from '@/game/data/properties';
 import { diagnoseFacility } from '../analysis/diagnose';
-import { recommend } from '../analysis/recommend';
 import { rankInvestments } from '../analysis/roi';
 import { createInitialState } from '../state/createInitialState';
 import { migrateSave } from '../state/migrations';
-import { isManagerHired, managerSalary, templateCost, totalSalary } from '../systems/automation';
 import { createContract, isContractsUnlocked } from '../systems/contracts';
 import { propertyOwner } from '../systems/estate';
 import { prestigePoints } from '../systems/prestige';
@@ -32,130 +29,6 @@ function makeEngine(cash = 0, seed = 11) {
   return e;
 }
 
-describe('マネージャー', () => {
-  it('採用費と給料（総資産で増える）', () => {
-    const gather = MANAGERS.find((m) => m.id === 'gather')!;
-    expect(managerSalary(gather, 0)).toBe(gather.salaryBase);
-    expect(managerSalary(gather, 10_000_000)).toBeCloseTo(gather.salaryBase + 10_000_000 * CONFIG.automation.salaryAssetRate, 6);
-    const e = makeEngine(1000);
-    // チュートリアルのステップ条件を満たすまで雇えない
-    expect(e.hireManager('gather')).toBe(false);
-    e.state.tutorial.completed = true;
-    expect(e.hireManager('gather')).toBe(true);
-    expect(isManagerHired(e.state, 'gather')).toBe(true);
-    expect(e.state.company.cash).toBe(1000 - gather.hireCost);
-    expect(totalSalary(e.state, 0)).toBe(gather.salaryBase);
-  });
-
-  it('採集係は毎秒採集し、給料が引かれる', () => {
-    const e = makeEngine(1000);
-    e.state.tutorial.completed = true;
-    e.hireManager('gather');
-    const cashAfterHire = e.state.company.cash;
-    e.advance(10);
-    expect(e.state.inventory['stone'] ?? 0).toBeGreaterThanOrEqual(9);
-    expect(e.state.stats.autoGathered).toBeGreaterThan(0);
-    expect(e.state.stats.salariesPaid).toBeGreaterThan(0);
-    expect(e.state.company.cash).toBeLessThan(cashAfterHire);
-    // 給料が払えなくなったら働かない（現金 0 で止まる）
-    e.state.company.cash = 0;
-    const before = e.state.stats.autoGathered;
-    e.advance(5);
-    expect(e.state.stats.autoGathered).toBe(before);
-  });
-
-  it('クラフト係はキープ量まで作り、道具を切らさない', () => {
-    const e = makeEngine(10_000);
-    e.state.tutorial.completed = true;
-    e.debugAddResource('clay', 50);
-    e.debugAddResource('wood', 50);
-    e.debugAddResource('stone', 50);
-    e.state.stats.crafted['fire_brick'] = 1;
-    e.tick(0.2);
-    expect(e.hireManager('craft')).toBe(true);
-    e.setCraftTarget('brick', 10);
-    e.advance(2);
-    expect(e.state.inventory['brick'] ?? 0).toBeGreaterThanOrEqual(10);
-    // 道具（石のハンマーなど）が各1本用意される
-    expect((e.state.tools['stone_hammer']?.count ?? 0) >= 1 || (e.state.tools['stone_axe']?.count ?? 0) >= 1).toBe(true);
-    expect(e.state.stats.autoCrafted).toBeGreaterThan(0);
-  });
-
-  it('販売係: 下限価格で自動売却を止め、おまかせ販売は使わない資源だけ売る', () => {
-    const e = makeEngine(100_000);
-    e.state.tutorial.completed = true;
-    e.state.stats.totalSold['tool'] = 10;
-    e.tick(0.2);
-    expect(e.hireManager('sales')).toBe(true);
-    e.debugAddResource('stone', 90);
-    e.setAutoSell('stone', true, 0);
-    e.setAutoSellMinPrice('stone', 1.5); // 相場が基準の1.5倍以上のときだけ売る → いまは売らない
-    e.tick(0.2);
-    expect(e.state.inventory['stone']).toBe(90);
-    e.setAutoSellMinPrice('stone', null);
-    e.tick(0.2);
-    expect(e.state.inventory['stone']).toBe(0);
-    // おまかせ販売: 作業員が作る石は消費されないので売られる
-    e.buyFacility('worker_stone', 5);
-    e.setSmartSell(true);
-    e.setAutoSell('stone', false, 0);
-    e.debugAddResource('stone', 95);
-    e.advance(3);
-    expect(e.state.inventory['stone'] ?? 0).toBeLessThan(95);
-  });
-
-  it('物流係は輸送手段のない土地にトラックを配備する', () => {
-    const e = makeEngine(5_000_000);
-    e.state.tutorial.completed = true;
-    e.tick(0.2);
-    expect(e.buyLand('jp_hokkaido')).toBe(true);
-    expect(e.buyFacility('quarry', 1, 'jp_hokkaido')).toBe(1);
-    e.advance(5); // 在庫が溜まり、経路なしになる
-    expect(e.derived.lands['jp_hokkaido'].noRoute).toBe(true);
-    expect(e.hireManager('logistics')).toBe(true);
-    e.advance(3);
-    expect(e.state.facilities.some((f) => f.landId === 'jp_hokkaido' && f.typeId === 'truck' && f.count > 0)).toBe(true);
-  });
-
-  it('投資係は残す現金を超えた分で回収の早い施設を建てる', () => {
-    const e = makeEngine(10_000_000);
-    e.state.tutorial.completed = true;
-    e.tick(0.2);
-    expect(e.hireManager('invest')).toBe(true);
-    e.updateInvestRule({ reserve: 1_000_000, facilities: true, dividends: false, properties: false, maxPaybackSeconds: 36_000 });
-    const before = e.state.facilities.reduce((a, f) => a + f.count, 0);
-    e.advance(5);
-    expect(e.state.facilities.reduce((a, f) => a + f.count, 0)).toBeGreaterThan(before);
-    expect(e.state.company.cash).toBeGreaterThanOrEqual(1_000_000 * 0.5); // 残す額を大きく下回らない
-  });
-
-  it('テンプレートの保存と適用', () => {
-    const e = makeEngine(20_000_000);
-    e.state.tutorial.completed = true;
-    e.tick(0.2);
-    e.buyLand('jp_hokkaido');
-    e.buyFacility('quarry', 2, 'jp_hokkaido');
-    e.buyFacility('truck', 3, 'jp_hokkaido');
-    expect(e.saveTemplate('jp_hokkaido', '採石セット')).toBe(true);
-    const t = e.state.automation.templates[0];
-    expect(t.facilities).toEqual({ quarry: 2, truck: 3 });
-    e.buyLand('jp_chikuho');
-    expect(templateCost(e.state, t, 'jp_chikuho')).toBeGreaterThan(0);
-    expect(e.applyTemplate(t.id, 'jp_chikuho')).toBe(5);
-    expect(e.state.facilities.find((f) => f.landId === 'jp_chikuho' && f.typeId === 'quarry')?.count).toBe(2);
-    expect(e.deleteTemplate(t.id)).toBe(true);
-    expect(e.state.automation.templates.length).toBe(0);
-  });
-
-  it('この土地の全施設を +1', () => {
-    const e = makeEngine(100_000);
-    e.state.tutorial.completed = true;
-    e.buyFacility('worker_stone', 2);
-    e.buyFacility('worker_wood', 1);
-    expect(e.buyAllOnLand('hq')).toBe(2);
-    expect(e.state.facilities.find((f) => f.typeId === 'worker_stone')?.count).toBe(3);
-  });
-});
 
 describe('注文と信用', () => {
   it('累計売上で解放され、納品すると報酬と信用が入る', () => {
@@ -289,21 +162,6 @@ describe('診断とおすすめ', () => {
     expect(d.fixes.length).toBeGreaterThan(0);
   });
 
-  it('倉庫満杯の施設には倉庫の増設が提案され、おすすめにも出る', () => {
-    const e = makeEngine(100_000);
-    e.state.tutorial.completed = true;
-    e.buyFacility('worker_stone', 3);
-    e.state.inventory['stone'] = 100;
-    e.advance(2);
-    const inst = e.state.facilities.find((f) => f.typeId === 'worker_stone')!;
-    expect(e.derived.facilityRuntime[inst.id].status).toBe('storage_full');
-    const d = diagnoseFacility(e.state, e.derived, inst)!;
-    expect(d.reason).toContain('満杯');
-    expect(d.fixes.some((f) => f.action.kind === 'buyFacility' && f.action.typeId === 'small_warehouse')).toBe(true);
-    const recs = recommend(e.state, e.derived);
-    expect(recs.length).toBeGreaterThan(0);
-    expect(recs[0].id.startsWith('storage:') || recs[0].id.startsWith('sell:')).toBe(true);
-  });
 
   it('投資の順位づけ: 回収が早い順で、価格の高いものは後ろ', () => {
     const e = makeEngine(1_000_000);
@@ -324,11 +182,12 @@ describe('診断とおすすめ', () => {
   });
 });
 
-describe('セーブの移行 v4 → v5', () => {
-  it('古いセーブに自動化・注文・再出発が補われる', () => {
+describe('セーブの移行 v4 → v6', () => {
+  it('古いセーブに注文・再出発が補われ、自動化のデータは捨てられる', () => {
     const old = createInitialState(1000) as unknown as Record<string, unknown>;
     old.saveVersion = 4;
-    delete old.automation;
+    old.automation = { managers: { gather: { hiredAt: 1, paid: 0 } } };
+    old.contracts = undefined;
     delete old.contracts;
     delete old.prestige;
     const stocks = old.stocks as { companies: Record<string, Record<string, unknown>>; rivalIn?: number };
@@ -336,8 +195,7 @@ describe('セーブの移行 v4 → v5', () => {
     for (const c of Object.values(stocks.companies)) delete c.extraShares;
     const m = migrateSave(old);
     expect(m.saveVersion).toBe(GAME_META.saveVersion);
-    expect(m.automation.managers).toEqual({});
-    expect(m.automation.invest.reserve).toBeGreaterThan(0);
+    expect('automation' in (m as unknown as Record<string, unknown>)).toBe(false);
     expect(m.contracts.active).toEqual([]);
     expect(m.prestige.points).toBe(0);
     expect(m.stocks.rivalIn).toBeGreaterThan(0);

@@ -539,6 +539,14 @@
   display: flex;
   align-items: center;
   gap: 12px;
+  /* 下までスクロールしても「×」で閉じられるように上に貼り付ける */
+  position: sticky;
+  top: -12px;
+  z-index: 2;
+  background: var(--card);
+  padding: 8px 0;
+  margin-top: -8px;
+  border-bottom: 1px solid var(--border);
 }
 .sheet__title {
   font-size: 17px;
@@ -549,8 +557,20 @@
   min-width: var(--tap);
   min-height: var(--tap);
   border-radius: 50%;
-  color: var(--text-sub);
-  font-size: 20px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 22px;
+  line-height: 1;
+}
+.sheet__close:hover {
+  border-color: var(--border-strong);
+}
+/* シートの一番下の「閉じる」 */
+.sheet__footer {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
 }
 .sheet__section {
   margin-top: 14px;
@@ -1618,4 +1638,22 @@ textarea.input {
   font-size: 12px;
   color: var(--text-sub);
   line-height: 1.5;
+}
+
+/* 入力欄の横に置く「×」（設定をなしに戻す） */
+.input__clear {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-sub);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+.input__clear:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
 }

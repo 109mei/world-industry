@@ -35,6 +35,17 @@ export function useGame(): GameView {
   return { state: engine.state, derived: engine.derived, engine, version };
 }
 
+/**
+ * 画面を更新する。操作のあとに呼ばれるので、ここでセーブも予約する（常に保存されるように）。
+ * runtime を直接 import すると循環参照になるため、起動時に登録してもらう。
+ */
+let onChanged: (() => void) | null = null;
+
+export function setChangeHook(fn: (() => void) | null): void {
+  onChanged = fn;
+}
+
 export function bumpGame(): void {
   useGameStore.getState().bump();
+  onChanged?.();
 }

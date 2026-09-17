@@ -6,7 +6,7 @@ import { LANDS, type LandDefId } from '@/game/data/lands';
 import { RECIPES, type RecipeId } from '@/game/data/recipes';
 import { RESEARCH, type ResearchId } from '@/game/data/research';
 import type { ResourceId } from '@/game/data/resources';
-import type { DerivedState, GameEvent, GameEventType, GameState, InvestRule, ManagerId, OfflineReport } from '@/types/state';
+import type { DerivedState, GameEvent, GameEventType, GameState, OfflineReport } from '@/types/state';
 import { craft } from './actions/craft';
 import { buyFacility, setFacilityEnabled } from './actions/facility';
 import { gather } from './actions/gather';
@@ -15,7 +15,6 @@ import type { EmitOptions, EngineContext, Rng } from './context';
 import { calcCapacity, clean } from './inventory';
 import { landCapacity, ownedLands } from './land';
 import { createEmptyDerived, createInitialState } from './state/createInitialState';
-import { applyTemplate, deleteTemplate, fireManager, hireManager, poolDividends, runAutomation, saveTemplate } from './systems/automation';
 import { runCompanyMetrics } from './systems/company';
 import { creditRankDef, declineContract, deliverContract, runContracts } from './systems/contracts';
 import { buyProperty, isEstateUnlocked, runEstate, sellProperty } from './systems/estate';
@@ -135,7 +134,6 @@ export class GameEngine {
     runResearchPoints(this.ctx, dt);
     const { rent } = runEstate(this.ctx, dt);
     const { dividends } = runStocks(this.ctx, dt);
-    poolDividends(state, dividends);
     runRivals(this.ctx, dt);
     // 商業収入
     const earned = commercialIncome * dt;
@@ -144,11 +142,9 @@ export class GameEngine {
       state.company.totalEarned += earned;
       state.stats.totalCommercialIncome += earned;
     }
-    // マネージャー（給料と自動処理）。総資産は前 tick の値を使う
-    const auto = runAutomation(this.ctx, dt);
     const extra = this.derived.extraIncome;
     this.derived.extraIncome = 0;
-    this.recordIncome(sold + earned + rent + dividends + auto.gained + extra - cost - auto.salaries, dt);
+    this.recordIncome(sold + earned + rent + dividends + extra - cost, dt);
     state.stats.playtimeSeconds += dt;
     runCompanyMetrics(this.ctx);
     this.derived.creditRank = creditRankDef(state).rank;
@@ -355,57 +351,12 @@ export class GameEngine {
     if (trimmed) this.state.company.name = trimmed;
   }
 
-  // ---------- 自動化（マネージャー・ルール・テンプレート） ----------
-  hireManager(id: ManagerId): boolean {
-    const ok = hireManager(this.ctx, id);
-    if (ok) this.refreshDerived();
-    return ok;
-  }
-
-  fireManager(id: ManagerId): boolean {
-    const ok = fireManager(this.ctx, id);
-    if (ok) this.refreshDerived();
-    return ok;
-  }
-
-  /** 資源の「キープする量」（0 で解除） */
-  setCraftTarget(resourceId: ResourceId, amount: number): void {
-    const a = this.state.automation;
-    const n = Math.max(0, Math.floor(amount));
-    if (n > 0) a.craftTargets[resourceId] = n;
-    else delete a.craftTargets[resourceId];
-  }
-
+  // ---------- 自動売却の下限価格 ----------
   setAutoSellMinPrice(resourceId: ResourceId, ratio: number | null): void {
     const cfg = this.state.market.autoSell[resourceId] ?? { enabled: false, keep: 0 };
     if (ratio && ratio > 0) cfg.minPriceRatio = ratio;
     else delete cfg.minPriceRatio;
     this.state.market.autoSell[resourceId] = cfg;
-  }
-
-  setSmartSell(enabled: boolean): void {
-    this.state.automation.smartSell = enabled;
-  }
-
-  updateInvestRule(patch: Partial<InvestRule>): void {
-    Object.assign(this.state.automation.invest, patch);
-  }
-
-  saveTemplate(landId: string, name: string): boolean {
-    return saveTemplate(this.ctx, landId, name) !== null;
-  }
-
-  deleteTemplate(id: number): boolean {
-    return deleteTemplate(this.ctx, id);
-  }
-
-  applyTemplate(templateId: number, landId: string): number {
-    const n = applyTemplate(this.ctx, templateId, landId);
-    if (n > 0) {
-      this.refreshDerived();
-      runUnlocks(this.ctx);
-    }
-    return n;
   }
 
   /** この土地の施設をすべて1個ずつ増やす。買えた個数を返す */

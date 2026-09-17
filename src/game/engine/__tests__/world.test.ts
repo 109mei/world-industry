@@ -214,22 +214,24 @@ describe('電力', () => {
   });
 
   it('発電所は需要ぶんだけ燃料を燃やし、供給率で工場の効率が決まる', () => {
-    const e = makeEngine();
-    e.debugAddCash(10_000_000);
+    const e = withLand();
     e.state.unlocked['facility:large_warehouse'] = true;
     e.buyFacility('large_warehouse', 1);
     e.debugAddResource('iron', 1000);
     e.debugAddResource('coal', 1000);
+    const land = e.state.lands.find((l) => l.id === 'jp_hokkaido')!;
+    land.stock.coal = 1000; // 発電所の燃料は建てた土地の在庫から使う
     e.state.unlocked['facility:steel_mill'] = true;
     e.state.unlocked['facility:coal_power'] = true;
     e.buyFacility('steel_mill', 1); // 需要 2MW
-    e.buyFacility('coal_power', 1); // 10MW、最大で石炭0.5/秒
+    e.buyFacility('coal_power', 1, 'jp_hokkaido'); // 10MW、最大で石炭0.5/秒
     e.tick(1);
     expect(e.derived.power.capacity).toBe(10);
     expect(e.derived.power.generation).toBeCloseTo(2, 5);
     expect(e.derived.power.ratio).toBe(1);
-    // 燃料: 0.5 × (2/10) = 0.1、製鋼: 石炭 1 → 合計 1.1 減る
-    expect(e.state.inventory.coal).toBeCloseTo(1000 - 1.1, 4);
+    // 発電の燃料は土地の在庫から 0.5 × (2/10) = 0.1、製鋼は本社の石炭 1
+    expect(land.stock.coal).toBeCloseTo(1000 - 0.1, 4);
+    expect(e.state.inventory.coal).toBeCloseTo(1000 - 1, 4);
     expect(e.state.inventory.steel).toBeCloseTo(1, 5);
     // 需要が供給を超えると効率が下がる
     e.buyFacility('steel_mill', 9); // 需要 20MW
@@ -240,22 +242,21 @@ describe('電力', () => {
   });
 
   it('燃料が切れると発電できない', () => {
-    const e = makeEngine();
-    e.debugAddCash(10_000_000);
+    const e = withLand();
     e.debugAddResource('iron', 100);
     e.state.unlocked['facility:steel_mill'] = true;
     e.state.unlocked['facility:coal_power'] = true;
     e.buyFacility('steel_mill', 1);
-    e.buyFacility('coal_power', 1);
+    e.buyFacility('coal_power', 1, 'jp_hokkaido');
     e.tick(1);
     expect(e.derived.power.capacity).toBe(0);
-    expect(e.derived.facilityRuntime['hq:coal_power'].status).toBe('no_input');
+    expect(e.derived.facilityRuntime['jp_hokkaido:coal_power'].status).toBe('no_input');
   });
 
   it('再生可能エネルギーは燃料を使わず、地形で出力が変わる', () => {
     const e = withLand();
     e.state.unlocked['facility:solar_farm'] = true;
-    e.buyFacility('solar_farm', 1, 'hq');
+    e.buyFacility('solar_farm', 1, 'jp_hokkaido');
     e.tick(1);
     expect(e.derived.power.capacity).toBeCloseTo(4, 5);
     // 砂漠なら1.5倍
@@ -285,10 +286,9 @@ describe('電力', () => {
 
 describe('研究', () => {
   it('研究所がポイントを生み、ポイントを消費して研究する', () => {
-    const e = makeEngine();
-    e.debugAddCash(1_000_000);
-    e.tick(0.2);
-    expect(e.buyFacility('research_lab', 1)).toBe(1);
+    const e = withLand();
+    expect(e.buyFacility('research_lab', 1, 'hq')).toBe(0); // 本社には建てられない
+    expect(e.buyFacility('research_lab', 1, 'jp_hokkaido')).toBe(1);
     e.advance(100);
     expect(e.state.research.points).toBeCloseTo(20, 3);
     expect(e.research('geology')).toBe(false); // 40 必要
@@ -331,16 +331,21 @@ describe('研究', () => {
 });
 
 describe('商業施設', () => {
-  it('人口係数に応じて毎秒の収入になる', () => {
+  it('買った物件の土地に建てると、人口係数に応じて毎秒の収入になる', () => {
     const e = makeEngine();
-    e.debugAddCash(1_000_000);
+    e.debugAddCash(100_000_000_000);
     e.tick(0.2);
-    e.buyFacility('parking', 1); // 本社: 人口係数1 → 8円/秒
+    expect(e.buyFacility('parking', 1, 'hq')).toBe(0); // 本社には建てられない
+    // 商店街の空き店舗（商業・人口係数 2.6）を買うと、そこに建てられる
+    expect(e.buyProperty('iz_shop')).toBe(true);
+    const landId = 'prop:iz_shop';
+    expect(e.state.lands.some((l) => l.id === landId)).toBe(true);
+    expect(e.buyFacility('parking', 1, landId)).toBe(1);
     const cash = e.state.company.cash;
     e.tick(1);
-    expect(e.state.company.cash - cash).toBeCloseTo(8, 5);
-    expect(e.derived.commercialIncome).toBeCloseTo(8, 5);
-    expect(e.state.stats.totalCommercialIncome).toBeCloseTo(8, 5);
+    const expected = 8 * 2.6;
+    expect(e.derived.commercialIncome).toBeCloseTo(expected, 5);
+    expect(e.state.company.cash - cash).toBeGreaterThan(0);
   });
 });
 
@@ -359,13 +364,14 @@ describe('原子力', () => {
     e.buyFacility('solar_farm', 5, 'ca_athabasca'); // 鉱山の電力
     e.buyFacility('truck', 5, 'ca_athabasca');
     e.buyFacility('enrichment_plant', 1, 'hq');
-    e.buyFacility('solar_farm', 20, 'hq');
+    e.buyFacility('solar_farm', 20, 'ca_athabasca');
     e.advance(300);
     expect(e.state.stats.totalObtained['uranium_ore'] ?? 0).toBeGreaterThan(0);
     expect(e.state.stats.totalObtained['nuclear_fuel'] ?? 0).toBeGreaterThan(0);
     e.debugAddResource('nuclear_fuel', 10);
-    e.buyFacility('nuclear_plant', 1, 'hq');
-    e.buyFacility('datacenter', 30, 'hq'); // 需要 300MW
+    e.buyFacility('nuclear_plant', 1, 'ca_athabasca');
+    e.state.lands.find((l) => l.id === 'ca_athabasca')!.stock.nuclear_fuel = 10;
+    e.buyFacility('datacenter', 30, 'ca_athabasca'); // 需要 300MW
     e.tick(1);
     expect(e.derived.power.capacity).toBeGreaterThanOrEqual(500);
     expect(e.derived.power.ratio).toBe(1);

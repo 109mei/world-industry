@@ -1,28 +1,43 @@
 import { useState } from 'react';
 import { Segmented } from '@/components/ui/Segmented';
 import { RECIPES, RECIPE_CATEGORIES, RECIPE_CATEGORY_LABEL, type RecipeDef, type RecipeId } from '@/game/data/recipes';
+import type { CraftCategoryFilter } from '@/stores/uiStore';
 import { craftableTimes } from '@/game/engine/actions/craft';
 import { isUnlocked } from '@/game/engine/systems/unlocks';
-import { useGame } from '@/stores/gameStore';
+import { bumpGame, useGame } from '@/stores/gameStore';
 import { useUiStore } from '@/stores/uiStore';
 import { RecipeCard } from './RecipeCard';
 
 export function CraftPage() {
-  const { state } = useGame();
+  const { state, engine } = useGame();
   const category = useUiStore((s) => s.craftCategory);
   const setCategory = useUiStore((s) => s.setCraftCategory);
   const [query, setQuery] = useState('');
-  const [onlyCraftable, setOnlyCraftable] = useState(false);
+  const onlyCraftable = state.settings.craftOnlyMakeable ?? false;
+  const setOnlyCraftable = (v: boolean) => {
+    engine.updateSettings({ craftOnlyMakeable: v });
+    bumpGame();
+  };
 
   const visible = (RECIPES as readonly RecipeDef[]).filter((r) => isUnlocked(state, 'recipe', r.id) || !r.hiddenUntilUnlocked);
   const q = query.trim().toLowerCase();
+  // 解放済み（作れるものが先）→ 未解放 の順
+  const rank = (r: RecipeDef) => {
+    const unlocked = isUnlocked(state, 'recipe', r.id);
+    if (unlocked && craftableTimes(state, r.id as RecipeId) > 0) return 0;
+    if (unlocked) return 1;
+    return 2;
+  };
   const list = visible
-    .filter((r) => (q ? true : r.category === category))
+    .filter((r) => (q || category === 'all' ? true : r.category === category))
     .filter((r) => !q || r.name.toLowerCase().includes(q) || r.description.toLowerCase().includes(q))
-    .filter((r) => !onlyCraftable || craftableTimes(state, r.id as RecipeId) > 0);
-  const badges = Object.fromEntries(
-    RECIPE_CATEGORIES.map((c) => [c, visible.filter((r) => r.category === c && craftableTimes(state, r.id as RecipeId) > 0).length]),
-  ) as Record<string, number>;
+    .filter((r) => !onlyCraftable || craftableTimes(state, r.id as RecipeId) > 0)
+    .slice()
+    .sort((a, b) => rank(a) - rank(b));
+  const badges = Object.fromEntries([
+    ['all', visible.filter((r) => craftableTimes(state, r.id as RecipeId) > 0).length],
+    ...RECIPE_CATEGORIES.map((c) => [c, visible.filter((r) => r.category === c && craftableTimes(state, r.id as RecipeId) > 0).length]),
+  ]) as Record<string, number>;
 
   return (
     <div className="page">
@@ -30,7 +45,7 @@ export function CraftPage() {
         クラフト<small>材料を消費して道具・素材・製品を作る</small>
       </h1>
       <Segmented
-        items={RECIPE_CATEGORIES.map((c) => ({ id: c, label: RECIPE_CATEGORY_LABEL[c], badge: badges[c] }))}
+        items={[{ id: 'all' as CraftCategoryFilter, label: 'すべて', badge: badges.all }, ...RECIPE_CATEGORIES.map((c) => ({ id: c as CraftCategoryFilter, label: RECIPE_CATEGORY_LABEL[c], badge: badges[c] }))]}
         value={category}
         onChange={setCategory}
         ariaLabel="クラフトのカテゴリ"

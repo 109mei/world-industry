@@ -34,10 +34,17 @@ export const RECIPES = [
   { id: 'smelt_scrap', name: '鉄くずを精錬', category: 'materials', icon: 'icon_material_iron', inputs: { scrap_metal: 3, wood: 1 }, outputs: { iron: 1 }, unlock: { type: 'obtained', resource: 'scrap_metal', min: 1 }, description: '鉄くず3と木1を焚き火で溶かして鉄1にする。' },
   { id: 'smelt_iron_ore', name: '鉄鉱石を精錬', category: 'materials', icon: 'icon_material_iron', inputs: { iron_ore: 2, wood: 1 }, outputs: { iron: 1 }, unlock: { type: 'obtained', resource: 'iron_ore', min: 1 }, description: '鉄鉱石2と木1から鉄1を作る。' },
   { id: 'fire_brick', name: 'レンガを焼く', category: 'materials', icon: 'icon_facility_brick_factory', inputs: { clay: 2, wood: 1 }, outputs: { brick: 2 }, unlock: { type: 'always' }, description: '粘土2と木1からレンガ2を焼く。' },
+  { id: 'make_rope', name: '縄をよる', category: 'materials', icon: 'icon_part_cable_reel', inputs: { plant_fiber: 3 }, outputs: { rope: 2 }, unlock: { type: 'always' }, description: '植物繊維3から縄2を作る。建材セットや布に使う。' },
+  { id: 'weave_cloth', name: '布を織る', category: 'materials', icon: 'icon_material_textile', inputs: { rope: 2, plant_fiber: 4, water: 2 }, outputs: { cloth: 1 }, unlock: { type: 'obtained', resource: 'rope', min: 2 }, description: '縄2・植物繊維4・水2から布1を織る。繊維と水の使い道。' },
+  { id: 'mix_concrete', name: 'コンクリートを練る', category: 'materials', icon: 'icon_material_concrete', inputs: { sand: 3, stone: 2, water: 2 }, outputs: { concrete: 2 }, unlock: { type: 'always' }, description: '砂3・石2・水2からコンクリート2を作る。砂と水の使い道。' },
+  { id: 'blow_glass', name: 'ガラスを吹く', category: 'materials', icon: 'icon_facility_glass_factory', inputs: { sand: 4, wood: 2 }, outputs: { glass: 1 }, unlock: { type: 'obtained', resource: 'sand', min: 20 }, description: '砂4と木2からガラス1を作る。工場より遅いが序盤から作れる。' },
+  { id: 'cast_scrap', name: '鉄くずを鋳る', category: 'materials', icon: 'icon_material_steel_plate', inputs: { scrap_metal: 4, wood: 1 }, outputs: { cast_iron: 2 }, unlock: { type: 'obtained', resource: 'scrap_metal', min: 5 }, description: '鉄くず4と木1から鋳鉄2。精錬より鉄くずを活かせる。' },
   // ---- 部品 ----
   { id: 'craft_machine_parts', name: '機械部品', category: 'parts', icon: 'icon_part_gear_set', inputs: { iron: 3, wood: 1 }, outputs: { machine_parts: 1 }, unlock: { type: 'obtained', resource: 'iron', min: 20 }, description: '鉄3と木1から機械部品1を作る。' },
+  { id: 'cast_machine_parts', name: '機械部品（鋳鉄）', category: 'parts', icon: 'icon_part_gear_set', inputs: { cast_iron: 2, rope: 1 }, outputs: { machine_parts: 1 }, unlock: { type: 'obtained', resource: 'cast_iron', min: 2 }, description: '鋳鉄2と縄1から機械部品1。鉄を使わずに作れる。' },
   // ---- 製品 ----
   { id: 'craft_tool', name: '工具', category: 'products', icon: 'icon_tool_wrench', inputs: { iron: 2, wood: 1 }, outputs: { tool: 1 }, unlock: { type: 'obtained', resource: 'iron', min: 1 }, description: '鉄2と木1から工具1を作る。市場で高く売れる。' },
+  { id: 'craft_building_material', name: '建材セット', category: 'products', icon: 'icon_marker_construction', inputs: { brick: 10, concrete: 4, rope: 2 }, outputs: { building_material: 1 }, unlock: { type: 'obtained', resource: 'brick', min: 20 }, description: 'レンガ10・コンクリート4・縄2から建材セット1。高く売れる。' },
 ] as const satisfies readonly RecipeDef[];
 
 export type RecipeId = (typeof RECIPES)[number]['id'];

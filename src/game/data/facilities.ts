@@ -211,6 +211,31 @@ export const FACILITIES = [
     production: { inputs: { uranium_ore: 0.1 }, outputs: { nuclear_fuel: 0.01 } }, unlock: { type: 'research', research: 'nuclear' }, hiddenUntilUnlocked: true,
   },
   {
+    id: 'concrete_plant', name: 'コンクリート工場', nameEn: 'Concrete Plant', category: 'PROCESSING', icon: 'icon_facility_concrete_plant', site: 'any',
+    description: '砂2＋石1＋水1 → コンクリート2（毎秒）。', baseCost: 60_000, costGrowth: 1.18, employees: 4,
+    production: { inputs: { sand: 2, stone: 1, water: 1 }, outputs: { concrete: 2 } }, unlock: { type: 'obtained', resource: 'concrete', min: 20 },
+  },
+  {
+    id: 'textile_mill', name: '織物工場', nameEn: 'Textile Mill', category: 'PROCESSING', icon: 'icon_facility_textile_factory', site: 'any',
+    description: '植物繊維4＋水1 → 布1（毎秒）。', baseCost: 80_000, costGrowth: 1.18, employees: 5,
+    production: { inputs: { plant_fiber: 4, water: 1 }, outputs: { cloth: 1 } }, unlock: { type: 'obtained', resource: 'cloth', min: 5 },
+  },
+  {
+    id: 'foundry', name: '鋳造所', nameEn: 'Foundry', category: 'PROCESSING', icon: 'icon_material_steel_plate', site: 'any',
+    description: '鉄くず4＋石炭0.5 → 鋳鉄2（毎秒）。電力 1MW。', baseCost: 120_000, costGrowth: 1.18, employees: 5, powerUse: 1,
+    production: { inputs: { scrap_metal: 4, coal: 0.5 }, outputs: { cast_iron: 2 } }, unlock: { type: 'obtained', resource: 'cast_iron', min: 20 },
+  },
+  {
+    id: 'building_material_workshop', name: '建材工房', nameEn: 'Building Material Workshop', category: 'MANUFACTURING', icon: 'icon_marker_construction', site: 'any',
+    description: 'レンガ5＋コンクリート2＋縄1 → 建材セット0.5（毎秒）。', baseCost: 150_000, costGrowth: 1.18, employees: 6,
+    production: { inputs: { brick: 5, concrete: 2, rope: 1 }, outputs: { building_material: 0.5 } }, unlock: { type: 'obtained', resource: 'building_material', min: 10 },
+  },
+  {
+    id: 'brick_kiln', name: 'レンガ工場', nameEn: 'Brick Kiln', category: 'PROCESSING', icon: 'icon_facility_brick_factory', site: 'any',
+    description: '粘土2＋木1 → レンガ3（毎秒）。', baseCost: 40_000, costGrowth: 1.18, employees: 3,
+    production: { inputs: { clay: 2, wood: 1 }, outputs: { brick: 3 } }, unlock: { type: 'crafted', recipe: 'fire_brick', min: 5 },
+  },
+  {
     id: 'glass_factory', name: 'ガラス工場', nameEn: 'Glass Factory', category: 'PROCESSING', icon: 'icon_facility_glass_factory', site: 'any',
     description: '砂3＋石炭0.5 → ガラス1（毎秒）。電力 2MW。', baseCost: 150_000, costGrowth: 1.18, employees: 6, powerUse: 2,
     production: { inputs: { sand: 3, coal: 0.5 }, outputs: { glass: 1 } }, unlock: { type: 'all', conditions: [{ type: 'obtained', resource: 'sand', min: 500 }, { type: 'obtained', resource: 'coal', min: 50 }] },

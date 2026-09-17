@@ -18,6 +18,8 @@ export const CONFIG = {
   uiRefreshMs: 500,
   /** 自動保存の間隔（秒） */
   autosaveSeconds: 10,
+  /** 操作してから保存するまでの待ち時間（ミリ秒） */
+  saveDebounceMs: 700,
   /** 市場価格が変動する間隔（ゲーム内秒） */
   marketUpdateSeconds: 30,
   /** 市場変動の幅 */
@@ -90,26 +92,6 @@ export const CONFIG = {
     liquidationBusinessRatio: 0.25,
     /** 株価履歴の保持数 */
     historyLength: 120,
-  },
-  /** 自動化（マネージャー） */
-  automation: {
-    /** 給料に加算する、総資産あたりの額（円/秒 ÷ 円） */
-    salaryAssetRate: 1e-6,
-    /** 自動処理の間隔（秒） */
-    intervalSeconds: 1,
-    /** 採集係の1秒あたりの採集回数（採集ごと） */
-    gatherPerSecond: 1,
-    /** 物流係が1回の購入に使える所持金の割合 */
-    logisticsBudgetRatio: 0.2,
-    /** 物流係が輸送手段を追加する使用率 */
-    transportBusyRatio: 0.9,
-    /** 投資係が1回の投資に使える、余剰現金の割合 */
-    investBudgetRatio: 0.5,
-    /** おまかせ販売で売り始める需要係数（これより飽和していたら待つ） */
-    smartSellMinDemand: 0.75,
-    /** おまかせ販売で残す量（秒数ぶんの生産量、最低個数） */
-    smartSellKeepSeconds: 60,
-    smartSellKeepMin: 50,
   },
   /** 注文 */
   contracts: {

@@ -76,7 +76,12 @@ export function LandCard({ def }: { def: LandDef }) {
         </div>
       ) : (
         <div className="card__body row row--between">
-          <span className="stat__value num">{formatMoney(def.price, mode)}</span>
+          <span>
+            <span className="stat__value num">{formatMoney(def.price, mode)}</span>
+            <span className="stat__label num" style={{ display: 'block' }}>
+              {def.areaSqm.toLocaleString('ja-JP')}㎡ × {def.unitPrice.toLocaleString('ja-JP')}円/㎡
+            </span>
+          </span>
           <Badge tone={state.company.cash >= def.price ? 'profit' : 'warn'}>{state.company.cash >= def.price ? '購入できます' : '資金不足'}</Badge>
         </div>
       )}

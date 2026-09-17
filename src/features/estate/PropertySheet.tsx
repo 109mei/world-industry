@@ -3,10 +3,13 @@ import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { Sheet } from '@/components/ui/Sheet';
 import { Stat } from '@/components/ui/Stat';
+import { FACILITY_MAP, isFacilityId } from '@/game/data/facilities';
+import { PROPERTY_POPULATION, PROPERTY_TERRAIN } from '@/game/data/properties';
+import { TERRAINS } from '@/game/data/terrain';
 import { CITY_MAP } from '@/game/data/cities';
 import { COMPANY_MAP, isCompanyId } from '@/game/data/companies';
 import { PROPERTY_KIND, PROPERTY_MAP, isPropertyId, propertyYield } from '@/game/data/properties';
-import { cityMultiplier, estateFee, propertyBuyCost, propertyOwner, propertyPrice, propertyRentPerSec, propertySellProceeds } from '@/game/engine/systems/estate';
+import { cityMultiplier, estateFee, propertyBuyCost, propertyLandId, propertyOwner, propertyPrice, propertyRentPerSec, propertySellProceeds } from '@/game/engine/systems/estate';
 import { bumpGame, useGame } from '@/stores/gameStore';
 import { useUiStore } from '@/stores/uiStore';
 import { formatMoney, formatMoneyRate, formatNumber, formatPercent, formatRate } from '@/utils/format';
@@ -23,6 +26,8 @@ export function PropertySheet() {
   const openProperty = useUiStore((s) => s.openProperty);
   const openCompany = useUiStore((s) => s.openCompany);
   const flyTo = useUiStore((s) => s.flyTo);
+  const setFactoryLand = useUiStore((s) => s.setFactoryLand);
+  const setTab = useUiStore((s) => s.setTab);
   const { state, engine } = useGame();
   const mode = state.settings.numberFormat;
   const id = selected && isPropertyId(selected) ? selected : null;
@@ -39,6 +44,8 @@ export function PropertySheet() {
   const proceeds = propertySellProceeds(state, id);
   const canBuy = owner.type === 'market' && state.company.cash >= cost;
   const owned = owner.type === 'player' ? state.estate.owned[id] : null;
+  const landId = propertyLandId(id);
+  const builtHere = state.facilities.filter((f) => f.landId === landId && f.count > 0);
   const close = () => openProperty(null);
   const title = (
     <span>
@@ -88,6 +95,40 @@ export function PropertySheet() {
                 所持金 {formatMoney(state.company.cash, mode)}。あと {formatMoney(cost - state.company.cash, mode)} 必要。
               </div>
             )}
+          </>
+        )}
+        {owner.type === 'player' && (
+          <>
+            <div className="stat-grid" style={{ marginBottom: 8 }}>
+              <Stat label="地形" value={TERRAINS[PROPERTY_TERRAIN[def.kind]].name} extra="建てられる施設が変わる" />
+              <Stat label="人口係数" value={`×${PROPERTY_POPULATION[def.kind]}`} extra="商業施設の収入に掛かる" />
+              <Stat label="建っている施設" value={`${builtHere.reduce((a, f) => a + f.count, 0)}件`} />
+            </div>
+            {builtHere.length > 0 && (
+              <div className="list" style={{ marginBottom: 8 }}>
+                {builtHere.map((f) => (
+                  <div key={f.id} className="row" style={{ fontSize: 13 }}>
+                    <Icon name={isFacilityId(f.typeId) ? FACILITY_MAP[f.typeId].icon : 'icon_ui_factory'} size={22} />
+                    <span className="row__grow">{isFacilityId(f.typeId) ? FACILITY_MAP[f.typeId].name : f.typeId}</span>
+                    <span className="num text-sub">×{f.count}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <Button
+              variant="primary"
+              block
+              onClick={() => {
+                close();
+                setFactoryLand(landId);
+                setTab('factory');
+              }}
+            >
+              この土地に施設を建てる・管理する ›
+            </Button>
+            <p className="text-sub" style={{ fontSize: 12, margin: '6px 0' }}>
+              商業施設（駐車場・店舗・オフィス）・発電所・研究所・倉庫などを建てられます。売却すると建てた施設も失われます。
+            </p>
           </>
         )}
         {owner.type === 'player' && (

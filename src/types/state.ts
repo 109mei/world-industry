@@ -102,12 +102,6 @@ export interface StatsState {
   contractsFailed: number;
   /** 注文で得た報酬（円） */
   contractRewards: number;
-  /** マネージャーに払った給料の累計（円） */
-  salariesPaid: number;
-  /** マネージャーが代わりに採集した回数 */
-  autoGathered: number;
-  /** マネージャーが代わりにクラフトした回数 */
-  autoCrafted: number;
   /** 一度の売却で最も高かった記録 */
   bestSale: { resource: string; qty: number; revenue: number } | null;
 }
@@ -206,6 +200,10 @@ export interface SettingsState {
   events: boolean;
   /** LAND 画面の表示（地図 or リスト） */
   landView: 'map' | 'list';
+  /** 施設一覧で「今建てられるものだけ」を表示する */
+  factoryOnlyBuildable: boolean;
+  /** クラフト一覧で「作れるものだけ」を表示する */
+  craftOnlyMakeable: boolean;
   /** ESTATE 画面の表示 */
   estateView: 'map' | 'list' | 'stocks';
 }
@@ -259,48 +257,15 @@ export interface StocksState {
 }
 
 // ---------- 自動化（マネージャー・在庫ルール・自動投資・テンプレート） ----------
-export type ManagerId = 'gather' | 'craft' | 'sales' | 'logistics' | 'invest';
 
-export interface ManagerHire {
-  hiredAt: number;
-}
 
-/** 利益の自動投資の設定（投資係が使う） */
-export interface InvestRule {
-  /** 手元に残す現金（これを超えた分だけ投資に回す） */
-  reserve: number;
-  /** 回収が最も早い施設を建てる */
-  facilities: boolean;
-  /** 配当を株に再投資する */
-  dividends: boolean;
-  /** 利回りの良い物件を買う */
-  properties: boolean;
-  /** 施設に投資するときに許す最長の回収時間（秒） */
-  maxPaybackSeconds: number;
-}
 
-/** 土地の施設構成のテンプレート */
-export interface LandTemplate {
-  id: number;
-  name: string;
-  /** 施設ID → 個数 */
-  facilities: Record<string, number>;
-  createdAt: number;
-}
 
-export interface AutomationState {
-  managers: Partial<Record<ManagerId, ManagerHire>>;
-  /** 資源ごとに「常にこの量をキープ」（不足分をクラフト係が作る） */
-  craftTargets: Partial<Record<ResourceId, number>>;
-  /** 販売係の「おまかせ販売」（消費されない資源の余剰を自動で売る） */
-  smartSell: boolean;
-  invest: InvestRule;
-  templates: LandTemplate[];
-  /** 次の自動処理までの秒数（負荷を下げるため1秒ごと） */
-  timer: number;
-  /** 再投資待ちの配当（円） */
-  dividendPool: number;
-}
+
+
+
+
+
 
 // ---------- 注文（コントラクト） ----------
 export interface Contract {
@@ -366,7 +331,6 @@ export interface GameState {
   events: EventsState;
   estate: EstateState;
   stocks: StocksState;
-  automation: AutomationState;
   contracts: ContractsState;
   prestige: PrestigeState;
   eventLog: GameEvent[];
@@ -510,8 +474,6 @@ export interface DerivedState {
   /** 配当収入（円/秒） */
   dividendPerSec: number;
   companies: Record<string, CompanyRuntime>;
-  /** マネージャーの給料（円/秒） */
-  salaryPerSec: number;
   /** 信用ランク（E〜S） */
   creditRank: CreditRank;
 }

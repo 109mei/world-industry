@@ -32,7 +32,6 @@ export function RecipeCard({ recipe }: { recipe: RecipeDef }) {
     bumpGame();
   };
   const hold = useRepeat(() => doCraft(1));
-  const keep = state.automation.craftTargets[Object.keys(recipe.outputs ?? {})[0] as ResourceId];
 
   if (!unlocked) {
     return (
@@ -84,7 +83,6 @@ export function RecipeCard({ recipe }: { recipe: RecipeDef }) {
         <Button variant="secondary" size="sm" disabled={times < 1} onClick={() => doCraft('max')}>
           MAX ({times})
         </Button>
-        {keep ? <span className="badge badge--research">クラフト係がキープ {keep}</span> : null}
       </div>
     </Card>
   );

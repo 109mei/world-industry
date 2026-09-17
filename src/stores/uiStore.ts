@@ -4,7 +4,14 @@ import type { ResourceId } from '@/game/data/resources';
 import type { GameEventType, OfflineReport } from '@/types/state';
 import type { NavTab } from '@/types/ui';
 
-export type CompanySubTab = 'info' | 'automation' | 'research' | 'achievements' | 'prestige' | 'settings';
+/** クラフト一覧のカテゴリ（すべてを含む） */
+export type CraftCategoryFilter = 'all' | RecipeCategory;
+
+export type CompanySubTab = 'info' | 'achievements' | 'prestige';
+/** ホーム画面の中の切替（資源・会社をここに統合した） */
+export type HomeSubTab = 'home' | 'resources' | 'company';
+/** 地図画面の中の切替（土地・物件・株をここに統合した） */
+export type MapSubTab = 'map' | 'lands' | 'properties' | 'stocks';
 
 export interface Toast {
   id: number;
@@ -23,8 +30,8 @@ interface UiStore {
   setTab: (tab: NavTab) => void;
   resourceSubTab: 'inventory' | 'market';
   setResourceSubTab: (t: 'inventory' | 'market') => void;
-  craftCategory: RecipeCategory;
-  setCraftCategory: (c: RecipeCategory) => void;
+  craftCategory: CraftCategoryFilter;
+  setCraftCategory: (c: CraftCategoryFilter) => void;
   selectedResource: ResourceId | null;
   openResource: (id: ResourceId | null) => void;
   toasts: Toast[];
@@ -42,6 +49,10 @@ interface UiStore {
   setFactoryLand: (id: string) => void;
   companySubTab: CompanySubTab;
   setCompanySubTab: (t: CompanySubTab) => void;
+  homeSubTab: HomeSubTab;
+  setHomeSubTab: (t: HomeSubTab) => void;
+  mapSubTab: MapSubTab;
+  setMapSubTab: (t: MapSubTab) => void;
   achievementQueue: AchievementPopup[];
   pushAchievement: (achievementId: string) => void;
   shiftAchievement: () => void;
@@ -66,7 +77,7 @@ export const useUiStore = create<UiStore>((set) => ({
   setTab: (tab) => set({ tab }),
   resourceSubTab: 'inventory',
   setResourceSubTab: (resourceSubTab) => set({ resourceSubTab }),
-  craftCategory: 'tools',
+  craftCategory: 'all',
   setCraftCategory: (craftCategory) => set({ craftCategory }),
   selectedResource: null,
   openResource: (selectedResource) => set({ selectedResource }),
@@ -89,6 +100,10 @@ export const useUiStore = create<UiStore>((set) => ({
   setFactoryLand: (factoryLand) => set({ factoryLand }),
   companySubTab: 'info',
   setCompanySubTab: (companySubTab) => set({ companySubTab }),
+  homeSubTab: 'home',
+  setHomeSubTab: (homeSubTab) => set({ homeSubTab }),
+  mapSubTab: 'map',
+  setMapSubTab: (mapSubTab) => set({ mapSubTab }),
   achievementQueue: [],
   pushAchievement: (achievementId) => set((s) => ({ achievementQueue: [...s.achievementQueue, { id: toastSeq++, achievementId }] })),
   shiftAchievement: () => set((s) => ({ achievementQueue: s.achievementQueue.slice(1) })),

@@ -37,6 +37,11 @@ export function Sheet({ open, onClose, title, icon, children }: SheetProps) {
           </button>
         </div>
         {children}
+        <div className="sheet__footer">
+          <button className="btn btn--secondary btn--block" onClick={onClose} aria-label="閉じる">
+            閉じる
+          </button>
+        </div>
       </div>
     </div>
   );

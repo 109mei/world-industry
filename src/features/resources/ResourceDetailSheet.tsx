@@ -7,12 +7,23 @@ import { Sparkline } from '@/components/ui/Sparkline';
 import { Stat } from '@/components/ui/Stat';
 import { RESOURCE_CATEGORY_LABEL, RESOURCE_MAP } from '@/game/data/resources';
 import { resourceFlows } from '@/game/engine/analysis/flows';
-import { isManagerHired } from '@/game/engine/systems/automation';
 import { currentPrice, demandFactor, eventPriceMultiplier, getMarketState, sellRevenue } from '@/game/engine/systems/market';
 import { bumpGame, useGame } from '@/stores/gameStore';
 import { useUiStore } from '@/stores/uiStore';
 import { formatAmount, formatDuration, formatMoney, formatNumber, formatPercent, formatRate } from '@/utils/format';
 import { sfx } from '@/utils/sfx';
+
+/** 数字だけを残し、頭の 0 を落とす（「050」→「50」） */
+function sanitize(v: string): string {
+  const d = v.replace(/[^0-9]/g, '').replace(/^0+(?=\d)/, '');
+  return d;
+}
+
+/** 入力欄の値を数値にする（空欄や不正な値は 0） */
+function digits(v: string): number {
+  const n = Number(sanitize(v));
+  return Number.isFinite(n) ? Math.floor(n) : 0;
+}
 
 /** 資源の詳細と売却操作 */
 export function ResourceDetailSheet() {
@@ -21,13 +32,11 @@ export function ResourceDetailSheet() {
   const { state, derived, engine } = useGame();
   const [keep, setKeep] = useState('0');
   const [qty, setQty] = useState('10');
-  const [target, setTarget] = useState('0');
   const [minPrice, setMinPrice] = useState('');
 
   useEffect(() => {
     if (id) {
       setKeep(String(state.market.autoSell[id]?.keep ?? 0));
-      setTarget(String(state.automation.craftTargets[id] ?? 0));
       const r = state.market.autoSell[id]?.minPriceRatio;
       setMinPrice(r ? String(Math.round(r * 100)) : '');
     }
@@ -53,22 +62,15 @@ export function ResourceDetailSheet() {
   const net = prod - cons;
   const untilEmpty = net < -1e-9 ? amount / -net : null;
   const untilFull = net > 1e-9 ? Math.max(0, derived.capacity - amount) / net : null;
-  const craftManager = isManagerHired(state, 'craft');
-  const salesManager = isManagerHired(state, 'sales');
-  const craftTarget = state.automation.craftTargets[id] ?? 0;
 
   const sell = (n: number | 'all') => {
     if (engine.sell(id, n) > 0) sfx('sell');
     bumpGame();
   };
   const applyAuto = (enabled: boolean) => {
-    engine.setAutoSell(id, enabled, Number(keep) || 0);
-    const r = Number(minPrice);
-    engine.setAutoSellMinPrice(id, salesManager && r > 0 ? r / 100 : null);
-    bumpGame();
-  };
-  const applyTarget = () => {
-    engine.setCraftTarget(id, Number(target) || 0);
+    engine.setAutoSell(id, enabled, digits(keep));
+    const r = digits(minPrice);
+    engine.setAutoSellMinPrice(id, r > 0 ? r / 100 : null);
     bumpGame();
   };
 
@@ -143,17 +145,6 @@ export function ResourceDetailSheet() {
             ))}
           </div>
         </div>
-        {(craftManager || craftTarget > 0) && flows.recipesMaking.length > 0 && (
-          <div className="row" style={{ marginTop: 10, alignItems: 'flex-end' }}>
-            <label className="field" style={{ flex: 1 }}>
-              <span className="field__label">クラフト係がキープする量（0 で解除）</span>
-              <input className="input input--sm num" type="number" inputMode="numeric" min={0} value={target} onChange={(e) => setTarget(e.target.value)} />
-            </label>
-            <Button variant="primary" size="sm" onClick={applyTarget}>
-              設定
-            </Button>
-          </div>
-        )}
       </div>
 
       {def.sellable && (
@@ -187,8 +178,8 @@ export function ResourceDetailSheet() {
             </Button>
           </div>
           <div className="row" style={{ marginTop: 8 }}>
-            <input className="input input--sm num" type="number" inputMode="numeric" min={1} value={qty} onChange={(e) => setQty(e.target.value)} aria-label="売却数" style={{ maxWidth: 140 }} />
-            <Button variant="secondary" size="sm" disabled={amount < 1 || !(Number(qty) > 0)} onClick={() => sell(Math.floor(Number(qty)))}>
+            <input className="input input--sm num" type="number" inputMode="numeric" min={1} value={qty} onChange={(e) => setQty(sanitize(e.target.value))} aria-label="売却数" style={{ maxWidth: 140 }} />
+            <Button variant="secondary" size="sm" disabled={amount < 1 || digits(qty) < 1} onClick={() => sell(digits(qty))}>
               指定数を売る
             </Button>
           </div>
@@ -202,14 +193,17 @@ export function ResourceDetailSheet() {
           <div className="row" style={{ marginTop: 8, flexWrap: 'wrap' }}>
             <label className="field" style={{ flex: 1, minWidth: 120 }}>
               <span className="field__label">残す量</span>
-              <input className="input input--sm num" type="number" inputMode="numeric" min={0} value={keep} onChange={(e) => setKeep(e.target.value)} />
+              <input className="input input--sm num" type="number" inputMode="numeric" min={0} value={keep} onChange={(e) => setKeep(sanitize(e.target.value))} />
             </label>
-            {salesManager && (
-              <label className="field" style={{ flex: 1, minWidth: 120 }}>
-                <span className="field__label">下限価格（基準の %）</span>
-                <input className="input input--sm num" type="number" inputMode="numeric" min={0} placeholder="なし" value={minPrice} onChange={(e) => setMinPrice(e.target.value)} />
-              </label>
-            )}
+            <label className="field" style={{ flex: 1, minWidth: 140 }}>
+              <span className="field__label">下限価格（基準の %・空欄でなし）</span>
+              <div className="row" style={{ gap: 4 }}>
+                <input className="input input--sm num" type="number" inputMode="numeric" min={0} placeholder="なし" value={minPrice} onChange={(e) => setMinPrice(sanitize(e.target.value))} style={{ flex: 1 }} />
+                <button className="input__clear" type="button" aria-label="下限価格をなしにする" title="下限価格をなしにする" onClick={() => { setMinPrice(''); engine.setAutoSellMinPrice(id, null); bumpGame(); }}>
+                  ×
+                </button>
+              </div>
+            </label>
             <div style={{ alignSelf: 'flex-end' }}>
               {auto?.enabled ? (
                 <Button variant="danger" size="sm" onClick={() => applyAuto(false)}>
@@ -225,12 +219,7 @@ export function ResourceDetailSheet() {
           {auto?.enabled && (
             <div className="text-profit" style={{ fontSize: 12, marginTop: 6 }}>
               自動売却中: {formatNumber(auto.keep, 'full')} を超えた分を売却
-              {salesManager && auto.minPriceRatio ? `（相場が基準の ${Math.round(auto.minPriceRatio * 100)}% 未満なら待つ）` : ''}
-            </div>
-          )}
-          {!salesManager && (
-            <div className="text-dim" style={{ fontSize: 11, marginTop: 4 }}>
-              販売係を雇うと「下限価格」と注文の自動納品が使えます（COMPANY → 自動化）。
+              {auto.minPriceRatio ? `（相場が基準の ${Math.round(auto.minPriceRatio * 100)}% 未満なら待つ）` : ''}
             </div>
           )}
         </div>

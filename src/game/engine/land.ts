@@ -1,6 +1,7 @@
 import { CONFIG } from '@/game/data/config';
 import { FACILITY_MAP, isFacilityId, type FacilityDef } from '@/game/data/facilities';
 import { HQ_LAND_ID, HQ_POPULATION, LAND_MAP, isLandDefId } from '@/game/data/lands';
+import { landPropertyId, propertyPopulation } from './systems/estate';
 import type { ResourceId } from '@/game/data/resources';
 import { SURVEY_EXTRACT_BONUS, SURVEY_LEVEL_TO_BUILD } from '@/game/data/survey';
 import type { FacilityInstance, GameState, LandState, Modifiers } from '@/types/state';
@@ -20,7 +21,9 @@ export function ownedLands(state: GameState): LandState[] {
 /** 土地の人口係数（商業施設の収益に掛かる） */
 export function landPopulation(land: LandState): number {
   if (isHq(land.id)) return HQ_POPULATION;
-  return isLandDefId(land.id) ? LAND_MAP[land.id].population : 0.5;
+  if (isLandDefId(land.id)) return LAND_MAP[land.id].population;
+  const propertyId = landPropertyId(land.id);
+  return propertyId ? propertyPopulation(propertyId) : 0.5;
 }
 
 /** 資源の在庫置き場。本社は state.inventory、土地はその土地の stock */
@@ -57,10 +60,16 @@ export function surveyMultiplier(def: FacilityDef, land: LandState): number {
 export type BuildCheck = { ok: true } | { ok: false; reason: string };
 
 /** その土地に建てられるか（解放条件は別で判定する） */
+/** 本社には建てられないカテゴリ（地図で買った土地に建てる） */
+export const LAND_ONLY_CATEGORIES = ['POWER', 'COMMERCIAL', 'RESEARCH', 'LOGISTICS'] as const;
+
 export function canBuildOn(def: FacilityDef, land: LandState): BuildCheck {
   const hq = isHq(land.id);
   if (def.site === 'hq' && !hq) return { ok: false, reason: '本社にしか建てられません' };
   if (def.site === 'land' && hq) return { ok: false, reason: '購入した土地にしか建てられません' };
+  if (hq && (LAND_ONLY_CATEGORIES as readonly string[]).includes(def.category)) {
+    return { ok: false, reason: '地図で買った土地に建てられます' };
+  }
   if (def.allowedTerrain && !def.allowedTerrain.includes(land.terrain)) {
     return { ok: false, reason: `建てられる地形: ${def.allowedTerrain.join('・')}` };
   }

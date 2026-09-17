@@ -3,7 +3,6 @@ import { Icon } from '@/components/ui/Icon';
 import { FACILITY_MAP, isFacilityId } from '@/game/data/facilities';
 import { RESOURCE_MAP, isResourceId, type ResourceId } from '@/game/data/resources';
 import { resourceValue } from '@/game/engine/analysis/roi';
-import { isManagerHired } from '@/game/engine/systems/automation';
 import { useGame } from '@/stores/gameStore';
 import { formatMoney, formatMoneyRate, formatNumber } from '@/utils/format';
 
@@ -19,7 +18,6 @@ export function HighlightsCard() {
     .slice(0, 3);
   const stopped = state.facilities.filter((f) => f.count > 0 && ['no_input', 'storage_full', 'no_power', 'depleted'].includes(derived.facilityRuntime[f.id]?.status ?? ''));
   const best = state.stats.bestSale;
-  const hired = (['gather', 'craft', 'sales', 'logistics', 'invest'] as const).filter((m) => isManagerHired(state, m)).length;
   if (top.length === 0 && !best && stopped.length === 0) return null;
   return (
     <Card>
@@ -58,11 +56,6 @@ export function HighlightsCard() {
           <div className={`num ${stopped.length > 0 ? 'text-loss' : 'text-profit'}`} style={{ fontSize: 13 }}>
             {stopped.length > 0 ? `停止中の施設 ${stopped.length}件: ${stopped.slice(0, 2).map((f) => (isFacilityId(f.typeId) ? FACILITY_MAP[f.typeId].name : f.typeId)).join('・')}${stopped.length > 2 ? ' ほか' : ''}` : '施設はすべて稼働中'}
           </div>
-          {hired > 0 && (
-            <div className="text-sub num" style={{ fontSize: 12 }}>
-              マネージャー {hired}人（給料 {formatMoneyRate(-derived.salaryPerSec, mode)}）・代行 採集 {formatNumber(state.stats.autoGathered, mode)}回／クラフト {formatNumber(state.stats.autoCrafted, mode)}回
-            </div>
-          )}
         </div>
       </div>
     </Card>

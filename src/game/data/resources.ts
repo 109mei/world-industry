@@ -33,7 +33,12 @@ export const RESOURCES = [
   { id: 'coal', name: '石炭', nameEn: 'Coal', category: 'ore', basePrice: 10, weight: 0.04, icon: 'icon_resource_coal', sellable: true, liquidity: 1500, description: '鋼鉄の生産や火力発電に使う。土地の鉱脈から採掘する。' },
   { id: 'iron', name: '鉄', nameEn: 'Iron', category: 'material', basePrice: 40, weight: 0.05, icon: 'icon_material_iron', sellable: true, liquidity: 400, description: '鉄鉱石や鉄くずを精錬した金属。工具や機械の材料。' },
   { id: 'steel', name: '鋼鉄', nameEn: 'Steel', category: 'material', basePrice: 120, weight: 0.05, icon: 'icon_material_steel', sellable: true, liquidity: 200, description: '鉄と石炭から作る高強度の金属。製鋼所で生産する。' },
-  { id: 'brick', name: 'レンガ', nameEn: 'Brick', category: 'material', basePrice: 5, weight: 0.03, icon: 'icon_facility_brick_factory', sellable: true, liquidity: 2000, description: '粘土を焼いた建材。' },
+  { id: 'rope', name: '縄', nameEn: 'Rope', category: 'material', basePrice: 14, weight: 0.01, icon: 'icon_part_cable_reel', sellable: true, liquidity: 2000, description: '植物繊維をよった縄。建材や布の材料になる。' },
+  { id: 'cloth', name: '布', nameEn: 'Cloth', category: 'material', basePrice: 60, weight: 0.01, icon: 'icon_material_textile', sellable: true, liquidity: 1500, description: '縄と繊維を織った布。市場で安定して売れる。' },
+  { id: 'concrete', name: 'コンクリート', nameEn: 'Concrete', category: 'material', basePrice: 20, weight: 0.05, icon: 'icon_material_concrete', sellable: true, liquidity: 2500, description: '砂・石・水を練った建材。建材セットの材料。' },
+  { id: 'cast_iron', name: '鋳鉄', nameEn: 'Cast Iron', category: 'material', basePrice: 34, weight: 0.03, icon: 'icon_material_steel_plate', sellable: true, liquidity: 1500, description: '鉄くずを溶かして固めたもの。機械部品を安く作れる。' },
+  { id: 'building_material', name: '建材セット', nameEn: 'Building Materials', category: 'product', basePrice: 320, weight: 0.2, icon: 'icon_marker_construction', sellable: true, liquidity: 700, description: 'レンガ・コンクリート・縄をまとめた建材。序盤の主力商品。' },
+  { id: 'brick', name: 'レンガ', nameEn: 'Brick', category: 'material', basePrice: 8, weight: 0.03, icon: 'icon_facility_brick_factory', sellable: true, liquidity: 2000, description: '粘土を焼いた建材。' },
   { id: 'machine_parts', name: '機械部品', nameEn: 'Machine Parts', category: 'part', basePrice: 220, weight: 0.03, icon: 'icon_part_gear_set', sellable: true, liquidity: 60, description: '鉄から作る部品。高価な製品の材料。' },
   { id: 'tool', name: '工具', nameEn: 'Tools', category: 'product', basePrice: 150, weight: 0.01, icon: 'icon_tool_wrench', sellable: true, liquidity: 80, description: '鉄と木から作る製品。序盤の主力商品。' },
   // ---- 土地・電力・物流以降で使う資源 ----

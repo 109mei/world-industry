@@ -10,7 +10,8 @@ import { EventBanner } from '@/features/home/EventBanner';
 import { MarketPanel } from './MarketPanel';
 import { ResourceCard } from './ResourceCard';
 
-export function ResourcesPage() {
+/** 資源の在庫と市場（ホームの「資源」タブの中身） */
+export function ResourcesPanel() {
   const { state, derived } = useGame();
   const sub = useUiStore((s) => s.resourceSubTab);
   const setSub = useUiStore((s) => s.setResourceSubTab);
@@ -20,11 +21,11 @@ export function ResourcesPage() {
   const tools = TOOLS.filter((t) => (state.tools[t.id as ToolId]?.count ?? 0) > 0);
 
   return (
-    <div className="page">
+    <>
       <div className="row row--between">
-        <h1 className="page__title">
-          資源<small>倉庫容量 {formatAmount(derived.capacity, mode)}</small>
-        </h1>
+        <div className="section-title" style={{ marginTop: 4 }}>
+          資源 <span className="text-sub" style={{ fontWeight: 400, fontSize: 12 }}>倉庫容量 {formatAmount(derived.capacity, mode)}</span>
+        </div>
       </div>
       <Segmented
         items={[
@@ -78,6 +79,6 @@ export function ResourcesPage() {
       ) : (
         <MarketPanel />
       )}
-    </div>
+    </>
   );
 }

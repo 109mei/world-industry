@@ -29,6 +29,34 @@ export const PROPERTY_KIND: Record<PropertyKind, PropertyKindDef> = {
   resort: { label: 'リゾート', icon: 'icon_terrain_island', yield: 0.13, color: '#4fc3c9' },
 };
 
+/** 物件の種類 → 建てられる地形（買うと産業用地と同じように施設を建てられる） */
+export const PROPERTY_TERRAIN: Record<PropertyKind, 'city' | 'plains' | 'industrial' | 'coast'> = {
+  land: 'plains',
+  farm: 'plains',
+  house: 'city',
+  apartment: 'city',
+  office: 'city',
+  retail: 'city',
+  hotel: 'city',
+  warehouse: 'industrial',
+  factory: 'industrial',
+  resort: 'coast',
+};
+
+/** 物件の種類 → 人口・交通量の係数（商業施設の収入に掛かる） */
+export const PROPERTY_POPULATION: Record<PropertyKind, number> = {
+  land: 0.05,
+  farm: 0.1,
+  house: 0.8,
+  apartment: 1.4,
+  office: 2.2,
+  retail: 2.6,
+  hotel: 1.8,
+  warehouse: 0.4,
+  factory: 0.5,
+  resort: 1.2,
+};
+
 export interface PropertyDef {
   id: string;
   name: string;

@@ -4,16 +4,15 @@ import { Header } from '@/components/layout/Header';
 import { SideNav } from '@/components/layout/SideNav';
 import { AchievementPopup } from '@/components/ui/AchievementPopup';
 import { Toasts } from '@/components/ui/Toasts';
-import { CompanyPage } from '@/features/company/CompanyPage';
 import { CraftPage } from '@/features/craft/CraftPage';
 import { DebugPanel } from '@/features/debug/DebugPanel';
-import { EstatePage } from '@/features/estate/EstatePage';
 import { FactoryPage } from '@/features/factory/FactoryPage';
 import { HomePage } from '@/features/home/HomePage';
-import { LandPage } from '@/features/land/LandPage';
 import { OfflineReportModal } from '@/features/offline/OfflineReportModal';
+import { MapPage } from '@/features/map/MapPage';
+import { ResearchPage } from '@/features/research/ResearchPage';
 import { ResourceDetailSheet } from '@/features/resources/ResourceDetailSheet';
-import { ResourcesPage } from '@/features/resources/ResourcesPage';
+import { SettingsPage } from '@/features/settings/SettingsPage';
 import { RESEARCH } from '@/game/data/research';
 import { isLandSystemUnlocked, isUnlocked } from '@/game/engine/systems/unlocks';
 import { LANDS } from '@/game/data/lands';
@@ -24,12 +23,11 @@ import { applyTheme, useResolvedTheme } from '@/utils/theme';
 
 const PAGES: Record<NavTab, () => ReactElement> = {
   home: HomePage,
-  resources: ResourcesPage,
   craft: CraftPage,
-  land: LandPage,
-  estate: EstatePage,
   factory: FactoryPage,
-  company: CompanyPage,
+  map: MapPage,
+  research: ResearchPage,
+  settings: SettingsPage,
 };
 
 export function App() {
@@ -45,7 +43,7 @@ export function App() {
   const noRoute = Object.values(derived.lands).some((l) => l.noRoute);
   // COMPANY: 研究できるものがある
   const researchReady = RESEARCH.some((r) => !state.research.completed[r.id] && r.requires.every((q) => state.research.completed[q]) && state.research.points >= r.cost);
-  const attention = { factory: stopped, land: noLandYet || noRoute, company: researchReady };
+  const attention = { factory: stopped, map: noLandYet || noRoute, research: researchReady };
   return (
     <div className="app">
       <SideNav attention={attention} />

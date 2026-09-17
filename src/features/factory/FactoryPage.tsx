@@ -22,7 +22,11 @@ export function FactoryPage() {
   const setFactoryLand = useUiStore((s) => s.setFactoryLand);
   const [filter, setFilter] = useState<Filter>('all');
   const [query, setQuery] = useState('');
-  const [onlyBuildable, setOnlyBuildable] = useState(false);
+  const onlyBuildable = state.settings.factoryOnlyBuildable ?? false;
+  const setOnlyBuildable = (v: boolean) => {
+    engine.updateSettings({ factoryOnlyBuildable: v });
+    bumpGame();
+  };
   const mode = state.settings.numberFormat;
   const landId = getLand(state, factoryLand) ? factoryLand : 'hq';
   const land = getLand(state, landId)!;
@@ -38,10 +42,21 @@ export function FactoryPage() {
   const q = query.trim().toLowerCase();
   const matches = (d: FacilityDef) => !q || d.name.toLowerCase().includes(q) || d.nameEn.toLowerCase().includes(q) || d.description.toLowerCase().includes(q) || FACILITY_CATEGORY_LABEL[d.category].includes(q);
   const buildableNow = (d: FacilityDef) => isUnlocked(state, 'facility', d.id) && canBuildOn(d, land).ok && state.company.cash >= facilityCost(d, facilityCount(state, d.id as FacilityId, landId));
+  const rank = (d: FacilityDef) => {
+    const owned = facilityCount(state, d.id as FacilityId, landId) > 0;
+    const unlocked = isUnlocked(state, 'facility', d.id);
+    // 解放済み（持っているものが先）→ 未解放 の順
+    if (owned) return 0;
+    if (unlocked && canBuildOn(d, land).ok) return 1;
+    if (unlocked) return 2;
+    return 3;
+  };
   const list = (filter === 'all' ? visible : visible.filter((d) => d.category === filter))
     .filter((d) => filter !== 'all' || canBuildOn(d, land).ok || state.facilities.some((f) => f.typeId === d.id && f.landId === landId))
     .filter(matches)
-    .filter((d) => !onlyBuildable || buildableNow(d));
+    .filter((d) => !onlyBuildable || buildableNow(d))
+    .slice()
+    .sort((a, b) => rank(a) - rank(b) || a.baseCost - b.baseCost);
   const onLand = state.facilities.filter((f) => f.landId === landId);
   const facilityCountAll = onLand.reduce((a, f) => a + f.count, 0);
   const running = onLand.filter((f) => ['running', 'partial'].includes(derived.facilityRuntime[f.id]?.status ?? '')).length;
@@ -60,7 +75,7 @@ export function FactoryPage() {
   return (
     <div className="page">
       <h1 className="page__title">
-        施設<small>作業員・工場・発電・物流</small>
+        施設<small>{isHq(landId) ? '本社の作業員・工場・倉庫' : `${land.name}の施設`}</small>
       </h1>
       {state.lands.length > 1 && (
         <Segmented items={state.lands.map((l) => ({ id: l.id, label: l.name }))} value={landId} onChange={setFactoryLand} ariaLabel="土地の選択" />

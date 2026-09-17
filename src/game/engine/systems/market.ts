@@ -137,12 +137,11 @@ export function sellResource(ctx: EngineContext, id: ResourceId, amount: number,
 export function runAutoSell(ctx: EngineContext): number {
   const { state } = ctx;
   let gained = 0;
-  const sales = !!state.automation?.managers?.sales;
   const reserve: Partial<Record<ResourceId, number>> = {};
-  if (sales) for (const c of state.contracts?.active ?? []) reserve[c.resource] = (reserve[c.resource] ?? 0) + Math.max(0, c.amount - c.delivered);
+  for (const c of state.contracts?.active ?? []) reserve[c.resource] = (reserve[c.resource] ?? 0) + Math.max(0, c.amount - c.delivered);
   for (const [id, cfg] of Object.entries(state.market.autoSell) as [ResourceId, AutoSellConfig][]) {
     if (!cfg?.enabled) continue;
-    if (sales && cfg.minPriceRatio && referencePrice(state, id) < RESOURCE_MAP[id].basePrice * cfg.minPriceRatio) continue;
+    if (cfg.minPriceRatio && referencePrice(state, id) < RESOURCE_MAP[id].basePrice * cfg.minPriceRatio) continue;
     const have = state.inventory[id] ?? 0;
     const keep = cfg.keep + (reserve[id] ?? 0);
     const excess = Math.floor(have - keep);

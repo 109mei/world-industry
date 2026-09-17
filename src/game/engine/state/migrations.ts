@@ -1,6 +1,7 @@
 import { GAME_META } from '@/game/data/meta';
+import { addPropertyLand } from '../systems/estate';
 import type { GameState, LandState } from '@/types/state';
-import { createHqLand, createInitialAutomation, createInitialCompanyStock, createInitialContracts, createInitialEstate, createInitialPrestige, createInitialState, createInitialStocks } from './createInitialState';
+import { createHqLand, createInitialCompanyStock, createInitialContracts, createInitialEstate, createInitialPrestige, createInitialState, createInitialStocks } from './createInitialState';
 
 /**
  * 古いセーブデータを現在の形式へ変換する。
@@ -63,11 +64,20 @@ const MIGRATIONS: Record<number, Migration> = {
     return {
       ...data,
       saveVersion: 5,
-      automation: d.automation ?? createInitialAutomation(),
       contracts: d.contracts ?? createInitialContracts(),
       prestige: d.prestige ?? createInitialPrestige(),
       stats: { ...base.stats, ...(d.stats ?? {}) },
     };
+  },
+  // v5 → v6: 自動化（マネージャー）を廃止。関連データを捨てる
+  5: (data) => {
+    const d = { ...data } as Record<string, unknown>;
+    delete d.automation;
+    const stats = { ...((d.stats ?? {}) as Record<string, unknown>) };
+    delete stats.salariesPaid;
+    delete stats.autoGathered;
+    delete stats.autoCrafted;
+    return { ...d, saveVersion: 6, stats };
   },
 };
 
@@ -113,20 +123,6 @@ function fixStocks(s: Partial<GameState['stocks']> | undefined): GameState['stoc
   };
 }
 
-function fixAutomation(a: Partial<GameState['automation']> | undefined): GameState['automation'] {
-  const base = createInitialAutomation();
-  if (!a) return base;
-  return {
-    ...base,
-    ...a,
-    managers: { ...(a.managers ?? {}) },
-    craftTargets: { ...(a.craftTargets ?? {}) },
-    invest: { ...base.invest, ...(a.invest ?? {}) },
-    templates: Array.isArray(a.templates) ? a.templates : [],
-    timer: typeof a.timer === 'number' ? a.timer : base.timer,
-    dividendPool: typeof a.dividendPool === 'number' ? a.dividendPool : 0,
-  };
-}
 
 function fixContracts(c: Partial<GameState['contracts']> | undefined): GameState['contracts'] {
   const base = createInitialContracts();
@@ -157,7 +153,7 @@ export function fillDefaults(data: Record<string, unknown>): GameState {
     stock: l.stock ?? {},
   }));
   if (!fixedLands.some((l) => l.id === 'hq')) fixedLands.unshift(hqBase);
-  return {
+  const result: GameState = {
     ...base,
     ...d,
     saveVersion: GAME_META.saveVersion,
@@ -177,11 +173,15 @@ export function fillDefaults(data: Record<string, unknown>): GameState {
     events: { ...base.events, ...(d.events ?? {}), active: Array.isArray(d.events?.active) ? d.events.active : [] },
     estate: fixEstate(d.estate),
     stocks: fixStocks(d.stocks),
-    automation: fixAutomation(d.automation),
     contracts: fixContracts(d.contracts),
     prestige: fixPrestige(d.prestige),
     eventLog: Array.isArray(d.eventLog) ? d.eventLog : [],
     nextEventId: typeof d.nextEventId === 'number' ? d.nextEventId : 1,
     settings: { ...base.settings, ...(d.settings ?? {}) },
   };
+  // 買った物件は「施設を建てられる土地」として扱う（古いセーブにも足す）
+  for (const propertyId of Object.keys(result.estate.owned)) {
+    addPropertyLand(result, propertyId, result.estate.owned[propertyId].boughtAt ?? 0);
+  }
+  return result;
 }

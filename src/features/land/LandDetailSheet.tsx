@@ -10,7 +10,6 @@ import { RESOURCE_MAP, type ResourceId } from '@/game/data/resources';
 import { SURVEY_LEVEL_LABEL, SURVEY_STAGES, nextSurveyStage } from '@/game/data/survey';
 import { TERRAINS } from '@/game/data/terrain';
 import { surveyCost } from '@/game/engine/actions/land';
-import { templateCost } from '@/game/engine/systems/automation';
 import { getLand } from '@/game/engine/land';
 import { bumpGame, useGame } from '@/stores/gameStore';
 import { useUiStore } from '@/stores/uiStore';
@@ -46,7 +45,7 @@ export function LandDetailSheet() {
         <div className="sheet__section">
           <p className="card__sub">{def.description}</p>
           <div className="stat-grid" style={{ marginTop: 8 }}>
-            <Stat label="価格" value={formatMoney(def.price, 'full')} size="lg" />
+            <Stat label="価格" value={formatMoney(def.price, 'full')} size="lg" extra={`${def.areaSqm.toLocaleString('ja-JP')}㎡ × ${def.unitPrice.toLocaleString('ja-JP')}円/㎡（その地域の実勢に近い単価）`} />
             <Stat label="地形" value={terrain.name} extra={terrain.description} />
             <Stat label="人口係数" value={`×${def.population}`} extra="商業施設の収入に掛かる" />
             <Stat label="資源" value={Object.keys(def.deposits).length > 0 ? '調査で判明' : 'なし'} extra={Object.keys(def.deposits).length > 0 ? '購入後に地下資源調査ができる' : '農園・発電・商業向け'} />
@@ -185,28 +184,6 @@ export function LandDetailSheet() {
             建設・管理 ›
           </Button>
         </div>
-        {state.automation.templates.length > 0 && (
-          <div className="btn-row" style={{ marginBottom: 8 }}>
-            {state.automation.templates.map((t) => {
-              const cost = templateCost(state, t, land.id);
-              return (
-                <Button
-                  key={t.id}
-                  size="sm"
-                  variant="secondary"
-                  disabled={cost <= 0}
-                  title={cost <= 0 ? 'この構成はもう揃っています' : `不足分を建てる（約 ${formatMoney(cost, mode)}）`}
-                  onClick={() => {
-                    if (engine.applyTemplate(t.id, land.id) > 0) sfx('buy');
-                    bumpGame();
-                  }}
-                >
-                  テンプレート「{t.name}」を適用{cost > 0 ? `（${formatMoney(cost, mode)}）` : '（済）'}
-                </Button>
-              );
-            })}
-          </div>
-        )}
         {facilities.length === 0 ? (
           <div className="text-dim" style={{ fontSize: 13 }}>まだ施設がありません。「建設・管理」から鉱山・農園・輸送手段などを建てられます。</div>
         ) : (
@@ -226,18 +203,6 @@ export function LandDetailSheet() {
               );
             })}
             <div className="btn-row" style={{ marginTop: 6 }}>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => {
-                  const name = window.prompt('テンプレートの名前', `${land.name}の構成`);
-                  if (name === null) return;
-                  if (engine.saveTemplate(land.id, name)) sfx('craft');
-                  bumpGame();
-                }}
-              >
-                この構成をテンプレートに保存
-              </Button>
               <Button
                 size="sm"
                 variant="ghost"

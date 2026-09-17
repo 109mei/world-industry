@@ -4,7 +4,6 @@ import { GATHER_ACTIONS, type GatherActionId } from '@/game/data/gathering';
 import { RESOURCE_MAP } from '@/game/data/resources';
 import { TOOL_MAP } from '@/game/data/tools';
 import { previewGather } from '@/game/engine/actions/gather';
-import { isManagerHired } from '@/game/engine/systems/automation';
 import { bumpGame, useGame } from '@/stores/gameStore';
 import { sfx } from '@/utils/sfx';
 import { useRepeat } from '@/utils/useRepeat';
@@ -89,14 +88,8 @@ export function GatherPanel() {
     setPops((prev) => ({ ...prev, [id]: [...(prev[id] ?? []).slice(-4), pop] }));
     window.setTimeout(() => setPops((prev) => ({ ...prev, [id]: (prev[id] ?? []).filter((q) => q.id !== pop.id) })), 700);
   }, []);
-  const gatherManager = isManagerHired(state, 'gather');
   return (
     <div>
-      {gatherManager && (
-        <div className="text-profit" style={{ fontSize: 12, marginBottom: 6 }}>
-          採集係が毎秒あなたの代わりに採集しています（自分でタップしてもOK）。
-        </div>
-      )}
       <div className="grid grid--auto grid--tight">
         {GATHER_ACTIONS.map((g) => {
           const p = previewGather(state, g.id);

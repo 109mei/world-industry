@@ -10,7 +10,7 @@ import { propertyBuyCost, propertyOwner, propertyPrice } from '@/game/engine/sys
 import { isUnlocked } from '@/game/engine/systems/unlocks';
 import { useGame } from '@/stores/gameStore';
 import { useUiStore } from '@/stores/uiStore';
-import { formatMoney } from '@/utils/format';
+import { formatMoney, formatNumber } from '@/utils/format';
 
 /** ズームがこれ未満のときは都市ごとにまとめて表示する */
 const CITY_ZOOM = 11;
@@ -123,6 +123,7 @@ export function RealMap() {
     .map(([id, s]) => `${id}:${s.playerShares > 0 ? (derived.companies[id]?.ownership ?? 0) >= 2 / 3 ? 'c' : 'o' : ''}${s.dissolved ? 'x' : ''}`)
     .join(',');
   const landsKey = state.lands.map((l) => l.id).join(',');
+  const builtKey = state.facilities.map((f) => `${f.landId}:${f.count}`).sort().join(',');
   const priceKey = Object.values(state.estate.cityMult)
     .map((m) => m.toFixed(2))
     .join(',');
@@ -187,7 +188,8 @@ export function RealMap() {
         const m = L.marker([p.lat, p.lon], { icon: propertyIcon(p, owner, affordable.has(p.id)), title: p.name });
         const price = formatMoney(propertyPrice(state, p.id), mode);
         const status = owner === 'player' ? '所有中' : owner === 'company' ? `${COMPANY_MAP[state.estate.companyOwned[p.id] as keyof typeof COMPANY_MAP]?.name ?? '他社'}が所有` : affordable.has(p.id) ? '購入できる' : '資金不足';
-        m.bindTooltip(`${p.name}<br>${PROPERTY_KIND[p.kind].label}・${price}・${status}`, { direction: 'top', offset: [0, -12] });
+        const builtHere = owner === 'player' ? state.facilities.filter((f) => f.landId === `prop:${p.id}`).reduce((a, f) => a + f.count, 0) : 0;
+        m.bindTooltip(`${p.name}<br>${PROPERTY_KIND[p.kind].label}・${price}・${status}${owner === 'player' ? `<br>施設 ${formatNumber(builtHere, mode)}（ここに建てられます）` : ''}`, { direction: 'top', offset: [0, -12] });
         m.on('click', () => openProperty(p.id));
         m.addTo(layer);
       }
@@ -204,13 +206,19 @@ export function RealMap() {
       m.on('click', () => openCompany(c.id));
       m.addTo(layer);
     }
-    // 産業用地（LAND 画面の土地）と本社
+    // 産業用地（施設を建てられる売り物の土地）。世界地図のままでも買えるように、ズームで隠さない
     for (const l of LANDS as readonly LandDef[]) {
-      if (zoom < CITY_ZOOM) break;
       if (!isUnlocked(state, 'land', l.id) && !getLand(state, l.id)) continue;
       const owned = !!getLand(state, l.id);
+      const built = owned ? state.facilities.filter((f) => f.landId === l.id).reduce((a, f) => a + f.count, 0) : 0;
       const m = L.marker([l.lat, l.lon], { icon: landIcon(owned), title: l.name, zIndexOffset: 50 });
-      m.bindTooltip(`${l.name}（産業用地${owned ? '・所有' : `・${formatMoney(l.price, mode)}`}）`, { direction: 'top', offset: [0, -12] });
+      const area = `${formatNumber(l.areaSqm, mode)}㎡ × ${formatMoney(l.unitPrice, 'full')}/㎡`;
+      m.bindTooltip(
+        owned
+          ? `${l.name}（産業用地・所有）<br>${area}<br>施設 ${formatNumber(built, mode)}`
+          : `${l.name}（産業用地・売り出し中）<br>${area}<br>${formatMoney(l.price, mode)}`,
+        { direction: 'top', offset: [0, -12] },
+      );
       m.on('click', () => openLand(l.id));
       m.addTo(layer);
     }
@@ -219,7 +227,7 @@ export function RealMap() {
     hq.on('click', () => openLand('hq'));
     hq.addTo(layer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [zoom, ownedKey, companyOwnedKey, affordableKey, holdingsKey, landsKey, priceKey, ready, state.settings.numberFormat]);
+  }, [zoom, ownedKey, companyOwnedKey, affordableKey, holdingsKey, landsKey, builtKey, priceKey, ready, state.settings.numberFormat]);
 
   const ownedProps = Object.keys(state.estate.owned);
   const goJapan = () => mapRef.current?.flyTo([36.5, 137], 5, { duration: 0.6 });
@@ -249,7 +257,7 @@ export function RealMap() {
           </Button>
         </div>
         <span className="text-sub" style={{ fontSize: 11 }}>
-          {zoom < CITY_ZOOM ? '数字は都市の物件数。タップで寄る（会社の本社と産業用地は寄ると出ます）' : 'ピンをタップで詳細'}
+          {zoom < CITY_ZOOM ? '数字は都市の物件数。タップで寄る。▲は施設を建てられる産業用地（タップで購入）' : 'ピンをタップで詳細'}
         </span>
       </div>
       <div className="rm__stage">

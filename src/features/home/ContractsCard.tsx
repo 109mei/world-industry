@@ -6,7 +6,6 @@ import { ProgressBar } from '@/components/ui/ProgressBar';
 import { CONFIG } from '@/game/data/config';
 import { nextCreditRank } from '@/game/data/contracts';
 import { RESOURCE_MAP } from '@/game/data/resources';
-import { isManagerHired } from '@/game/engine/systems/automation';
 import { creditRankDef, isContractsUnlocked } from '@/game/engine/systems/contracts';
 import { bumpGame, useGame } from '@/stores/gameStore';
 import { useUiStore } from '@/stores/uiStore';
@@ -29,7 +28,6 @@ export function ContractsCard() {
   }
   const rank = creditRankDef(state);
   const next = nextCreditRank(state.contracts.credit);
-  const sales = isManagerHired(state, 'sales');
   const active = state.contracts.active;
   const deliver = (id: number) => {
     if (engine.deliverContract(id) > 0) sfx('sell');
@@ -109,11 +107,6 @@ export function ContractsCard() {
           );
         })}
       </div>
-      {sales && active.length > 0 && (
-        <div className="text-profit" style={{ fontSize: 11, marginTop: 6 }}>
-          販売係が在庫から自動で納品します。
-        </div>
-      )}
     </Card>
   );
 }

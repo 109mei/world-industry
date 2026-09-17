@@ -1,4 +1,4 @@
-export type NavTab = 'home' | 'resources' | 'craft' | 'land' | 'estate' | 'factory' | 'company';
+export type NavTab = 'home' | 'craft' | 'factory' | 'map' | 'research' | 'settings';
 
 export interface NavItem {
   id: NavTab;
@@ -9,10 +9,9 @@ export interface NavItem {
 
 export const NAV_ITEMS: NavItem[] = [
   { id: 'home', label: 'HOME', labelJa: 'ホーム', icon: 'icon_ui_company' },
-  { id: 'resources', label: 'RESOURCES', labelJa: '資源', icon: 'icon_ui_inventory' },
   { id: 'craft', label: 'CRAFT', labelJa: 'クラフト', icon: 'icon_ui_craft' },
   { id: 'factory', label: 'FACTORY', labelJa: '施設', icon: 'icon_ui_factory' },
-  { id: 'land', label: 'LAND', labelJa: '土地', icon: 'icon_ui_land' },
-  { id: 'estate', label: 'ESTATE', labelJa: '不動産・株', icon: 'icon_ui_location' },
-  { id: 'company', label: 'COMPANY', labelJa: '会社', icon: 'icon_ui_chart' },
+  { id: 'map', label: 'MAP', labelJa: '地図', icon: 'icon_ui_location' },
+  { id: 'research', label: 'RESEARCH', labelJa: '研究', icon: 'icon_ui_research' },
+  { id: 'settings', label: 'SETTINGS', labelJa: '設定', icon: 'icon_ui_settings' },
 ];

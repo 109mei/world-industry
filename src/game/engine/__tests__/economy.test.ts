@@ -126,8 +126,9 @@ describe('航空輸送', () => {
 describe('巨大産業', () => {
   it('自動車工場は材料が揃うと自動車を作り、売ると高額になる', () => {
     const { e } = withSurveyedLand('jp_hokkaido');
-    e.buyFacility('coal_power', 5);
+    e.buyFacility('coal_power', 5, 'jp_hokkaido');
     e.debugAddResource('coal', 5000);
+    e.state.lands.find((l) => l.id === 'jp_hokkaido')!.stock.coal = 5000;
     e.buyFacility('car_factory', 1);
     for (const [id, n] of [['steel', 2000], ['plastic', 1000], ['rubber', 1000], ['glass', 500], ['electronics', 200]] as const) e.debugAddResource(id, n);
     e.advance(40);
@@ -141,8 +142,9 @@ describe('巨大産業', () => {
 
   it('半導体→ロボットのチェーンが動く', () => {
     const { e } = withSurveyedLand('jp_hokkaido');
-    e.buyFacility('coal_power', 10);
+    e.buyFacility('coal_power', 10, 'jp_hokkaido');
     e.debugAddResource('coal', 20000);
+    e.state.lands.find((l) => l.id === 'jp_hokkaido')!.stock.coal = 20000;
     e.buyFacility('silicon_plant', 1);
     e.buyFacility('chip_fab', 1);
     e.buyFacility('robot_factory', 1);

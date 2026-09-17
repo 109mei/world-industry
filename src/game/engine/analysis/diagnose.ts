@@ -66,7 +66,7 @@ export function diagnoseFacility(state: GameState, derived: DerivedState, inst: 
 
   if (rt.status === 'disabled') return null;
   if (rt.status === 'depleted') {
-    fixes.push({ label: '別の土地を探す（LAND）', action: { kind: 'goTab', tab: 'land' }, enabled: true });
+    fixes.push({ label: '別の土地を探す（地図）', action: { kind: 'goTab', tab: 'map' }, enabled: true });
     return { reason: `${rt.depleted.map(name).join('・')}の鉱脈を掘り尽くしました`, fixes };
   }
   if (rt.status === 'storage_full' || (rt.status === 'partial' && rt.blockedOutputs.length > 0 && rt.missingInputs.length === 0)) {

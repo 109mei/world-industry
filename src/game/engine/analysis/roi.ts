@@ -28,7 +28,6 @@ export function outputRealizable(state: GameState, derived: DerivedState, id: Re
   if (!def.sellable) return true;
   if ((derived.consumption[id] ?? 0) > 0) return true;
   if (state.market.autoSell[id]?.enabled) return true;
-  if (state.automation?.managers.sales && state.automation.smartSell) return true;
   return false;
 }
 
