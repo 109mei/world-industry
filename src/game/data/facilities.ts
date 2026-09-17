@@ -1,4 +1,5 @@
 import type { ResourceId } from './resources';
+import type { TerrainId } from './terrain';
 import type { UnlockCondition } from './unlockTypes';
 
 export type FacilityCategory =
@@ -30,6 +31,19 @@ export interface FacilityProduction {
   outputs?: Partial<Record<ResourceId, number>>;
 }
 
+/** 輸送手段としての性能（土地→本社の往復に使う） */
+export interface TransportSpec {
+  /** 1単位あたりの輸送能力（t/秒） */
+  capacity: number;
+  /** 1t あたりの費用（円） */
+  costPerTon: number;
+  /** 液体しか運べない（原油・燃料・水） */
+  liquidOnly?: boolean;
+}
+
+/** どこに建てられるか。hq=本社のみ land=購入した土地のみ any=どこでも */
+export type FacilitySite = 'hq' | 'land' | 'any';
+
 export interface FacilityDef {
   id: string;
   name: string;
@@ -48,73 +62,247 @@ export interface FacilityDef {
   /** 1単位あたりの従業員数 */
   employees: number;
   production?: FacilityProduction;
-  /** 1単位あたりの倉庫容量の増加 */
+  /** outputs を土地の鉱脈から掘る（残量がなくなると停止） */
+  extractsDeposit?: boolean;
+  /** 1単位あたりの倉庫容量の増加（本社の施設は本社、土地の施設はその土地） */
   storageBonus?: number;
-  /** 1単位あたりの電力使用量（MW）。電力システム解放後に使用 */
+  /** 1単位あたりの電力使用量（MW） */
   powerUse?: number;
+  /** 1単位あたりの発電量（MW） */
+  powerGen?: number;
+  /** 最大出力時の燃料消費（毎秒） */
+  fuel?: Partial<Record<ResourceId, number>>;
+  /** 再生可能エネルギー（燃料不要） */
+  renewable?: boolean;
+  /** 地形による効率倍率（未指定の地形は 1） */
+  terrainBonus?: Partial<Record<TerrainId, number>>;
+  /** この地形にしか建てられない */
+  allowedTerrain?: TerrainId[];
+  /** 建てられる場所 */
+  site: FacilitySite;
+  /** 人口係数 1 のときの収入（円/秒） */
+  income?: number;
+  transport?: TransportSpec;
+  /** 研究ポイントの生産（/秒） */
+  researchRate?: number;
   unlock: UnlockCondition;
   hiddenUntilUnlocked?: boolean;
 }
 
 export const FACILITIES = [
-  // ---- 採集（作業員） ----
+  // ---- 採集（作業員：本社） ----
   {
-    id: 'worker_stone', name: '採石作業員', nameEn: 'Quarry Worker', category: 'RESOURCE', icon: 'icon_facility_worker',
+    id: 'worker_stone', name: '採石作業員', nameEn: 'Quarry Worker', category: 'RESOURCE', icon: 'icon_facility_worker', site: 'hq',
     description: '石を拾い続けてくれる作業員。', baseCost: 30, costGrowth: 1.12, isWorker: true, employees: 1,
     production: { outputs: { stone: 0.2 } }, unlock: { type: 'always' },
   },
   {
-    id: 'worker_wood', name: '木材作業員', nameEn: 'Lumber Worker', category: 'RESOURCE', icon: 'icon_facility_logging',
+    id: 'worker_wood', name: '木材作業員', nameEn: 'Lumber Worker', category: 'RESOURCE', icon: 'icon_facility_logging', site: 'hq',
     description: '木を集め続けてくれる作業員。', baseCost: 45, costGrowth: 1.12, isWorker: true, employees: 1,
     production: { outputs: { wood: 0.15 } }, unlock: { type: 'always' },
   },
   {
-    id: 'worker_gatherer', name: '採集作業員', nameEn: 'Gatherer', category: 'RESOURCE', icon: 'icon_facility_farm',
+    id: 'worker_gatherer', name: '採集作業員', nameEn: 'Gatherer', category: 'RESOURCE', icon: 'icon_facility_farm', site: 'hq',
     description: '水・砂・植物繊維・粘土を少しずつ集める。', baseCost: 60, costGrowth: 1.12, isWorker: true, employees: 1,
     production: { outputs: { water: 0.1, sand: 0.1, plant_fiber: 0.08, clay: 0.05 } }, unlock: { type: 'always' },
   },
   {
-    id: 'worker_scrap', name: 'スクラップ回収員', nameEn: 'Scrap Collector', category: 'RESOURCE', icon: 'icon_facility_quarry',
+    id: 'worker_scrap', name: 'スクラップ回収員', nameEn: 'Scrap Collector', category: 'RESOURCE', icon: 'icon_facility_quarry', site: 'hq',
     description: '鉄くずを回収してくる作業員。', baseCost: 120, costGrowth: 1.15, isWorker: true, employees: 1,
     production: { outputs: { scrap_metal: 0.05 } }, unlock: { type: 'toolCrafted', tool: 'stone_hammer' },
   },
   {
-    id: 'worker_miner', name: '採掘作業員', nameEn: 'Miner', category: 'RESOURCE', icon: 'icon_facility_iron_mine',
+    id: 'worker_miner', name: '採掘作業員', nameEn: 'Miner', category: 'RESOURCE', icon: 'icon_facility_iron_mine', site: 'hq',
     description: '鉄鉱石を掘り続ける作業員。', baseCost: 200, costGrowth: 1.15, isWorker: true, employees: 1,
     production: { outputs: { iron_ore: 0.1 } }, unlock: { type: 'toolCrafted', tool: 'stone_pickaxe' },
   },
   {
-    id: 'small_mine', name: '小型採掘機', nameEn: 'Small Mining Machine', category: 'RESOURCE', icon: 'icon_machine_excavator',
+    id: 'small_mine', name: '小型採掘機', nameEn: 'Small Mining Machine', category: 'RESOURCE', icon: 'icon_machine_excavator', site: 'hq',
     description: '機械で鉄鉱石を採掘する。作業員より桁違いに速い。', baseCost: 2500, costGrowth: 1.2, employees: 0,
     production: { outputs: { iron_ore: 2 } }, unlock: { type: 'obtained', resource: 'iron_ore', min: 100 },
   },
+  // ---- 採集（土地：鉱山・農園） ----
+  {
+    id: 'quarry', name: '採石場', nameEn: 'Quarry', category: 'RESOURCE', icon: 'icon_facility_quarry', site: 'land',
+    description: '土地で石を大量に切り出す。山岳で効率 +50%。', baseCost: 50_000, costGrowth: 1.15, employees: 3,
+    production: { outputs: { stone: 3 } }, terrainBonus: { mountain: 1.5, city: 0.5 }, unlock: { type: 'landOwned', min: 1 },
+  },
+  {
+    id: 'lumber_camp', name: '伐採場', nameEn: 'Lumber Camp', category: 'RESOURCE', icon: 'icon_facility_logging', site: 'land',
+    description: '土地の森林から木材を切り出す。森林で効率2倍、砂漠では育たない。', baseCost: 60_000, costGrowth: 1.15, employees: 3,
+    production: { outputs: { wood: 2 } }, terrainBonus: { forest: 2, river: 1.3, desert: 0.1, snow: 0.5, city: 0.3 }, unlock: { type: 'landOwned', min: 1 },
+  },
+  {
+    id: 'wheat_farm', name: '小麦農園', nameEn: 'Wheat Farm', category: 'RESOURCE', icon: 'icon_facility_wheat_farm', site: 'land',
+    description: '小麦を育てる。平原で効率2倍、河川で1.5倍。砂漠や寒冷地では育ちにくい。', baseCost: 80_000, costGrowth: 1.15, employees: 4,
+    production: { inputs: { water: 0.5 }, outputs: { wheat: 1.5 } }, terrainBonus: { plains: 2, river: 1.5, forest: 0.7, desert: 0.2, snow: 0.2, mountain: 0.5, city: 0.3 }, unlock: { type: 'landOwned', min: 1 },
+  },
+  {
+    id: 'coal_mine', name: '炭鉱', nameEn: 'Coal Mine', category: 'RESOURCE', icon: 'icon_facility_coal_mine', site: 'land',
+    description: '土地の石炭鉱脈を掘る。地質調査済みの土地に建てられ、鉱脈を掘り尽くすと止まる。', baseCost: 150_000, costGrowth: 1.15, employees: 5,
+    production: { outputs: { coal: 5 } }, extractsDeposit: true, unlock: { type: 'landOwned', min: 1 },
+  },
+  {
+    id: 'iron_mine', name: '大型鉄鉱山', nameEn: 'Iron Mine', category: 'RESOURCE', icon: 'icon_facility_iron_mine', site: 'land',
+    description: '鉄鉱脈から鉄鉱石を大量に掘る。', baseCost: 250_000, costGrowth: 1.15, employees: 6,
+    production: { outputs: { iron_ore: 10 } }, extractsDeposit: true, unlock: { type: 'landOwned', min: 1 },
+  },
+  {
+    id: 'copper_mine', name: '銅鉱山', nameEn: 'Copper Mine', category: 'RESOURCE', icon: 'icon_facility_copper_mine', site: 'land',
+    description: '銅鉱脈から銅鉱石を掘る。', baseCost: 300_000, costGrowth: 1.15, employees: 6,
+    production: { outputs: { copper_ore: 4 } }, extractsDeposit: true, unlock: { type: 'landOwned', min: 1 },
+  },
+  {
+    id: 'oil_well', name: '油井', nameEn: 'Oil Well', category: 'RESOURCE', icon: 'icon_facility_oil_well', site: 'land',
+    description: '油田から原油を汲み上げる。', baseCost: 400_000, costGrowth: 1.15, employees: 4,
+    production: { outputs: { crude_oil: 5 } }, extractsDeposit: true, unlock: { type: 'landOwned', min: 1 },
+  },
+  {
+    id: 'uranium_mine', name: 'ウラン鉱山', nameEn: 'Uranium Mine', category: 'RESOURCE', icon: 'icon_facility_uranium_mine', site: 'land',
+    description: 'ウラン鉱脈からウラン鉱石を掘る。原子力工学の研究が必要。電力 2MW。', baseCost: 5_000_000, costGrowth: 1.2, employees: 10, powerUse: 2,
+    production: { outputs: { uranium_ore: 0.1 } }, extractsDeposit: true, unlock: { type: 'research', research: 'nuclear' }, hiddenUntilUnlocked: true,
+  },
   // ---- 加工 ----
   {
-    id: 'simple_smelter', name: '簡易製鉄所', nameEn: 'Simple Smelter', category: 'PROCESSING', icon: 'icon_facility_steel_mill',
+    id: 'simple_smelter', name: '簡易製鉄所', nameEn: 'Simple Smelter', category: 'PROCESSING', icon: 'icon_facility_steel_mill', site: 'hq',
     description: '鉄鉱石と木から鉄を作る。鉄鉱石2＋木0.5 → 鉄1（5秒ごと）。', baseCost: 600, costGrowth: 1.18, employees: 0,
     production: { inputs: { iron_ore: 0.4, wood: 0.1 }, outputs: { iron: 0.2 } }, unlock: { type: 'obtained', resource: 'iron', min: 5 },
   },
+  {
+    id: 'steel_mill', name: '製鋼所', nameEn: 'Steel Mill', category: 'PROCESSING', icon: 'icon_facility_steel_mill', site: 'any',
+    description: '鉄と石炭から鋼鉄を作る。鉄2＋石炭1 → 鋼鉄1（毎秒）。電力 2MW。', baseCost: 200_000, costGrowth: 1.18, employees: 8, powerUse: 2,
+    production: { inputs: { iron: 2, coal: 1 }, outputs: { steel: 1 } }, unlock: { type: 'obtained', resource: 'coal', min: 50 },
+  },
+  {
+    id: 'copper_smelter', name: '銅精錬所', nameEn: 'Copper Smelter', category: 'PROCESSING', icon: 'icon_facility_aluminum_refinery', site: 'any',
+    description: '銅鉱石2 → 銅1（毎秒）。電力 1.5MW。', baseCost: 150_000, costGrowth: 1.18, employees: 6, powerUse: 1.5,
+    production: { inputs: { copper_ore: 2 }, outputs: { copper: 1 } }, unlock: { type: 'obtained', resource: 'copper_ore', min: 50 },
+  },
+  {
+    id: 'oil_refinery', name: '製油所', nameEn: 'Oil Refinery', category: 'PROCESSING', icon: 'icon_facility_oil_refinery', site: 'any',
+    description: '原油2 → 燃料1（毎秒）。電力 3MW。', baseCost: 400_000, costGrowth: 1.18, employees: 8, powerUse: 3,
+    production: { inputs: { crude_oil: 2 }, outputs: { fuel: 1 } }, unlock: { type: 'obtained', resource: 'crude_oil', min: 100 },
+  },
+  {
+    id: 'flour_mill', name: '製粉所', nameEn: 'Flour Mill', category: 'PROCESSING', icon: 'icon_facility_food_factory', site: 'any',
+    description: '小麦1 → 小麦粉1（毎秒）。電力 0.5MW。', baseCost: 50_000, costGrowth: 1.15, employees: 3, powerUse: 0.5,
+    production: { inputs: { wheat: 1 }, outputs: { flour: 1 } }, unlock: { type: 'obtained', resource: 'wheat', min: 100 },
+  },
+  {
+    id: 'enrichment_plant', name: '核燃料濃縮工場', nameEn: 'Enrichment Plant', category: 'PROCESSING', icon: 'icon_facility_chemical_plant', site: 'any',
+    description: 'ウラン鉱石10 → 核燃料1（100秒ごと）。電力 20MW。', baseCost: 20_000_000, costGrowth: 1.25, employees: 30, powerUse: 20,
+    production: { inputs: { uranium_ore: 0.1 }, outputs: { nuclear_fuel: 0.01 } }, unlock: { type: 'research', research: 'nuclear' }, hiddenUntilUnlocked: true,
+  },
   // ---- 製造 ----
   {
-    id: 'tool_workshop', name: '工具工房', nameEn: 'Tool Workshop', category: 'MANUFACTURING', icon: 'icon_facility_machine_factory',
+    id: 'tool_workshop', name: '工具工房', nameEn: 'Tool Workshop', category: 'MANUFACTURING', icon: 'icon_facility_machine_factory', site: 'hq',
     description: '鉄と木から工具を自動で作る。鉄2＋木1 → 工具1（10秒ごと）。', baseCost: 3000, costGrowth: 1.2, employees: 2,
     production: { inputs: { iron: 0.2, wood: 0.1 }, outputs: { tool: 0.1 } }, unlock: { type: 'crafted', recipe: 'craft_tool', min: 5 },
   },
   {
-    id: 'parts_workshop', name: '部品工房', nameEn: 'Parts Workshop', category: 'MANUFACTURING', icon: 'icon_part_gear',
+    id: 'parts_workshop', name: '部品工房', nameEn: 'Parts Workshop', category: 'MANUFACTURING', icon: 'icon_part_gear', site: 'hq',
     description: '鉄から機械部品を作る。鉄3＋木1 → 機械部品1（10秒ごと）。', baseCost: 8000, costGrowth: 1.2, employees: 3,
     production: { inputs: { iron: 0.3, wood: 0.1 }, outputs: { machine_parts: 0.1 } }, unlock: { type: 'crafted', recipe: 'craft_machine_parts', min: 3 },
   },
+  {
+    id: 'electronics_factory', name: '電子部品工場', nameEn: 'Electronics Factory', category: 'MANUFACTURING', icon: 'icon_facility_electronics_factory', site: 'any',
+    description: '銅2＋鋼鉄1 → 電子部品1（5秒ごと）。電力 5MW。', baseCost: 2_000_000, costGrowth: 1.2, employees: 20, powerUse: 5,
+    production: { inputs: { copper: 0.4, steel: 0.2 }, outputs: { electronics: 0.2 } }, unlock: { type: 'research', research: 'advanced_materials' }, hiddenUntilUnlocked: true,
+  },
   // ---- 倉庫 ----
   {
-    id: 'small_warehouse', name: '小型倉庫', nameEn: 'Small Warehouse', category: 'STORAGE', icon: 'icon_commercial_warehouse',
-    description: 'すべての資源の保管容量が +1,000 される。', baseCost: 400, costGrowth: 1.25, employees: 0,
+    id: 'small_warehouse', name: '小型倉庫', nameEn: 'Small Warehouse', category: 'STORAGE', icon: 'icon_commercial_warehouse', site: 'hq',
+    description: '本社の保管容量が +1,000 される。', baseCost: 400, costGrowth: 1.25, employees: 0,
     storageBonus: 1000, unlock: { type: 'always' },
   },
   {
-    id: 'large_warehouse', name: '大型倉庫', nameEn: 'Large Warehouse', category: 'STORAGE', icon: 'icon_logistics_distribution_center',
-    description: 'すべての資源の保管容量が +100,000 される。', baseCost: 40000, costGrowth: 1.3, employees: 2,
+    id: 'large_warehouse', name: '大型倉庫', nameEn: 'Large Warehouse', category: 'STORAGE', icon: 'icon_logistics_distribution_center', site: 'hq',
+    description: '本社の保管容量が +100,000 される。', baseCost: 40000, costGrowth: 1.3, employees: 2,
     storageBonus: 100000, unlock: { type: 'facility', facility: 'small_warehouse', min: 5 },
+  },
+  {
+    id: 'land_warehouse', name: '現地倉庫', nameEn: 'Site Warehouse', category: 'STORAGE', icon: 'icon_logistics_silo', site: 'land',
+    description: 'その土地の保管容量が +10,000 される。輸送が追いつかないときの一時保管に。', baseCost: 100_000, costGrowth: 1.25, employees: 1,
+    storageBonus: 10_000, unlock: { type: 'landOwned', min: 1 },
+  },
+  // ---- 発電 ----
+  {
+    id: 'coal_power', name: '石炭火力発電所', nameEn: 'Coal Power Plant', category: 'POWER', icon: 'icon_power_coal', site: 'any',
+    description: '出力 10MW。最大出力で石炭 0.5/秒を消費する。需要ぶんだけ燃やす。', baseCost: 300_000, costGrowth: 1.15, employees: 10,
+    powerGen: 10, fuel: { coal: 0.5 }, unlock: { type: 'obtained', resource: 'coal', min: 20 },
+  },
+  {
+    id: 'oil_power', name: '石油火力発電所', nameEn: 'Oil Power Plant', category: 'POWER', icon: 'icon_power_oil', site: 'any',
+    description: '出力 25MW。最大出力で燃料 0.4/秒を消費する。', baseCost: 700_000, costGrowth: 1.15, employees: 12,
+    powerGen: 25, fuel: { fuel: 0.4 }, unlock: { type: 'obtained', resource: 'fuel', min: 50 },
+  },
+  {
+    id: 'solar_farm', name: '太陽光発電所', nameEn: 'Solar Farm', category: 'POWER', icon: 'icon_power_solar', site: 'any',
+    description: '出力 4MW。燃料不要。砂漠で1.5倍、寒冷地では0.5倍。', baseCost: 250_000, costGrowth: 1.15, employees: 1,
+    powerGen: 4, renewable: true, terrainBonus: { desert: 1.5, snow: 0.5, forest: 0.8, mountain: 0.9 }, unlock: { type: 'research', research: 'renewables' },
+  },
+  {
+    id: 'wind_farm', name: '風力発電所', nameEn: 'Wind Farm', category: 'POWER', icon: 'icon_power_wind', site: 'any',
+    description: '出力 6MW。燃料不要。沿岸で1.5倍、山岳で1.3倍。', baseCost: 400_000, costGrowth: 1.15, employees: 2,
+    powerGen: 6, renewable: true, terrainBonus: { coast: 1.5, mountain: 1.3, city: 0.6, forest: 0.7 }, unlock: { type: 'research', research: 'renewables' },
+  },
+  {
+    id: 'hydro_plant', name: '水力発電所', nameEn: 'Hydro Plant', category: 'POWER', icon: 'icon_power_hydro', site: 'land',
+    description: '出力 40MW。燃料不要。河川または山岳の土地にしか建てられない。', baseCost: 3_000_000, costGrowth: 1.2, employees: 8,
+    powerGen: 40, renewable: true, allowedTerrain: ['river', 'mountain'], terrainBonus: { river: 1.5 }, unlock: { type: 'research', research: 'renewables' },
+  },
+  {
+    id: 'nuclear_plant', name: '原子力発電所', nameEn: 'Nuclear Plant', category: 'POWER', icon: 'icon_power_nuclear', site: 'any',
+    description: '出力 500MW。最大出力で核燃料 0.005/秒（200秒に1個）を消費する。', baseCost: 100_000_000, costGrowth: 1.3, employees: 200,
+    powerGen: 500, fuel: { nuclear_fuel: 0.005 }, unlock: { type: 'research', research: 'nuclear' }, hiddenUntilUnlocked: true,
+  },
+  // ---- 物流（土地→本社の輸送手段） ----
+  {
+    id: 'truck', name: 'トラック', nameEn: 'Truck', category: 'LOGISTICS', icon: 'icon_logistics_truck', site: 'land',
+    description: '1台あたり 0.2t/秒を本社と往復で運ぶ。費用 30円/t。', baseCost: 20_000, costGrowth: 1.08, employees: 1,
+    transport: { capacity: 0.2, costPerTon: 30 }, unlock: { type: 'landOwned', min: 1 },
+  },
+  {
+    id: 'freight_train', name: '貨物列車', nameEn: 'Freight Train', category: 'LOGISTICS', icon: 'icon_logistics_train', site: 'land',
+    description: '1編成あたり 2t/秒。費用 10円/t。', baseCost: 500_000, costGrowth: 1.12, employees: 4,
+    transport: { capacity: 2, costPerTon: 10 }, unlock: { type: 'research', research: 'railway' },
+  },
+  {
+    id: 'cargo_ship', name: '貨物船', nameEn: 'Cargo Ship', category: 'LOGISTICS', icon: 'icon_logistics_ship', site: 'land',
+    description: '1隻あたり 10t/秒。費用 4円/t。沿岸・都市の土地にしか配備できない。', baseCost: 2_000_000, costGrowth: 1.15, employees: 12,
+    transport: { capacity: 10, costPerTon: 4 }, allowedTerrain: ['coast', 'city'], unlock: { type: 'research', research: 'overseas' },
+  },
+  {
+    id: 'pipeline', name: 'パイプライン', nameEn: 'Pipeline', category: 'LOGISTICS', icon: 'icon_logistics_pipeline', site: 'land',
+    description: '1本あたり 5t/秒。費用 2円/t。原油・燃料・水だけ運べる。', baseCost: 1_500_000, costGrowth: 1.2, employees: 2,
+    transport: { capacity: 5, costPerTon: 2, liquidOnly: true }, unlock: { type: 'research', research: 'pipeline' },
+  },
+  // ---- 商業 ----
+  {
+    id: 'parking', name: '駐車場', nameEn: 'Parking Lot', category: 'COMMERCIAL', icon: 'icon_commercial_parking', site: 'any',
+    description: '人口・交通量に応じて収入を得る。基準 8円/秒。', baseCost: 50_000, costGrowth: 1.15, employees: 0,
+    income: 8, unlock: { type: 'assets', min: 300_000 },
+  },
+  {
+    id: 'shop', name: '店舗', nameEn: 'Shop', category: 'COMMERCIAL', icon: 'icon_commercial_shop', site: 'any',
+    description: '基準 40円/秒。都市では人口係数3倍。', baseCost: 250_000, costGrowth: 1.15, employees: 3,
+    income: 40, unlock: { type: 'facility', facility: 'parking', min: 3 },
+  },
+  {
+    id: 'office', name: 'オフィスビル', nameEn: 'Office', category: 'COMMERCIAL', icon: 'icon_commercial_office', site: 'any',
+    description: '基準 300円/秒。電力 1MW。', baseCost: 2_500_000, costGrowth: 1.18, employees: 20, powerUse: 1,
+    income: 300, unlock: { type: 'research', research: 'commerce' },
+  },
+  {
+    id: 'datacenter', name: 'データセンター', nameEn: 'Data Center', category: 'COMMERCIAL', icon: 'icon_commercial_datacenter', site: 'any',
+    description: '基準 2,500円/秒。電力 10MW。電力が不足すると収入が下がる。', baseCost: 15_000_000, costGrowth: 1.2, employees: 15, powerUse: 10,
+    income: 2500, unlock: { type: 'research', research: 'commerce' },
+  },
+  // ---- 研究 ----
+  {
+    id: 'research_lab', name: '研究所', nameEn: 'Research Lab', category: 'RESEARCH', icon: 'icon_commercial_rnd_center', site: 'any',
+    description: '研究ポイントを 0.2/秒 生み出す。研究は会社画面から行う。', baseCost: 30_000, costGrowth: 1.25, employees: 5,
+    researchRate: 0.2, unlock: { type: 'assets', min: 100_000 },
   },
 ] as const satisfies readonly FacilityDef[];
 

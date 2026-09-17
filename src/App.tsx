@@ -12,6 +12,9 @@ import { LandPage } from '@/features/land/LandPage';
 import { OfflineReportModal } from '@/features/offline/OfflineReportModal';
 import { ResourceDetailSheet } from '@/features/resources/ResourceDetailSheet';
 import { ResourcesPage } from '@/features/resources/ResourcesPage';
+import { RESEARCH } from '@/game/data/research';
+import { isLandSystemUnlocked, isUnlocked } from '@/game/engine/systems/unlocks';
+import { LANDS } from '@/game/data/lands';
 import { useGame } from '@/stores/gameStore';
 import { useUiStore } from '@/stores/uiStore';
 import type { NavTab } from '@/types/ui';
@@ -27,10 +30,16 @@ const PAGES: Record<NavTab, () => ReactElement> = {
 
 export function App() {
   const tab = useUiStore((s) => s.tab);
-  const { derived } = useGame();
+  const { state, derived } = useGame();
   const Page = PAGES[tab];
-  const stopped = Object.values(derived.facilityRuntime).some((r) => r.status === 'no_input' || r.status === 'storage_full');
-  const attention = { factory: stopped };
+  const stopped = Object.values(derived.facilityRuntime).some((r) => r.status === 'no_input' || r.status === 'storage_full' || r.status === 'no_power' || r.status === 'depleted');
+  // LAND: 買える土地があるのにまだ1つも持っていない／輸送手段がなく在庫が溜まっている土地がある
+  const landSystem = isLandSystemUnlocked(state, derived.assets);
+  const noLandYet = landSystem && state.lands.length === 1 && LANDS.some((l) => isUnlocked(state, 'land', l.id) && state.company.cash >= l.price);
+  const noRoute = Object.values(derived.lands).some((l) => l.noRoute);
+  // COMPANY: 研究できるものがある
+  const researchReady = RESEARCH.some((r) => !state.research.completed[r.id] && r.requires.every((q) => state.research.completed[q]) && state.research.points >= r.cost);
+  const attention = { factory: stopped, land: noLandYet || noRoute, company: researchReady };
   return (
     <div className="app">
       <SideNav attention={attention} />

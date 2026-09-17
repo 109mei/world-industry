@@ -1,6 +1,7 @@
 import { FACILITY_MAP, facilityBulkCost, facilityMaxAffordable, type FacilityId } from '@/game/data/facilities';
 import type { FacilityInstance, GameState } from '@/types/state';
 import type { EngineContext } from '../context';
+import { canBuildOn, getLand } from '../land';
 import { isUnlocked } from '../systems/unlocks';
 
 export function findFacility(state: GameState, typeId: FacilityId, landId = 'hq'): FacilityInstance | undefined {
@@ -16,6 +17,8 @@ export function buyFacility(ctx: EngineContext, typeId: FacilityId, count: numbe
   const { state } = ctx;
   const def = FACILITY_MAP[typeId];
   if (!isUnlocked(state, 'facility', typeId)) return 0;
+  const land = getLand(state, landId);
+  if (!land || !canBuildOn(def, land).ok) return 0;
   const owned = facilityCount(state, typeId, landId);
   let n = count === 'max' ? facilityMaxAffordable(def, owned, state.company.cash) : count;
   if (def.maxCount !== undefined) n = Math.min(n, def.maxCount - owned);
@@ -34,7 +37,8 @@ export function buyFacility(ctx: EngineContext, typeId: FacilityId, count: numbe
     state.facilities.sort((a, b) => order.indexOf(a.typeId) - order.indexOf(b.typeId));
   }
   inst.count += n;
-  ctx.emit('success', `${def.name}を${n}${def.isWorker ? '人雇用' : '個建設'} (-${Math.round(cost).toLocaleString('ja-JP')}円)`);
+  const where = landId === 'hq' ? '' : `${land.name}に`;
+  ctx.emit('success', `${where}${def.name}を${n}${def.isWorker ? '人雇用' : def.transport ? '台配備' : '個建設'} (-${Math.round(cost).toLocaleString('ja-JP')}円)`);
   return n;
 }
 

@@ -13,15 +13,39 @@ export function getAmount(state: GameState, id: ResourceId): number {
   return state.inventory[id] ?? 0;
 }
 
-/** 倉庫容量（資源ごとの上限） */
-export function calcCapacity(state: GameState): number {
+/** 本社の倉庫容量（資源ごとの上限）。storageMult は研究による倍率 */
+export function calcCapacity(state: GameState, storageMult = 1): number {
   let cap = CONFIG.baseStorage;
   for (const f of state.facilities) {
-    if (!isFacilityId(f.typeId)) continue;
+    if (f.landId !== 'hq' || !isFacilityId(f.typeId)) continue;
     const def = FACILITY_MAP[f.typeId];
     if (def.storageBonus) cap += def.storageBonus * f.count;
   }
-  return cap;
+  return Math.floor(cap * storageMult);
+}
+
+/** 任意の在庫置き場（本社 or 土地）に資源を追加する。実際に入った量を返す */
+export function addToStock(
+  state: GameState,
+  stock: Partial<Record<ResourceId, number>>,
+  id: ResourceId,
+  amount: number,
+  capacity: number,
+  source: 'gathered' | 'produced' | 'crafted' | 'debug' | 'transported',
+): number {
+  if (amount <= 0) return 0;
+  const current = stock[id] ?? 0;
+  const space = Math.max(0, capacity - current);
+  const added = Math.min(space, amount);
+  if (added <= 0) return 0;
+  stock[id] = clean(current + added);
+  state.discovered[id] = true;
+  if (source === 'transported') return added;
+  const st = state.stats;
+  st.totalObtained[id] = (st.totalObtained[id] ?? 0) + added;
+  if (source === 'gathered') st.totalGathered[id] = (st.totalGathered[id] ?? 0) + added;
+  if (source === 'produced') st.totalProduced[id] = (st.totalProduced[id] ?? 0) + added;
+  return added;
 }
 
 /**
@@ -29,18 +53,7 @@ export function calcCapacity(state: GameState): number {
  * source: 統計のカテゴリ（採集／生産／クラフト）
  */
 export function addResource(state: GameState, id: ResourceId, amount: number, capacity: number, source: 'gathered' | 'produced' | 'crafted' | 'debug'): number {
-  if (amount <= 0) return 0;
-  const current = state.inventory[id] ?? 0;
-  const space = Math.max(0, capacity - current);
-  const added = Math.min(space, amount);
-  if (added <= 0) return 0;
-  state.inventory[id] = clean(current + added);
-  state.discovered[id] = true;
-  const st = state.stats;
-  st.totalObtained[id] = (st.totalObtained[id] ?? 0) + added;
-  if (source === 'gathered') st.totalGathered[id] = (st.totalGathered[id] ?? 0) + added;
-  if (source === 'produced') st.totalProduced[id] = (st.totalProduced[id] ?? 0) + added;
-  return added;
+  return addToStock(state, state.inventory, id, amount, capacity, source);
 }
 
 export function hasResources(state: GameState, needs: Partial<Record<ResourceId, number>>, times = 1): boolean {

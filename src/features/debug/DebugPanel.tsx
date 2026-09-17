@@ -48,6 +48,12 @@ export function DebugPanel() {
           <Button size="sm" onClick={() => (engine.debugUnlockAll(), after())}>
             全解放
           </Button>
+          <Button size="sm" onClick={() => (engine.debugAddResearch(500), after())}>
+            +500 RP
+          </Button>
+          <Button size="sm" onClick={() => (engine.advance(8 * 3600), after())}>
+            +8時間経過
+          </Button>
           <Button
             size="sm"
             onClick={() => {

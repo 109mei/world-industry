@@ -41,4 +41,14 @@ export const CONFIG = {
   facilityValueRatio: 0.7,
   /** 土地システムの解放に必要な資産（円） */
   landUnlockAssets: 1_000_000,
+  /** 購入した土地の初期倉庫容量（資源ごと） */
+  landBaseStorage: 2_000,
+  /** 鉱脈の量のばらつき（±） */
+  depositVariance: 0.2,
+  /** 総資産に含める土地の評価率 */
+  landValueRatio: 1,
+  /** 遠隔地の施設に本社から材料を運ぶとき、何秒ぶんの在庫を現地に置くか */
+  supplyBufferSeconds: 30,
+  /** 液体として扱う資源（パイプラインで運べる） */
+  liquidResources: ['crude_oil', 'fuel', 'water'],
 } as const;

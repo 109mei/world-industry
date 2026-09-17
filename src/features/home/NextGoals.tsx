@@ -1,21 +1,15 @@
 import { Card } from '@/components/ui/Card';
 import { Icon } from '@/components/ui/Icon';
 import { ProgressBar } from '@/components/ui/ProgressBar';
-import { FACILITIES, FACILITY_MAP, isFacilityId, type FacilityDef } from '@/game/data/facilities';
-import { RECIPES, RECIPE_MAP, isRecipeId, type RecipeDef } from '@/game/data/recipes';
-import { RESOURCE_MAP, isResourceId } from '@/game/data/resources';
-import { TOOL_MAP, isToolId } from '@/game/data/tools';
+import { FACILITIES, type FacilityDef } from '@/game/data/facilities';
+import { LANDS, type LandDef } from '@/game/data/lands';
+import { RECIPES, type RecipeDef } from '@/game/data/recipes';
+import { TERRAINS } from '@/game/data/terrain';
 import type { UnlockCondition } from '@/game/data/unlockTypes';
-import { conditionProgress, describeCondition, isUnlocked } from '@/game/engine/systems/unlocks';
+import { conditionProgress, describeCondition, envOf, isLandSystemUnlocked, isUnlocked } from '@/game/engine/systems/unlocks';
 import { useGame } from '@/stores/gameStore';
 import { formatNumber } from '@/utils/format';
-
-const NAMES = {
-  resource: (id: string) => (isResourceId(id) ? RESOURCE_MAP[id].name : id),
-  tool: (id: string) => (isToolId(id) ? TOOL_MAP[id].name : id),
-  recipe: (id: string) => (isRecipeId(id) ? RECIPE_MAP[id].name : id),
-  facility: (id: string) => (isFacilityId(id) ? FACILITY_MAP[id].name : id),
-};
+import { NAMES } from '@/utils/names';
 
 interface Goal {
   key: string;
@@ -37,11 +31,18 @@ export function NextGoals() {
     if (isUnlocked(state, 'recipe', r.id) || r.hiddenUntilUnlocked) continue;
     goals.push({ key: `r:${r.id}`, icon: r.icon, name: r.name, kind: 'レシピ', cond: r.unlock });
   }
+  if (isLandSystemUnlocked(state, derived.assets)) {
+    for (const l of LANDS as readonly LandDef[]) {
+      if (isUnlocked(state, 'land', l.id) || l.unlock.type === 'always') continue;
+      goals.push({ key: `l:${l.id}`, icon: TERRAINS[l.terrain].icon, name: l.name, kind: '土地', cond: l.unlock });
+    }
+  }
   if (goals.length === 0) return null;
+  const env = envOf(derived);
   // 進捗率が高い順に3つ
   const scored = goals
     .map((g) => {
-      const p = conditionProgress(g.cond, state, derived.assets);
+      const p = conditionProgress(g.cond, state, env);
       return { g, p, ratio: p ? p.current / p.target : 0 };
     })
     .sort((a, b) => b.ratio - a.ratio)

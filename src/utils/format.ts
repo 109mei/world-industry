@@ -1,26 +1,29 @@
 import type { NumberFormatMode } from '@/types/state';
 
-const SHORT_UNITS = ['', 'K', 'M', 'B', 'T', 'Qa', 'Qi'];
+/** 日本語の単位（1万 = 10^4 ごとに繰り上げ） */
+const SHORT_UNITS = ['', '万', '億', '兆', '京'];
 
 function fix(n: number): number {
   return Math.abs(n) < 1e-9 ? 0 : n;
 }
 
-/** 大きな数を 12.4K / 2.81M のように短く表す */
+/** 大きな数を 1.23万 / 12.3万 / 1,234万 / 2.81億 のように短く表す */
 export function formatShort(value: number, maxDecimals = 2): string {
   const n = fix(value);
   const abs = Math.abs(n);
-  if (abs < 1000) {
+  if (abs < 10_000) {
     return Number.isInteger(n) ? n.toLocaleString('ja-JP') : n.toFixed(abs < 10 ? 1 : 0);
   }
   let unit = 0;
   let v = abs;
-  while (v >= 1000 && unit < SHORT_UNITS.length - 1) {
-    v /= 1000;
+  while (v >= 10_000 && unit < SHORT_UNITS.length - 1) {
+    v /= 10_000;
     unit++;
   }
   const decimals = v >= 100 ? 0 : v >= 10 ? 1 : maxDecimals;
-  return `${n < 0 ? '-' : ''}${v.toFixed(decimals)}${SHORT_UNITS[unit]}`;
+  // 1.00万 → 1万、1.50万 → 1.5万 のように末尾の 0 は落とす。1,234万 のように整数部には桁区切りを入れる
+  const body = decimals === 0 ? Math.round(v).toLocaleString('ja-JP') : v.toFixed(decimals).replace(/\.?0+$/, '');
+  return `${n < 0 ? '-' : ''}${body}${SHORT_UNITS[unit]}`;
 }
 
 export function formatFull(value: number): string {
@@ -46,9 +49,9 @@ export function formatRate(value: number, mode: NumberFormatMode = 'short'): str
   const abs = Math.abs(n);
   let body: string;
   if (mode === 'full') body = abs.toLocaleString('ja-JP', { maximumFractionDigits: 2 });
+  else if (abs >= 10_000) body = formatShort(abs);
   else if (Number.isInteger(abs)) body = abs.toLocaleString('ja-JP');
-  else if (abs < 1000) body = abs < 10 ? abs.toFixed(2).replace(/\.?0+$/, '') || '0' : abs.toFixed(1);
-  else body = formatShort(abs);
+  else body = abs < 10 ? abs.toFixed(2).replace(/\.?0+$/, '') || '0' : abs.toFixed(1);
   return `${sign}${body}`;
 }
 

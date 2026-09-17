@@ -1,7 +1,14 @@
 import { CONFIG } from '@/game/data/config';
+import { HQ_LAND_ID, HQ_TERRAIN } from '@/game/data/lands';
 import { GAME_META } from '@/game/data/meta';
 import { RESOURCES, type ResourceDef, type ResourceId } from '@/game/data/resources';
-import type { DerivedState, GameState } from '@/types/state';
+import type { DerivedState, GameState, LandState } from '@/types/state';
+import { createBaseModifiers } from '../systems/modifiers';
+import { createEmptyPower } from '../systems/power';
+
+export function createHqLand(): LandState {
+  return { id: HQ_LAND_ID, name: '本社', country: 'JP', region: '本社所在地', terrain: HQ_TERRAIN, purchasedAt: 0, survey: 4, surveyProgress: null, deposits: {}, stock: {} };
+}
 
 export function createInitialState(now = Date.now()): GameState {
   const discovered: GameState['discovered'] = {};
@@ -11,12 +18,12 @@ export function createInitialState(now = Date.now()): GameState {
   return {
     saveVersion: GAME_META.saveVersion,
     meta: { createdAt: now, lastSaveTime: now, lastTickTime: now },
-    company: { name: 'マイカンパニー', cash: CONFIG.initialCash, totalEarned: 0, totalSpent: 0, facilityInvestment: 0 },
+    company: { name: 'マイカンパニー', cash: CONFIG.initialCash, totalEarned: 0, totalSpent: 0, facilityInvestment: 0, landInvestment: 0 },
     inventory: {},
     discovered,
     tools: {},
     facilities: [],
-    lands: [{ id: 'hq', name: '本社', country: 'JP', region: '未設定' }],
+    lands: [createHqLand()],
     market: { prices: {}, autoSell: {}, nextUpdateIn: CONFIG.marketUpdateSeconds },
     stats: {
       taps: 0,
@@ -28,11 +35,15 @@ export function createInitialState(now = Date.now()): GameState {
       toolsCrafted: {},
       toolsBroken: 0,
       playtimeSeconds: 0,
+      totalTransported: 0,
+      totalGeneratedMWh: 0,
+      totalCommercialIncome: 0,
+      totalTransportCost: 0,
     },
     unlocked: {},
     achievements: {},
     tutorial: { step: 0, completed: false },
-    research: { completed: {} },
+    research: { completed: {}, points: 0, totalPoints: 0 },
     eventLog: [],
     nextEventId: 1,
     settings: {
@@ -57,5 +68,11 @@ export function createEmptyDerived(): DerivedState {
     companyValue: 0,
     employees: 0,
     inventoryValue: 0,
+    power: createEmptyPower(),
+    lands: {},
+    modifiers: createBaseModifiers(),
+    commercialIncome: 0,
+    transportCost: 0,
+    researchRate: 0,
   };
 }

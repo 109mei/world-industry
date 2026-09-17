@@ -1,19 +1,28 @@
 import { CONFIG } from '@/game/data/config';
 import { GATHER_ACTIONS, type GatherActionId } from '@/game/data/gathering';
 import { FACILITIES, type FacilityId } from '@/game/data/facilities';
+import { LANDS, type LandDefId } from '@/game/data/lands';
 import { RECIPES, type RecipeId } from '@/game/data/recipes';
+import { RESEARCH, type ResearchId } from '@/game/data/research';
 import type { ResourceId } from '@/game/data/resources';
 import type { DerivedState, GameEvent, GameEventType, GameState, OfflineReport } from '@/types/state';
 import { craft } from './actions/craft';
 import { buyFacility, setFacilityEnabled } from './actions/facility';
 import { gather } from './actions/gather';
+import { buyLand, startSurvey } from './actions/land';
 import type { EngineContext, Rng } from './context';
 import { calcCapacity, clean } from './inventory';
+import { landCapacity, ownedLands } from './land';
 import { createEmptyDerived, createInitialState } from './state/createInitialState';
 import { runCompanyMetrics } from './systems/company';
+import { runLogistics } from './systems/logistics';
 import { runAutoSell, runMarket, sellResource } from './systems/market';
+import { computeModifiers } from './systems/modifiers';
+import { runPower } from './systems/power';
 import { runProduction } from './systems/production';
 import { runAchievements, runTutorial } from './systems/progress';
+import { completeResearch, runResearchPoints } from './systems/research';
+import { runSurveys } from './systems/survey';
 import { runUnlocks } from './systems/unlocks';
 
 export type EngineListener = (event: GameEvent, options: { toast: boolean }) => void;
@@ -28,7 +37,7 @@ export interface GameEngineOptions {
  * ゲームのシミュレーション本体。UI から独立しており、Node 上のテストでもそのまま動く。
  * - tick(dt): dt 秒ぶん進める
  * - advance(seconds): 長い時間（オフラインなど）を分割して進める
- * - 各種アクション（採集・クラフト・売却・施設購入）
+ * - 各種アクション（採集・クラフト・売却・施設購入・土地・調査・研究）
  */
 export class GameEngine {
   state: GameState;
@@ -80,15 +89,43 @@ export class GameEngine {
   }
 
   // ---------- 時間を進める ----------
+  /** 研究係数・倉庫容量など、tick の最初に揃える値 */
+  private refreshCapacities(): void {
+    const { state, derived } = this;
+    derived.modifiers = computeModifiers(state);
+    derived.capacity = calcCapacity(state, derived.modifiers.storage);
+    for (const land of ownedLands(state)) {
+      const rt = derived.lands[land.id];
+      const capacity = landCapacity(state, land, derived.modifiers);
+      if (rt) rt.capacity = capacity;
+      else derived.lands[land.id] = { capacity, transportCapacity: 0, transportUsed: 0, transportCost: 0, exports: {}, imports: {}, noRoute: false };
+    }
+    for (const id of Object.keys(derived.lands)) {
+      if (!state.lands.some((l) => l.id === id)) delete derived.lands[id];
+    }
+  }
+
   /** dt 秒ぶんシミュレーションを進める（dt は maxStepSeconds 以下を想定） */
   tick(dt: number): void {
     if (dt <= 0) return;
-    const { state, derived } = this;
-    derived.capacity = calcCapacity(state);
-    runProduction(this.ctx, dt);
+    const { state } = this;
+    this.refreshCapacities();
+    this.derived.consumption = {};
+    runSurveys(this.ctx, dt);
+    runPower(this.ctx, dt);
+    const { commercialIncome } = runProduction(this.ctx, dt);
+    const { cost } = runLogistics(this.ctx, dt);
     runMarket(this.ctx, dt);
-    const gained = runAutoSell(this.ctx);
-    this.recordIncome(gained, dt);
+    const sold = runAutoSell(this.ctx);
+    runResearchPoints(this.ctx, dt);
+    // 商業収入
+    const earned = commercialIncome * dt;
+    if (earned > 0) {
+      state.company.cash += earned;
+      state.company.totalEarned += earned;
+      state.stats.totalCommercialIncome += earned;
+    }
+    this.recordIncome(sold + earned - cost, dt);
     state.stats.playtimeSeconds += dt;
     runCompanyMetrics(this.ctx);
     runUnlocks(this.ctx);
@@ -108,7 +145,7 @@ export class GameEngine {
       buckets.push(0);
     }
     const sum = buckets.reduce((a, b) => a + b, 0);
-    d.incomePerSec = sum < 1e-6 ? 0 : sum / buckets.length;
+    d.incomePerSec = Math.abs(sum) < 1e-6 ? 0 : sum / buckets.length;
   }
 
   /**
@@ -154,7 +191,7 @@ export class GameEngine {
 
   /** 保存前などに派生情報を最新にする */
   refreshDerived(): void {
-    this.derived.capacity = calcCapacity(this.state);
+    this.refreshCapacities();
     runCompanyMetrics(this.ctx);
   }
 
@@ -186,8 +223,8 @@ export class GameEngine {
     this.state.market.autoSell[resourceId] = { enabled, keep: Math.max(0, Math.floor(keep)) };
   }
 
-  buyFacility(typeId: FacilityId, count: number | 'max' = 1): number {
-    const n = buyFacility(this.ctx, typeId, count);
+  buyFacility(typeId: FacilityId, count: number | 'max' = 1, landId = 'hq'): number {
+    const n = buyFacility(this.ctx, typeId, count, landId);
     if (n > 0) {
       this.refreshDerived();
       runUnlocks(this.ctx);
@@ -197,6 +234,32 @@ export class GameEngine {
 
   setFacilityEnabled(instanceId: string, enabled: boolean): void {
     setFacilityEnabled(this.ctx, instanceId, enabled);
+  }
+
+  buyLand(id: LandDefId): boolean {
+    const ok = buyLand(this.ctx, id);
+    if (ok) {
+      this.refreshDerived();
+      runUnlocks(this.ctx);
+      runAchievements(this.ctx);
+    }
+    return ok;
+  }
+
+  startSurvey(landId: string): boolean {
+    const ok = startSurvey(this.ctx, landId);
+    if (ok) this.refreshDerived();
+    return ok;
+  }
+
+  research(id: ResearchId): boolean {
+    const ok = completeResearch(this.ctx, id);
+    if (ok) {
+      this.refreshDerived();
+      runUnlocks(this.ctx);
+      runAchievements(this.ctx);
+    }
+    return ok;
   }
 
   renameCompany(name: string): void {
@@ -216,11 +279,16 @@ export class GameEngine {
   }
 
   debugAddResource(id: ResourceId, amount: number): void {
-    const cap = calcCapacity(this.state);
+    const cap = calcCapacity(this.state, this.derived.modifiers.storage);
     this.state.inventory[id] = Math.min(cap, (this.state.inventory[id] ?? 0) + amount);
     this.state.discovered[id] = true;
     this.state.stats.totalObtained[id] = (this.state.stats.totalObtained[id] ?? 0) + amount;
     runUnlocks(this.ctx);
+  }
+
+  debugAddResearch(points: number): void {
+    this.state.research.points += points;
+    this.state.research.totalPoints += points;
   }
 
   debugUnlockAll(): void {
@@ -228,6 +296,10 @@ export class GameEngine {
     for (const f of FACILITIES) s.unlocked[`facility:${f.id}`] = true;
     for (const r of RECIPES) s.unlocked[`recipe:${r.id}`] = true;
     for (const g of GATHER_ACTIONS) s.unlocked[`gather:${g.id}`] = true;
+    for (const l of LANDS) s.unlocked[`land:${l.id}`] = true;
+    for (const r of RESEARCH) s.research.completed[r.id] = true;
+    s.unlocked['system:land'] = true;
+    this.refreshDerived();
     this.emit('info', 'デバッグ: すべて解放しました', true);
   }
 }

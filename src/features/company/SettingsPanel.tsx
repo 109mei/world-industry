@@ -40,7 +40,7 @@ export function SettingsPanel() {
         <span className="field__label">数字の表記</span>
         <div className="btn-row">
           <Button variant={state.settings.numberFormat === 'short' ? 'primary' : 'secondary'} size="sm" onClick={() => update({ numberFormat: 'short' })}>
-            省略 (12.4K)
+            省略 (1.24万)
           </Button>
           <Button variant={state.settings.numberFormat === 'full' ? 'primary' : 'secondary'} size="sm" onClick={() => update({ numberFormat: 'full' })}>
             通常 (12,400)

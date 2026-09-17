@@ -17,7 +17,7 @@ export function SideNav({ attention = {} }: NavProps) {
         <small>v{GAME_META.version}</small>
       </div>
       {NAV_ITEMS.map((it) => (
-        <button key={it.id} className="side-nav__item" aria-current={tab === it.id ? 'page' : undefined} aria-label={it.labelJa} title={attention[it.id] ? '停止中の施設があります' : undefined} onClick={() => setTab(it.id)}>
+        <button key={it.id} className="side-nav__item" aria-current={tab === it.id ? 'page' : undefined} aria-label={it.labelJa} title={attention[it.id] ? '確認してください' : undefined} onClick={() => setTab(it.id)}>
           <Icon name={it.icon} size={22} fallback={it.label.slice(0, 2)} />
           {it.labelJa}
           <small>{it.label}</small>

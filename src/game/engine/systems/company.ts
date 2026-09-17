@@ -13,6 +13,13 @@ export function runCompanyMetrics(ctx: EngineContext): void {
     if (!amount || !RESOURCE_MAP[id]) continue;
     inventoryValue += amount * currentPrice(state, id);
   }
+  // 土地の在庫も評価に含める
+  for (const land of state.lands) {
+    for (const [id, amount] of Object.entries(land.stock ?? {}) as [ResourceId, number][]) {
+      if (!amount || !RESOURCE_MAP[id]) continue;
+      inventoryValue += amount * currentPrice(state, id);
+    }
+  }
   let toolsValue = 0;
   for (const [id, stack] of Object.entries(state.tools) as [ToolId, { count: number; durability: number }][]) {
     if (!stack || !TOOL_MAP[id]) continue;
@@ -25,7 +32,8 @@ export function runCompanyMetrics(ctx: EngineContext): void {
   }
   derived.inventoryValue = inventoryValue;
   derived.employees = employees;
-  derived.assets = state.company.cash + inventoryValue + toolsValue + state.company.facilityInvestment * CONFIG.facilityValueRatio;
+  derived.assets =
+    state.company.cash + inventoryValue + toolsValue + state.company.facilityInvestment * CONFIG.facilityValueRatio + state.company.landInvestment * CONFIG.landValueRatio;
   // 会社価値 = 総資産 + 収益力（1時間分の自動収入）
-  derived.companyValue = derived.assets + derived.incomePerSec * 3600;
+  derived.companyValue = derived.assets + Math.max(0, derived.incomePerSec) * 3600;
 }

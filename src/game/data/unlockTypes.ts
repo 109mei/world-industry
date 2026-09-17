@@ -2,7 +2,7 @@ import type { ResourceId } from './resources';
 import type { ToolId } from './tools';
 
 /**
- * 解放条件。施設・レシピ・採集行動などに付ける。
+ * 解放条件。施設・レシピ・採集行動・土地などに付ける。
  * ゲームロジック側（engine/systems/unlocks.ts）で評価する。
  */
 export type UnlockCondition =
@@ -23,6 +23,12 @@ export type UnlockCondition =
   | { type: 'facility'; facility: string; min: number }
   /** チュートリアルのステップ番号（0始まり）を超えている */
   | { type: 'tutorialStep'; min: number }
+  /** その研究を完了している */
+  | { type: 'research'; research: string }
+  /** 本社以外の土地を min か所以上所有 */
+  | { type: 'landOwned'; min: number }
+  /** 発電能力が min MW 以上 */
+  | { type: 'powerCapacity'; min: number }
   /** すべての条件を満たす */
   | { type: 'all'; conditions: UnlockCondition[] }
   /** いずれかの条件を満たす */

@@ -6,7 +6,7 @@ import { useGame } from '@/stores/gameStore';
 import { useUiStore } from '@/stores/uiStore';
 import { formatAmount, formatRate } from '@/utils/format';
 
-const KEY_IDS: ResourceId[] = ['stone', 'wood', 'scrap_metal', 'iron_ore', 'iron', 'tool'];
+const KEY_IDS: ResourceId[] = ['stone', 'wood', 'scrap_metal', 'iron_ore', 'iron', 'tool', 'coal', 'steel', 'copper', 'fuel', 'electronics'];
 
 /** HOME に出す主要資源のミニカード */
 export function KeyResources() {

@@ -26,6 +26,14 @@ interface UiStore {
   setOfflineReport: (r: OfflineReport | null) => void;
   debugOpen: boolean;
   setDebugOpen: (v: boolean) => void;
+  /** LAND 画面で開いている土地（詳細シート） */
+  selectedLand: string | null;
+  openLand: (id: string | null) => void;
+  /** FACTORY 画面で表示中の土地 */
+  factoryLand: string;
+  setFactoryLand: (id: string) => void;
+  companySubTab: 'info' | 'research' | 'achievements' | 'settings';
+  setCompanySubTab: (t: 'info' | 'research' | 'achievements' | 'settings') => void;
 }
 
 let toastSeq = 1;
@@ -52,4 +60,10 @@ export const useUiStore = create<UiStore>((set) => ({
   setOfflineReport: (offlineReport) => set({ offlineReport }),
   debugOpen: false,
   setDebugOpen: (debugOpen) => set({ debugOpen }),
+  selectedLand: null,
+  openLand: (selectedLand) => set({ selectedLand }),
+  factoryLand: 'hq',
+  setFactoryLand: (factoryLand) => set({ factoryLand }),
+  companySubTab: 'info',
+  setCompanySubTab: (companySubTab) => set({ companySubTab }),
 }));

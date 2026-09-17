@@ -29,7 +29,7 @@ export function runAchievements(ctx: EngineContext): void {
   const { state, derived, now } = ctx;
   for (const a of ACHIEVEMENTS) {
     if (state.achievements[a.id]) continue;
-    if (a.check(state, derived.assets)) {
+    if (a.check(state, derived)) {
       state.achievements[a.id] = now();
       ctx.emit('achievement', `実績解除: ${a.name}`, { toast: true });
     }

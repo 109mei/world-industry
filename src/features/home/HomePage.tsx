@@ -1,7 +1,8 @@
 import { Card } from '@/components/ui/Card';
 import { Stat } from '@/components/ui/Stat';
 import { useGame } from '@/stores/gameStore';
-import { formatMoney, formatMoneyRate, formatNumber } from '@/utils/format';
+import { formatMoney, formatMoneyRate, formatNumber, formatPercent } from '@/utils/format';
+import { formatMW } from '@/utils/names';
 import { EventList } from './EventList';
 import { GatherPanel } from './GatherPanel';
 import { KeyResources } from './KeyResources';
@@ -19,6 +20,10 @@ export function HomePage() {
           <Stat label="自動収益 /秒" value={formatMoneyRate(derived.incomePerSec, mode)} tone={derived.incomePerSec > 0 ? 'profit' : 'default'} />
           <Stat label="総資産" value={formatMoney(derived.assets, mode)} />
           <Stat label="従業員" value={`${formatNumber(derived.employees, mode)}人`} />
+          {(derived.power.capacity > 0 || derived.power.demand > 0) && (
+            <Stat label="電力" value={`${formatMW(derived.power.generation)} / ${formatMW(derived.power.capacity)}`} tone={derived.power.ratio >= 0.999 ? 'power' : 'loss'} extra={`供給率 ${formatPercent(derived.power.ratio)}`} />
+          )}
+          {state.lands.length > 1 && <Stat label="土地" value={`${state.lands.length - 1}か所`} extra={derived.transportCost > 0 ? `輸送費 ${formatMoney(derived.transportCost, mode)}/秒` : undefined} />}
         </div>
       </Card>
 

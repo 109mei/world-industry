@@ -1,4 +1,5 @@
 import type { ResourceId } from '@/game/data/resources';
+import type { TerrainId } from '@/game/data/terrain';
 import type { ToolId } from '@/game/data/tools';
 
 export type NumberFormatMode = 'short' | 'full';
@@ -12,6 +13,8 @@ export interface CompanyState {
   totalSpent: number;
   /** 施設購入に使った累計（会社価値の計算用） */
   facilityInvestment: number;
+  /** 土地購入に使った累計 */
+  landInvestment: number;
 }
 
 /** 道具は同じ種類をまとめて持つ。durability は「いま使っている1本」の残り回数 */
@@ -21,7 +24,7 @@ export interface ToolStack {
 }
 
 export interface FacilityInstance {
-  /** インスタンスID（将来、土地ごとに複数持てるようにするため） */
+  /** インスタンスID（"<landId>:<typeId>"） */
   id: string;
   typeId: string;
   landId: string;
@@ -62,6 +65,14 @@ export interface StatsState {
   toolsCrafted: Partial<Record<string, number>>;
   toolsBroken: number;
   playtimeSeconds: number;
+  /** 累計の輸送量（t） */
+  totalTransported: number;
+  /** 累計の発電量（MWh） */
+  totalGeneratedMWh: number;
+  /** 累計の商業収入（円） */
+  totalCommercialIncome: number;
+  /** 累計の輸送費（円） */
+  totalTransportCost: number;
 }
 
 export type GameEventType = 'info' | 'success' | 'warn' | 'unlock' | 'achievement' | 'tutorial';
@@ -73,12 +84,47 @@ export interface GameEvent {
   message: string;
 }
 
-/** 土地。MVPでは本社（hq）だけ存在する */
+/**
+ * 調査段階。0=未調査 1=簡易調査 2=地質調査 3=試掘 4=確定（実際に採掘して確定）
+ */
+export type SurveyLevel = 0 | 1 | 2 | 3 | 4;
+
+export interface SurveyProgress {
+  /** 完了したときの段階 */
+  targetLevel: SurveyLevel;
+  /** 残り秒数 */
+  remaining: number;
+  total: number;
+}
+
+/** 土地にある鉱床。total は最初の量、remaining は残量 */
+export interface DepositState {
+  total: number;
+  remaining: number;
+}
+
+/** 土地。本社（hq）は最初から所有している */
 export interface LandState {
   id: string;
   name: string;
   country: string;
   region: string;
+  terrain: TerrainId;
+  purchasedAt: number;
+  survey: SurveyLevel;
+  surveyProgress: SurveyProgress | null;
+  /** 鉱床（購入時に決まる）。本社にはない */
+  deposits: Partial<Record<ResourceId, DepositState>>;
+  /** その土地の倉庫（本社は state.inventory を使うので空） */
+  stock: Partial<Record<ResourceId, number>>;
+}
+
+export interface ResearchState {
+  completed: Record<string, true>;
+  /** 研究ポイント */
+  points: number;
+  /** 累計で得た研究ポイント */
+  totalPoints: number;
 }
 
 export interface SettingsState {
@@ -104,17 +150,17 @@ export interface GameState {
   lands: LandState[];
   market: MarketState;
   stats: StatsState;
-  /** 解放済みのもの。キーは "facility:xxx" "recipe:xxx" "gather:xxx" */
+  /** 解放済みのもの。キーは "facility:xxx" "recipe:xxx" "gather:xxx" "land:xxx" */
   unlocked: Record<string, true>;
   achievements: Record<string, number>;
   tutorial: { step: number; completed: boolean };
-  research: { completed: Record<string, true> };
+  research: ResearchState;
   eventLog: GameEvent[];
   nextEventId: number;
   settings: SettingsState;
 }
 
-export type FacilityStatus = 'running' | 'partial' | 'no_input' | 'storage_full' | 'disabled' | 'idle';
+export type FacilityStatus = 'running' | 'partial' | 'no_input' | 'storage_full' | 'no_power' | 'depleted' | 'disabled' | 'idle';
 
 export interface FacilityRuntime {
   status: FacilityStatus;
@@ -123,6 +169,54 @@ export interface FacilityRuntime {
   missingInputs: ResourceId[];
   /** 満杯で止まっている出力資源 */
   blockedOutputs: ResourceId[];
+  /** 電力の供給率（電力を使う施設のみ） */
+  powerRatio: number;
+  /** 枯渇した鉱床の資源 */
+  depleted: ResourceId[];
+}
+
+export interface PowerRuntime {
+  /** 発電能力（MW、燃料があるぶん） */
+  capacity: number;
+  /** 需要（MW） */
+  demand: number;
+  /** 実際の発電量（MW） */
+  generation: number;
+  /** 供給率 0〜1 */
+  ratio: number;
+  /** 発電施設ごとの出力（MW） */
+  byFacility: Record<string, number>;
+}
+
+export interface LandRuntime {
+  /** その土地の倉庫容量 */
+  capacity: number;
+  /** 輸送能力（t/秒） */
+  transportCapacity: number;
+  /** 使用中の輸送量（t/秒） */
+  transportUsed: number;
+  /** 輸送費（円/秒） */
+  transportCost: number;
+  /** 本社へ運んでいる資源（個/秒） */
+  exports: Partial<Record<ResourceId, number>>;
+  /** 本社から運んでいる資源（個/秒） */
+  imports: Partial<Record<ResourceId, number>>;
+  /** 輸送手段がなく運べない */
+  noRoute: boolean;
+}
+
+/** 研究で変わる係数 */
+export interface Modifiers {
+  /** 施設カテゴリごとの生産倍率 */
+  production: Record<string, number>;
+  powerGeneration: number;
+  renewableGeneration: number;
+  transportCapacity: number;
+  transportCost: number;
+  surveyCost: number;
+  surveyTime: number;
+  storage: number;
+  commercialIncome: number;
 }
 
 /** 毎 tick 計算し直す派生情報（保存しない） */
@@ -131,7 +225,7 @@ export interface DerivedState {
   consumption: Partial<Record<ResourceId, number>>;
   capacity: number;
   facilityRuntime: Record<string, FacilityRuntime>;
-  /** 自動売却などによる収入（円/秒、直近10秒の平均） */
+  /** 自動売却・商業収入・輸送費を合わせた収入（円/秒、直近10秒の平均） */
   incomePerSec: number;
   /** 収入の直近10秒ぶんの記録（1秒ごとのバケツ） */
   incomeBuckets: number[];
@@ -141,6 +235,15 @@ export interface DerivedState {
   companyValue: number;
   employees: number;
   inventoryValue: number;
+  power: PowerRuntime;
+  lands: Record<string, LandRuntime>;
+  modifiers: Modifiers;
+  /** 商業施設の収入（円/秒） */
+  commercialIncome: number;
+  /** 輸送費（円/秒） */
+  transportCost: number;
+  /** 研究ポイントの増加（/秒） */
+  researchRate: number;
 }
 
 export interface OfflineReport {
