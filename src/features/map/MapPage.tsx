@@ -98,7 +98,7 @@ export function MapPage() {
         <div className="stat-grid stat-grid--4">
           <Stat label="所有する土地" value={`${formatNumber(owned, mode)}か所`} extra={`${new Set(state.lands.map((l) => l.country)).size}か国`} />
           <Stat label="輸送費 /秒" value={formatMoneyRate(-derived.transportCost, mode)} tone={derived.transportCost > 0 ? 'loss' : 'default'} />
-          <Stat label="不動産" value={formatMoney(derived.estateValue, mode)} extra={`${ownedProps + ownedCustom}件（地図で買った場所 ${ownedCustom}）・賃料 ${formatMoneyRate(derived.rentPerSec, mode)}`} />
+          <Stat label="不動産" value={formatMoney(derived.estateValue, mode)} extra={`${ownedProps + ownedCustom}件・賃料 ${formatMoneyRate(derived.rentPerSec, mode)}`} />
           <Stat label="株式" value={formatMoney(derived.stockValue, mode)} extra={`${holdings}社・配当 ${formatMoneyRate(derived.dividendPerSec, mode)}`} />
           <Stat label="所持金" value={formatMoney(state.company.cash, mode)} />
           <Stat label="総資産" value={formatMoney(derived.assets, mode)} />

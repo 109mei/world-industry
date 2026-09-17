@@ -19,6 +19,7 @@ import { runCompanyMetrics } from './systems/company';
 import { creditRankDef, declineContract, deliverContract, runContracts } from './systems/contracts';
 import { buyProperty, isEstateUnlocked, runEstate, sellProperty } from './systems/estate';
 import { buyCustomProperty, sellCustomProperty } from './systems/customEstate';
+import { placeLabel } from './hq';
 import type { OsmFeature } from '@/game/services/osm/overpass';
 import { computeEventMods, runEvents, triggerEvent } from './systems/events';
 import { runLogistics } from './systems/logistics';
@@ -303,6 +304,24 @@ export class GameEngine {
     const got = sellProperty(this.ctx, id);
     if (got > 0) this.refreshDerived();
     return got;
+  }
+
+  /** 本社の場所を変える（地図の表示と「本社の所在地」に反映される） */
+  setHqLocation(lat: number, lon: number, label?: string): void {
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+    const name = label && label.trim() ? label.trim() : placeLabel(lat, lon);
+    this.state.settings.hqLocation = { lat, lon, label: name };
+    const hq = this.state.lands.find((l) => l.id === 'hq');
+    if (hq) hq.region = name;
+    this.emit('success', `本社を${name}に移しました`, { toast: true });
+  }
+
+  /** 本社の場所を初期値（大阪）に戻す */
+  resetHqLocation(): void {
+    this.state.settings.hqLocation = null;
+    const hq = this.state.lands.find((l) => l.id === 'hq');
+    if (hq) hq.region = '本社所在地';
+    this.emit('info', '本社の場所を初期値に戻しました', { toast: true });
   }
 
   /** 地図で見つけた実在の場所を買う */

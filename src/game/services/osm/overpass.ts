@@ -42,8 +42,8 @@ export interface FetchResult {
 
 const ENDPOINTS = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
 
-/** 1回のリクエストで取る最大数 */
-const MAX_ELEMENTS = 400;
+/** 1回のリクエストで取る最大数（実質の上限なし。極端に重くならないようにだけ止める） */
+const MAX_ELEMENTS = 3000;
 /** 続けてリクエストしない間隔（ミリ秒）。Overpass は公共サーバーなので控えめに */
 const MIN_INTERVAL_MS = 2500;
 /** 取得範囲を丸める大きさ（度）。約400m。少し動かしただけでは取り直さない */
@@ -65,9 +65,23 @@ export function snapBBox(b: BBox): BBox {
   };
 }
 
+/**
+ * 建物だけでなく、駐車場・役場・学校・公園などの「区画」も取る。
+ * 建物のタグが付いていない敷地（amenity=parking など）も買えるようにするため。
+ */
 export function buildQuery(b: BBox): string {
   const bbox = `${b.south},${b.west},${b.north},${b.east}`;
-  return `[out:json][timeout:25];(way["building"](${bbox});way["landuse"~"^(farmland|farmyard|orchard|meadow|vineyard|industrial|commercial|retail|brownfield|greenfield|quarry|allotments)$"](${bbox}););out geom ${MAX_ELEMENTS};`;
+  const parts = [
+    `way["building"](${bbox})`,
+    `way["landuse"](${bbox})`,
+    `way["amenity"](${bbox})`,
+    `way["leisure"](${bbox})`,
+    `way["tourism"](${bbox})`,
+    `way["shop"](${bbox})`,
+    `way["man_made"](${bbox})`,
+    `way["aeroway"~"^(terminal|hangar|apron)$"](${bbox})`,
+  ];
+  return `[out:json][timeout:30];(${parts.join(';')};);out geom ${MAX_ELEMENTS};`;
 }
 
 interface OverpassElement {
@@ -82,7 +96,10 @@ export function parseElements(elements: OverpassElement[]): OsmFeature[] {
   const out: OsmFeature[] = [];
   for (const el of elements) {
     const geom = el.geometry;
-    if (!geom || geom.length < 3) continue;
+    if (!geom || geom.length < 4) continue;
+    const first = geom[0];
+    const last = geom[geom.length - 1];
+    if (Math.abs(first.lat - last.lat) > 1e-9 || Math.abs(first.lon - last.lon) > 1e-9) continue; // 線（道路など）は面として扱わない
     const tags = el.tags ?? {};
     const polygon = geom.map((g) => ({ lat: g.lat, lon: g.lon }));
     const areaSqm = Math.round(polygonAreaSqm(polygon));

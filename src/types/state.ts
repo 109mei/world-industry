@@ -203,6 +203,10 @@ export interface SettingsState {
   events: boolean;
   /** LAND 画面の表示（地図 or リスト） */
   landView: 'map' | 'list';
+  /** 地図を立体（3D）で表示する。既定は平面（2D）で、地図のボタンで切り替える */
+  map3D?: boolean;
+  /** 本社の場所（地図に出す位置）。未設定なら初期値（大阪） */
+  hqLocation?: { lat: number; lon: number; label: string } | null;
   /** 施設一覧で「今建てられるものだけ」を表示する */
   factoryOnlyBuildable: boolean;
   /** クラフト一覧で「作れるものだけ」を表示する */

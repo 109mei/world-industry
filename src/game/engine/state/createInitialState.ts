@@ -107,6 +107,8 @@ export function createInitialState(now = Date.now()): GameState {
       factoryOnlyBuildable: false,
       craftOnlyMakeable: false,
       estateView: 'map',
+      hqLocation: null,
+      map3D: false,
     },
   };
 }

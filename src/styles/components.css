@@ -1670,3 +1670,23 @@ textarea.input {
 .rm-osm {
   cursor: pointer;
 }
+
+/* 地図: 立体表示 */
+.rm__map--3d {
+  width: 100%;
+  height: 100%;
+}
+.rm__map--loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-sub);
+  font-size: 13px;
+}
+.maplibregl-ctrl-attrib {
+  font-size: 10px;
+}
+html[data-theme='dark'] .maplibregl-ctrl-attrib {
+  background: rgba(0, 0, 0, 0.5);
+  color: #cfd6e0;
+}

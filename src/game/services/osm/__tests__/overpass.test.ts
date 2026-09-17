@@ -88,3 +88,55 @@ describe('取りに行く回数を抑える', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('建物以外の区画も買える', () => {
+  function ring(lat: number, lon: number, tags: Record<string, string>, id = 1, size = 0.0004) {
+    return {
+      type: 'way',
+      id,
+      tags,
+      geometry: [
+        { lat: lat - size, lon: lon - size },
+        { lat: lat - size, lon: lon + size },
+        { lat: lat + size, lon: lon + size },
+        { lat: lat + size, lon: lon - size },
+        { lat: lat - size, lon: lon - size },
+      ],
+    };
+  }
+
+  it('駐車場・役場・公園・ゴルフ場を種類つきで読み取る', () => {
+    const fs = parseElements([
+      ring(33.6, 130.6, { amenity: 'parking' }, 1),
+      ring(33.6, 130.6, { amenity: 'townhall', name: '飯塚市役所' }, 2),
+      ring(33.6, 130.6, { leisure: 'park', name: '中央公園' }, 3),
+      ring(33.6, 130.6, { leisure: 'golf_course', name: '嘉穂カントリークラブ' }, 4),
+      ring(33.6, 130.6, { man_made: 'water_works' }, 5),
+    ]);
+    expect(fs.map((f) => f.label)).toEqual(['駐車場', '役所', '公園', 'ゴルフ場', '浄水場']);
+    expect(fs[1].name).not.toContain('飯塚市役所');
+    expect(fs[3].kind).toBe('resort');
+  });
+
+  it('線（道路など）は面として扱わない', () => {
+    const line = {
+      type: 'way',
+      id: 9,
+      tags: { highway: 'residential' },
+      geometry: [
+        { lat: 33.6, lon: 130.6 },
+        { lat: 33.601, lon: 130.601 },
+        { lat: 33.602, lon: 130.603 },
+        { lat: 33.603, lon: 130.606 },
+      ],
+    };
+    expect(parseElements([line])).toHaveLength(0);
+  });
+
+  it('クエリに駐車場や公園が含まれる', () => {
+    const q = buildQuery({ south: 1, west: 2, north: 3, east: 4 });
+    expect(q).toContain('amenity');
+    expect(q).toContain('leisure');
+    expect(q).toContain('3000');
+  });
+});

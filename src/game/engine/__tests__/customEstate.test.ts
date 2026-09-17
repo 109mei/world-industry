@@ -6,6 +6,7 @@ import { migrateSave } from '../state/migrations';
 import { canBuildOn, getLand, landPopulation } from '../land';
 import { FACILITY_MAP } from '@/game/data/facilities';
 import { customLandId, customPrice, customRentPerSec, getCustom, quoteFeature } from '../systems/customEstate';
+import { hqLocation } from '../hq';
 import type { OsmFeature } from '@/game/services/osm/overpass';
 
 function seeded(seed = 7): () => number {
@@ -166,5 +167,25 @@ describe('セーブの移行 v6 → v7', () => {
   it('custom のない古いセーブでも壊れない', () => {
     const s = migrateSave({ saveVersion: 6, company: { cash: 5 }, lands: [], estate: { owned: {} } });
     expect(s.estate.custom).toEqual({});
+  });
+});
+
+describe('本社の場所', () => {
+  it('初期値は大阪、変えると保存され、戻せる', () => {
+    const e = makeEngine();
+    expect(hqLocation(e.state).label).toBe('大阪');
+    e.setHqLocation(33.6459, 130.6915);
+    expect(e.state.settings.hqLocation).toBeTruthy();
+    expect(hqLocation(e.state).lat).toBeCloseTo(33.6459, 4);
+    expect(hqLocation(e.state).label).toContain('飯塚');
+    e.resetHqLocation();
+    expect(e.state.settings.hqLocation).toBeNull();
+    expect(hqLocation(e.state).label).toBe('大阪');
+  });
+
+  it('おかしな座標は受け付けない', () => {
+    const e = makeEngine();
+    e.setHqLocation(Number.NaN, 130);
+    expect(e.state.settings.hqLocation ?? null).toBeNull();
   });
 });

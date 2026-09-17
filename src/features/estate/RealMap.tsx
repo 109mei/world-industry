@@ -1,9 +1,10 @@
 import L from 'leaflet';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { CITIES, type CityDef } from '@/game/data/cities';
 import { COMPANIES, COMPANY_MAP, SECTOR_LABEL, type CompanyDef } from '@/game/data/companies';
-import { HQ_LOCATION, LANDS, type LandDef } from '@/game/data/lands';
+import { LANDS, type LandDef } from '@/game/data/lands';
+import { hqLocation } from '@/game/engine/hq';
 import { PROPERTIES, PROPERTY_KIND, type PropertyDef } from '@/game/data/properties';
 import { getLand } from '@/game/engine/land';
 import { propertyBuyCost, propertyOwner, propertyPrice } from '@/game/engine/systems/estate';
@@ -11,14 +12,18 @@ import { customLandId, customPrice, getCustom, quoteFeature } from '@/game/engin
 import { overpass, type BBox, type OsmFeature } from '@/game/services/osm/overpass';
 import { PROPERTY_KIND as KIND_DEF } from '@/game/data/properties';
 import { isUnlocked } from '@/game/engine/systems/unlocks';
-import { useGame } from '@/stores/gameStore';
+import { bumpGame, useGame } from '@/stores/gameStore';
 import { useUiStore } from '@/stores/uiStore';
 import { formatMoney, formatNumber } from '@/utils/format';
+
+const Map3D = lazy(() => import('./Map3D').then((m) => ({ default: m.Map3D })));
 
 /** ズームがこれ未満のときは都市ごとにまとめて表示する */
 const CITY_ZOOM = 11;
 /** このズーム以上で、実在の建物を読み込んで買えるようにする */
 const BUILDING_ZOOM = 16;
+/** このズーム以上で、立体表示（グーグルアース風）に切り替える */
+const THREE_D_ZOOM = 16;
 
 /**
  * 地図タイルは OpenStreetMap の標準タイル（API キー不要、日本語の地名）。
@@ -46,9 +51,9 @@ function landIcon(owned: boolean): L.DivIcon {
   return L.divIcon({ className: 'rm-icon', html: `<span class="rm-land${owned ? ' rm-land--owned' : ''}">▲</span>`, iconSize: [26, 26], iconAnchor: [28, -2] });
 }
 
-function cityIcon(count: number, owned: number, affordable: number): L.DivIcon {
+function cityIcon(owned: number, affordable: number): L.DivIcon {
   const cls = ['rm-city', owned > 0 ? 'rm-city--owned' : '', affordable > 0 ? 'rm-city--affordable' : ''].filter(Boolean).join(' ');
-  return L.divIcon({ className: 'rm-icon', html: `<span class="${cls}">${count}</span>`, iconSize: [30, 30], iconAnchor: [15, 15] });
+  return L.divIcon({ className: 'rm-icon', html: `<span class="${cls}">●</span>`, iconSize: [30, 30], iconAnchor: [15, 15] });
 }
 
 /**
@@ -56,7 +61,7 @@ function cityIcon(count: number, owned: number, affordable: number): L.DivIcon {
  * ズームアウト時は都市ごとにまとめ、タップでその都市へ寄る。
  */
 export function RealMap() {
-  const { state, derived } = useGame();
+  const { state, derived, engine } = useGame();
   const openProperty = useUiStore((s) => s.openProperty);
   const openCompany = useUiStore((s) => s.openCompany);
   const openLand = useUiStore((s) => s.openLand);
@@ -72,29 +77,40 @@ export function RealMap() {
   const [osmState, setOsmState] = useState<'idle' | 'loading' | 'error'>('idle');
   const [osmError, setOsmError] = useState<string | null>(null);
   const [bounds, setBounds] = useState<BBox | null>(null);
+  const [geoState, setGeoState] = useState<'idle' | 'asking' | 'denied' | 'unsupported'>('idle');
+  const [view, setView] = useState<{ lat: number; lon: number; zoom: number }>({ lat: 36.5, lon: 138.5, zoom: 5 });
+  const viewRef = useRef(view);
+  viewRef.current = view;
+  const [threeDError, setThreeDError] = useState<string | null>(null);
   const openFeature = useUiStore((s) => s.openFeature);
   const buildingLayerRef = useRef<L.LayerGroup | null>(null);
+  const buildingRendererRef = useRef<L.Canvas | null>(null);
 
   // 地図の作成（1回だけ）
   useEffect(() => {
     const el = containerRef.current;
     if (!el || mapRef.current) return;
     const start = useUiStore.getState().mapTarget;
+    const last = viewRef.current;
+    const from = start ?? (last.zoom > 5 ? last : null);
     const map = L.map(el, {
-      center: start ? [start.lat, start.lon] : [36.5, 138.5],
-      zoom: start ? start.zoom : 5,
+      center: from ? [from.lat, from.lon] : [36.5, 138.5],
+      zoom: from ? from.zoom : 5,
       zoomControl: true,
       attributionControl: true,
       worldCopyJump: true,
       minZoom: 2,
-      maxZoom: 17,
+      maxZoom: 19,
     });
     mapRef.current = map;
     layerRef.current = L.layerGroup().addTo(map);
+    buildingRendererRef.current = L.canvas({ padding: 0.3 });
     buildingLayerRef.current = L.layerGroup().addTo(map);
     const syncBounds = () => {
       const b = map.getBounds();
+      const c = map.getCenter();
       setBounds({ south: b.getSouth(), west: b.getWest(), north: b.getNorth(), east: b.getEast() });
+      setView({ lat: c.lat, lon: c.lng, zoom: map.getZoom() });
     };
     map.on('moveend', syncBounds);
     map.on('zoomend', () => {
@@ -155,6 +171,7 @@ export function RealMap() {
     .join(',');
   const landsKey = state.lands.map((l) => l.id).join(',');
   const customKeyForMarkers = Object.keys(state.estate.custom ?? {}).sort().join(',');
+  const hqKey = `${state.settings.hqLocation?.lat ?? ''},${state.settings.hqLocation?.lon ?? ''}`;
   const builtKey = state.facilities.map((f) => `${f.landId}:${f.count}`).sort().join(',');
   const priceKey = Object.values(state.estate.cityMult)
     .map((m) => m.toFixed(2))
@@ -200,8 +217,8 @@ export function RealMap() {
         const owned = g.props.filter((p) => propertyOwner(state, p.id).type === 'player').length;
         const buyable = g.props.filter((p) => affordable.has(p.id) && propertyOwner(state, p.id).type === 'market').length;
         const names = g.cities.map((c) => c.name).join('・');
-        const m = L.marker([lat, lon], { icon: cityIcon(g.props.length, owned, buyable), title: names, zIndexOffset: 1000 });
-        m.bindTooltip(`${names}（物件 ${g.props.length}件${owned > 0 ? `・所有 ${owned}` : ''}${buyable > 0 ? `・買える ${buyable}` : ''}）`, { direction: 'top', offset: [0, -12] });
+        const m = L.marker([lat, lon], { icon: cityIcon(owned, buyable), title: names, zIndexOffset: 1000 });
+        m.bindTooltip(names, { direction: 'top', offset: [0, -12] });
         m.on('click', () => {
           if (g.cities.length === 1) {
             map.flyTo([g.cities[0].lat, g.cities[0].lon], 13, { duration: 0.7 });
@@ -280,12 +297,13 @@ export function RealMap() {
       );
       m.addTo(layer);
     }
-    const hq = L.marker([HQ_LOCATION.lat, HQ_LOCATION.lon], { icon: L.divIcon({ className: 'rm-icon', html: '<span class="rm-hqself">本社</span>', iconSize: [40, 22], iconAnchor: [20, 11] }), zIndexOffset: 200 });
-    hq.bindTooltip('本社（大阪）', { direction: 'top', offset: [0, -10] });
+    const hqAt = hqLocation(state);
+    const hq = L.marker([hqAt.lat, hqAt.lon], { icon: L.divIcon({ className: 'rm-icon', html: '<span class="rm-hqself">本社</span>', iconSize: [40, 22], iconAnchor: [20, 11] }), zIndexOffset: 200 });
+    hq.bindTooltip(`本社（${hqAt.label}）`, { direction: 'top', offset: [0, -10] });
     hq.on('click', () => openLand('hq'));
     hq.addTo(layer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [zoom, ownedKey, companyOwnedKey, affordableKey, holdingsKey, landsKey, builtKey, priceKey, customKeyForMarkers, ready, state.settings.numberFormat]);
+  }, [zoom, ownedKey, companyOwnedKey, affordableKey, holdingsKey, landsKey, builtKey, priceKey, customKeyForMarkers, hqKey, ready, state.settings.numberFormat]);
 
   // --- 実在の建物（OpenStreetMap）: 寄ったときだけ読み込む ---
   const customKey = Object.keys(state.estate.custom ?? {}).sort().join(',');
@@ -329,12 +347,22 @@ export function RealMap() {
     if (zoom < BUILDING_ZOOM) return;
     // 大きい区画を先に描いて、小さな建物が上に来るようにする（タップしやすさ）
     const ordered = [...features].sort((a, b) => b.areaSqm - a.areaSqm);
+    const heavy = ordered.length > 300;
     for (const f of ordered) {
       const owned = getCustom(state, f.id);
       const color = KIND_DEF[owned?.kind ?? f.kind].color;
       const poly = L.polygon(
         f.polygon.map((p) => [p.lat, p.lon] as [number, number]),
-        { color, weight: owned ? 3 : 1.5, opacity: owned ? 1 : 0.8, fillColor: color, fillOpacity: owned ? 0.55 : 0.18, className: 'rm-osm' },
+        {
+          color,
+          weight: owned ? 3 : 1.5,
+          opacity: owned ? 1 : 0.8,
+          fillColor: color,
+          fillOpacity: owned ? 0.55 : 0.18,
+          className: 'rm-osm',
+          // 数が多いときは Canvas で描く（SVG だと重くなるため）
+          renderer: heavy ? (buildingRendererRef.current ?? undefined) : undefined,
+        },
       );
       const price = owned ? customPrice(state, owned) : quoteFeature(f).basePrice;
       const built = owned ? state.facilities.filter((x) => x.landId === customLandId(f.id)).reduce((a, x) => a + x.count, 0) : 0;
@@ -347,8 +375,38 @@ export function RealMap() {
     }
   }, [features, zoom, customKey, state.company.cash, state.settings.numberFormat]);
 
+  // 既定は平面。近づいたときだけ「3D」ボタンが出て、押した人だけ立体になる
+  const canUse3D = view.zoom >= THREE_D_ZOOM;
+  const wants3D = state.settings.map3D === true;
+  const use3D = wants3D && !threeDError && canUse3D;
+
   const ownedProps = Object.keys(state.estate.owned);
   const goJapan = () => mapRef.current?.flyTo([36.5, 137], 5, { duration: 0.6 });
+  const setHqHere = () => {
+    const map = mapRef.current;
+    if (!map) return;
+    const c = map.getCenter();
+    engine.setHqLocation(c.lat, c.lng);
+    bumpGame();
+  };
+  const useMyLocation = () => {
+    if (!navigator.geolocation) {
+      setGeoState('unsupported');
+      return;
+    }
+    setGeoState('asking');
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setGeoState('idle');
+        const { latitude, longitude } = pos.coords;
+        engine.setHqLocation(latitude, longitude);
+        bumpGame();
+        mapRef.current?.flyTo([latitude, longitude], 17, { duration: 0.8 });
+      },
+      () => setGeoState('denied'),
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 },
+    );
+  };
   const goWorld = () => mapRef.current?.setView([20, 10], 2);
   const goOwned = () => {
     const map = mapRef.current;
@@ -373,24 +431,75 @@ export function RealMap() {
           <Button size="sm" disabled={ownedProps.length === 0} onClick={goOwned}>
             所有物件へ
           </Button>
+          <Button size="sm" onClick={useMyLocation} title="位置情報を使って本社を現在地に置きます">
+            {geoState === 'asking' ? '現在地を取得中…' : '現在地を本社に'}
+          </Button>
+          <Button size="sm" onClick={setHqHere} title="いま地図の中心にしている場所を本社にします">
+            ここを本社に
+          </Button>
+          {canUse3D && (
+            <Button
+              size="sm"
+              variant={use3D ? 'primary' : 'secondary'}
+              onClick={() => {
+                setThreeDError(null);
+                engine.updateSettings({ map3D: !wants3D });
+                bumpGame();
+              }}
+              title="近づいた場所を立体で表示します"
+            >
+              {use3D ? '2Dに戻す' : '3Dで見る'}
+            </Button>
+          )}
         </div>
         <span className="text-sub" style={{ fontSize: 11 }}>
-          {zoom < CITY_ZOOM
-            ? '数字は都市の物件数。タップで寄る。▲は施設を建てられる産業用地（タップで購入）'
+          {geoState === 'denied'
+            ? '位置情報が使えませんでした。ブラウザの設定で許可するか、「ここを本社に」で地図から決められます'
+            : geoState === 'unsupported'
+              ? 'この端末では位置情報が使えません。「ここを本社に」で地図から決められます'
+              : zoom < CITY_ZOOM
+            ? '丸は物件のある都市。タップで寄る。▲は施設を建てられる産業用地（タップで購入）'
             : zoom < BUILDING_ZOOM
               ? 'ピンをタップで詳細。もう少し寄ると、実在の建物を買えるようになります'
               : osmState === 'loading'
                 ? 'この辺りの建物を読み込み中…'
                 : osmState === 'error'
                   ? `建物を読み込めませんでした（${osmError ?? '通信エラー'}）。少し待つか、地図を動かすと再試行します`
-                  : `この範囲の建物 ${features.length} 件。建物をタップすると買えます`}
+                  : '建物や区画をタップすると買えます'}
         </span>
       </div>
       <div className="rm__stage">
-        <div ref={containerRef} className="rm__map" role="application" aria-label="実在の地図" />
-        {tileError && (
+        {use3D ? (
+          <Suspense
+            fallback={
+              <div className="rm__map rm__map--loading" role="status">
+                立体表示を読み込み中…
+              </div>
+            }
+          >
+            <Map3D
+              center={view}
+              features={features}
+              ownedIds={Object.keys(state.estate.custom ?? {})}
+              onSelect={(f) => openFeature(f)}
+              onView={(v) => {
+                setView({ lat: v.lat, lon: v.lon, zoom: v.zoom });
+                setBounds(v.bounds);
+              }}
+              onError={(m) => setThreeDError(m)}
+            />
+          </Suspense>
+        ) : (
+          <div ref={containerRef} className="rm__map" role="application" aria-label="実在の地図" />
+        )}
+        {!use3D && tileError && (
           <div className="rm__notice" role="status">
             地図の画像を読み込めません（オフラインかブロックされています）。ピンは表示されるので、そのまま使えます。
+          </div>
+        )}
+        {threeDError && view.zoom >= THREE_D_ZOOM && (
+          <div className="rm__notice" role="status">
+            立体表示を使えませんでした（{threeDError}）。平面の地図で続けます。
           </div>
         )}
       </div>

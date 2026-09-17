@@ -72,6 +72,81 @@ const AMENITY: Record<string, { kind: PropertyKind; label: string }> = {
   nursing_home: { kind: 'apartment', label: '介護施設' },
   social_facility: { kind: 'office', label: '福祉施設' },
   veterinary: { kind: 'office', label: '動物病院' },
+  bus_station: { kind: 'retail', label: 'バスターミナル' },
+  marketplace: { kind: 'retail', label: '市場' },
+  charging_station: { kind: 'land', label: '充電スタンド' },
+  bicycle_parking: { kind: 'land', label: '駐輪場' },
+  taxi: { kind: 'land', label: 'タクシー乗り場' },
+  recycling: { kind: 'land', label: 'リサイクル施設' },
+  waste_transfer_station: { kind: 'warehouse', label: 'ごみ処理施設' },
+  prison: { kind: 'office', label: '刑務所' },
+  courthouse: { kind: 'office', label: '裁判所' },
+  embassy: { kind: 'office', label: '大使館' },
+  research_institute: { kind: 'office', label: '研究所' },
+  driving_school: { kind: 'office', label: '自動車教習所' },
+  events_venue: { kind: 'retail', label: 'イベント会場' },
+  conference_centre: { kind: 'office', label: '会議場' },
+  casino: { kind: 'retail', label: '遊技場' },
+  nightclub: { kind: 'retail', label: 'ナイトクラブ' },
+  public_bath: { kind: 'retail', label: '銭湯・温浴施設' },
+  funeral_hall: { kind: 'retail', label: '斎場' },
+  crematorium: { kind: 'office', label: '斎場' },
+  grave_yard: { kind: 'land', label: '墓地' },
+  shelter: { kind: 'land', label: '休憩所' },
+  toilets: { kind: 'land', label: '公衆トイレ' },
+  fountain: { kind: 'land', label: '噴水' },
+};
+
+/** 公園・スポーツ施設など */
+const LEISURE: Record<string, { kind: PropertyKind; label: string }> = {
+  park: { kind: 'land', label: '公園' },
+  garden: { kind: 'land', label: '庭園' },
+  playground: { kind: 'land', label: '遊び場' },
+  pitch: { kind: 'land', label: 'グラウンド' },
+  sports_centre: { kind: 'retail', label: 'スポーツ施設' },
+  fitness_centre: { kind: 'retail', label: 'ジム' },
+  stadium: { kind: 'retail', label: 'スタジアム' },
+  golf_course: { kind: 'resort', label: 'ゴルフ場' },
+  swimming_pool: { kind: 'retail', label: 'プール' },
+  water_park: { kind: 'resort', label: 'レジャープール' },
+  marina: { kind: 'resort', label: 'マリーナ' },
+  track: { kind: 'land', label: '競技場' },
+  nature_reserve: { kind: 'land', label: '保全地区' },
+  dog_park: { kind: 'land', label: 'ドッグラン' },
+  common: { kind: 'land', label: '共有地' },
+};
+
+/** 人工物（発電所・タンク・工作物など） */
+const MAN_MADE: Record<string, { kind: PropertyKind; label: string }> = {
+  works: { kind: 'factory', label: '工場' },
+  wastewater_plant: { kind: 'factory', label: '下水処理場' },
+  water_works: { kind: 'factory', label: '浄水場' },
+  storage_tank: { kind: 'warehouse', label: 'タンク' },
+  silo: { kind: 'warehouse', label: 'サイロ' },
+  pier: { kind: 'land', label: '桟橋' },
+  tower: { kind: 'land', label: '塔' },
+  chimney: { kind: 'factory', label: '煙突' },
+  water_tower: { kind: 'land', label: '給水塔' },
+  bridge: { kind: 'land', label: '橋' },
+};
+
+/** 観光・宿泊 */
+const TOURISM: Record<string, { kind: PropertyKind; label: string }> = {
+  hotel: { kind: 'hotel', label: 'ホテル' },
+  motel: { kind: 'hotel', label: 'モーテル' },
+  guest_house: { kind: 'hotel', label: '民宿' },
+  hostel: { kind: 'hotel', label: 'ホステル' },
+  apartment: { kind: 'apartment', label: '民泊' },
+  museum: { kind: 'retail', label: '博物館' },
+  gallery: { kind: 'retail', label: '美術館' },
+  attraction: { kind: 'retail', label: '観光施設' },
+  theme_park: { kind: 'resort', label: '遊園地' },
+  zoo: { kind: 'resort', label: '動物園' },
+  aquarium: { kind: 'resort', label: '水族館' },
+  camp_site: { kind: 'resort', label: 'キャンプ場' },
+  caravan_site: { kind: 'resort', label: 'オートキャンプ場' },
+  picnic_site: { kind: 'land', label: '休憩所' },
+  viewpoint: { kind: 'land', label: '展望地' },
 };
 
 const BUILDING: Record<string, { kind: PropertyKind; label: string }> = {
@@ -140,11 +215,11 @@ const LANDUSE: Record<string, { kind: PropertyKind; label: string }> = {
 
 /** タグから種類とラベルを決める */
 export function classifyOsm(tags: OsmTags): OsmKindInfo {
-  const tourism = tags.tourism;
-  if (tourism === 'hotel' || tourism === 'motel' || tourism === 'guest_house' || tourism === 'hostel') {
-    return { kind: 'hotel', label: '宿泊施設', fallbackName: '宿泊施設' };
+  if (tags.tourism && TOURISM[tags.tourism]) {
+    const t = TOURISM[tags.tourism];
+    return { kind: t.kind, label: t.label, fallbackName: t.label };
   }
-  if (tourism === 'resort' || tags.leisure === 'resort') return { kind: 'resort', label: 'リゾート', fallbackName: 'リゾート' };
+  if (tags.tourism === 'resort' || tags.leisure === 'resort') return { kind: 'resort', label: 'リゾート', fallbackName: 'リゾート' };
   if (tags.shop) {
     const label = SHOP_LABEL[tags.shop] ?? '店舗';
     return { kind: 'retail', label, fallbackName: label };
@@ -155,7 +230,17 @@ export function classifyOsm(tags: OsmTags): OsmKindInfo {
     return { kind: a.kind, label: a.label, fallbackName: a.label };
   }
   if (tags.railway === 'station' || tags.public_transport === 'station') return { kind: 'retail', label: '駅', fallbackName: '駅' };
-  if (tags.man_made === 'works') return { kind: 'factory', label: '工場', fallbackName: '工場' };
+  if (tags.leisure && LEISURE[tags.leisure]) {
+    const l = LEISURE[tags.leisure];
+    return { kind: l.kind, label: l.label, fallbackName: l.label };
+  }
+  if (tags.man_made && MAN_MADE[tags.man_made]) {
+    const m = MAN_MADE[tags.man_made];
+    return { kind: m.kind, label: m.label, fallbackName: m.label };
+  }
+  if (tags.aeroway === 'terminal') return { kind: 'retail', label: '空港ターミナル', fallbackName: '空港ターミナル' };
+  if (tags.aeroway === 'hangar') return { kind: 'warehouse', label: '格納庫', fallbackName: '格納庫' };
+  if (tags.aeroway === 'apron') return { kind: 'land', label: 'エプロン', fallbackName: 'エプロン' };
   if (tags.building && BUILDING[tags.building]) {
     const b = BUILDING[tags.building];
     return { kind: b.kind, label: b.label, fallbackName: b.label };
