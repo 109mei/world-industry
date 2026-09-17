@@ -43,6 +43,18 @@ interface UiStore {
   achievementQueue: AchievementPopup[];
   pushAchievement: (achievementId: string) => void;
   shiftAchievement: () => void;
+  /** ESTATE 画面で開いている物件 */
+  selectedProperty: string | null;
+  openProperty: (id: string | null) => void;
+  /** ESTATE 画面で開いている会社 */
+  selectedCompany: string | null;
+  openCompany: (id: string | null) => void;
+  /** 物件一覧の絞り込み */
+  estateFilter: 'all' | 'owned' | 'affordable';
+  setEstateFilter: (f: 'all' | 'owned' | 'affordable') => void;
+  /** 地図で移動したい場所（設定すると地図がそこへ飛ぶ） */
+  mapTarget: { lat: number; lon: number; zoom: number; seq: number } | null;
+  flyTo: (lat: number, lon: number, zoom: number) => void;
 }
 
 let toastSeq = 1;
@@ -78,4 +90,12 @@ export const useUiStore = create<UiStore>((set) => ({
   achievementQueue: [],
   pushAchievement: (achievementId) => set((s) => ({ achievementQueue: [...s.achievementQueue, { id: toastSeq++, achievementId }] })),
   shiftAchievement: () => set((s) => ({ achievementQueue: s.achievementQueue.slice(1) })),
+  selectedProperty: null,
+  openProperty: (selectedProperty) => set({ selectedProperty }),
+  selectedCompany: null,
+  openCompany: (selectedCompany) => set({ selectedCompany }),
+  estateFilter: 'all',
+  setEstateFilter: (estateFilter) => set({ estateFilter }),
+  mapTarget: null,
+  flyTo: (lat, lon, zoom) => set((s) => ({ mapTarget: { lat, lon, zoom, seq: (s.mapTarget?.seq ?? 0) + 1 } })),
 }));

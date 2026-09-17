@@ -52,6 +52,45 @@ export const CONFIG = {
     /** 同時に起きるイベントの上限 */
     maxActive: 3,
   },
+  /** 不動産（実在の場所の土地・物件） */
+  estate: {
+    /** 不動産・株式の解放に必要な総資産（円） */
+    unlockAssets: 3_000_000,
+    /** 購入時の手数料（価格に対する割合） */
+    buyFee: 0.03,
+    /** 売却時の手数料 */
+    sellFee: 0.03,
+    /** 地価が動く間隔（秒） */
+    updateSeconds: 20,
+    /** 地価倍率の下限・上限 */
+    minMult: 0.3,
+    maxMult: 30,
+  },
+  /** 株式 */
+  stocks: {
+    /** 売買のスプレッド（片道） */
+    spread: 0.005,
+    /** 発行株数の100%を一度に買ったときの株価上昇率（需給係数に掛かる） */
+    impact: 1.5,
+    /** 需給係数が1へ戻る速さ（1時間あたり） */
+    sentimentReversion: 0.5,
+    minSentiment: 0.4,
+    maxSentiment: 4,
+    /** 株価が動く間隔（秒） */
+    updateSeconds: 10,
+    /** 再投資した利益のうち事業価値になる割合（残りは内部留保） */
+    reinvestEfficiency: 0.6,
+    /** 増設の費用（事業価値に対する割合）と、増える事業価値の割合 */
+    expandCostRatio: 0.1,
+    expandGain: 0.1,
+    /** 買収（残りの株をすべて買う）のプレミアム */
+    acquirePremium: 0.25,
+    /** 解体したときの評価率（物件・事業） */
+    liquidationPropertyRatio: 0.85,
+    liquidationBusinessRatio: 0.25,
+    /** 株価履歴の保持数 */
+    historyLength: 120,
+  },
   /** イベント履歴の保持数 */
   eventLogLength: 100,
   /** 会社価値の計算に使う、施設の購入額の評価率 */

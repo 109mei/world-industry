@@ -1,14 +1,17 @@
+import { CITIES, CITY_MAP, isCityId } from '@/game/data/cities';
 import { CONFIG } from '@/game/data/config';
+import { PROPERTY_MAP, isPropertyId } from '@/game/data/properties';
 import { EVENTS, EVENT_MAP, isEventDefId, type EventDef } from '@/game/data/events';
 import { FACILITY_MAP, isFacilityId } from '@/game/data/facilities';
 import { RESOURCE_MAP, type ResourceId } from '@/game/data/resources';
 import type { ActiveEvent, EventModifiers, GameState } from '@/types/state';
 import type { EngineContext } from '../context';
 import { getLand, ownedLands } from '../land';
+import { isEstateUnlocked, shiftCityPrice } from './estate';
 import { getMarketState } from './market';
 
 export function createEmptyEventMods(): EventModifiers {
-  return { landProduction: {}, transport: {}, power: 1, commercial: 1 };
+  return { landProduction: {}, transport: {}, power: 1, commercial: 1, stock: 1 };
 }
 
 /** 売れる資源のうち、プレイヤーが持っている・売ったことのあるもの（イベントの対象候補） */
@@ -51,6 +54,17 @@ function pickTarget(ctx: EngineContext, def: EventDef): { ok: boolean; target: s
     }
     case 'subsidy':
       return { ok: state.stats.playtimeSeconds > 300, target: null };
+    case 'bull':
+    case 'bear':
+      return { ok: isEstateUnlocked(state, derived.assets) && !state.events.active.some((e) => e.defId === 'bull' || e.defId === 'bear'), target: null };
+    case 'land_boom':
+    case 'land_slump': {
+      if (!isEstateUnlocked(state, derived.assets)) return { ok: false, target: null };
+      // プレイヤーが物件を持つ都市を優先し、なければ全都市から
+      const ownedCities = new Set(Object.keys(state.estate.owned).map((p) => (isPropertyId(p) ? PROPERTY_MAP[p].city : '')).filter(Boolean));
+      const pool = ownedCities.size > 0 && rng() < 0.7 ? [...ownedCities] : CITIES.map((c) => c.id as string);
+      return { ok: true, target: choose(pool) };
+    }
     default:
       return { ok: false, target: null };
   }
@@ -60,6 +74,7 @@ function describe(def: EventDef, target: string | null, state: GameState): strin
   let name = '';
   if (target) {
     if (target in RESOURCE_MAP) name = RESOURCE_MAP[target as ResourceId].name;
+    else if (isCityId(target)) name = CITY_MAP[target].name;
     else name = getLand(state, target)?.name ?? target;
   }
   return def.description.replace('{target}', name);
@@ -81,6 +96,10 @@ function applyInstant(ctx: EngineContext, def: EventDef, target: string | null):
       }
       return `${describe(def, target, state)}（${parts.join('、')}）`;
     }
+  }
+  if ((def.kind === 'land_boom' || def.kind === 'land_slump') && target) {
+    shiftCityPrice(state, target, def.magnitude);
+    return describe(def, target, state);
   }
   if (def.kind === 'subsidy') {
     // 収入の magnitude 秒ぶん（最低 5万円）
@@ -178,6 +197,10 @@ export function computeEventMods(state: GameState): EventModifiers {
         break;
       case 'festival':
         mods.commercial *= a.magnitude;
+        break;
+      case 'bull':
+      case 'bear':
+        mods.stock *= a.magnitude;
         break;
       default:
         break;

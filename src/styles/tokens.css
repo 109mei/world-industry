@@ -21,6 +21,27 @@
   --power-bg: rgba(94, 167, 255, 0.14);
   --research-bg: rgba(164, 123, 255, 0.14);
 
+  /* テーマで変わる補助色 */
+  --header-bg: rgba(14, 17, 22, 0.92);
+  --nav-bg: rgba(23, 28, 36, 0.96);
+  --input-bg: #0b0e13;
+  --backdrop: rgba(0, 0, 0, 0.55);
+  --on-accent: #08111f;
+  --on-profit: #062611;
+  --on-research: #120a24;
+  --btn-primary-hover: #79b6ff;
+  --btn-secondary-hover: #253040;
+  --btn-sell-hover: #7ad79c;
+  --map-sea: #0b1a2c;
+  --map-land: #223244;
+  --map-land-stroke: #34506b;
+  --map-label-shadow: #0b1a2c;
+  --marker-unlocked: #5a6a7e;
+  --marker-locked: #3a4452;
+  --marker-locked-border: #8a94a2;
+  --achievement-bg: linear-gradient(135deg, #2a2340, #171c24 60%);
+  --shine: rgba(255, 255, 255, 0.18);
+
   --radius: 12px;
   --radius-sm: 8px;
   --gap: 12px;
@@ -32,4 +53,49 @@
 
   --font: "Inter", "Noto Sans JP", system-ui, -apple-system, "Segoe UI", "Hiragino Sans", "Yu Gothic UI", "Meiryo", sans-serif;
   --shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+}
+
+/* ライトテーマ（設定で切替。data-theme は App が html に付ける） */
+:root[data-theme='light'] {
+  --bg: #F3F5F8;
+  --card: #FFFFFF;
+  --card-2: #EEF2F7;
+  --border: #DCE2EA;
+  --border-strong: #C3CCD8;
+  --text: #16202B;
+  --text-sub: #55647A;
+  --text-dim: #8A97A8;
+  --profit: #1F9D55;
+  --warn: #B8860B;
+  --loss: #D23F3F;
+  --power: #2B7BD6;
+  --research: #7B4FE0;
+  --accent: #2B7BD6;
+  --accent-strong: #1F63B3;
+  --profit-bg: rgba(31, 157, 85, 0.12);
+  --warn-bg: rgba(184, 134, 11, 0.14);
+  --loss-bg: rgba(210, 63, 63, 0.12);
+  --power-bg: rgba(43, 123, 214, 0.12);
+  --research-bg: rgba(123, 79, 224, 0.12);
+
+  --header-bg: rgba(255, 255, 255, 0.9);
+  --nav-bg: rgba(255, 255, 255, 0.96);
+  --input-bg: #FFFFFF;
+  --backdrop: rgba(20, 28, 40, 0.45);
+  --on-accent: #FFFFFF;
+  --on-profit: #FFFFFF;
+  --on-research: #FFFFFF;
+  --btn-primary-hover: #1F63B3;
+  --btn-secondary-hover: #E2E8F0;
+  --btn-sell-hover: #178A49;
+  --map-sea: #CFE3F7;
+  --map-land: #E9EEE3;
+  --map-land-stroke: #B7C3B0;
+  --map-label-shadow: #FFFFFF;
+  --marker-unlocked: #9AA7B8;
+  --marker-locked: #D5DCE5;
+  --marker-locked-border: #8A97A8;
+  --achievement-bg: linear-gradient(135deg, #F1E9FF, #FFFFFF 60%);
+  --shine: rgba(123, 79, 224, 0.12);
+  --shadow: 0 6px 24px rgba(20, 28, 40, 0.14);
 }

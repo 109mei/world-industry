@@ -1,6 +1,6 @@
 import { GAME_META } from '@/game/data/meta';
 import type { GameState, LandState } from '@/types/state';
-import { createHqLand, createInitialState } from './createInitialState';
+import { createHqLand, createInitialCompanyStock, createInitialEstate, createInitialState, createInitialStocks } from './createInitialState';
 
 /**
  * 古いセーブデータを現在の形式へ変換する。
@@ -43,6 +43,19 @@ const MIGRATIONS: Record<number, Migration> = {
       settings: { ...base.settings, ...(d.settings ?? {}) },
     };
   },
+  // v3 → v4: 不動産（実在の土地・物件）、株式、テーマ設定、統計の追加
+  3: (data) => {
+    const d = data as Partial<GameState> & Record<string, unknown>;
+    const base = createInitialState();
+    return {
+      ...data,
+      saveVersion: 4,
+      estate: d.estate ?? createInitialEstate(),
+      stocks: d.stocks ?? createInitialStocks(),
+      stats: { ...base.stats, ...(d.stats ?? {}) },
+      settings: { ...base.settings, ...(d.settings ?? {}) },
+    };
+  },
 };
 
 export function migrateSave(raw: unknown): GameState {
@@ -59,6 +72,27 @@ export function migrateSave(raw: unknown): GameState {
     version = typeof data.saveVersion === 'number' ? data.saveVersion : version + 1;
   }
   return fillDefaults(data);
+}
+
+function fixEstate(e: Partial<GameState['estate']> | undefined): GameState['estate'] {
+  const base = createInitialEstate();
+  if (!e) return base;
+  const owned = { ...(e.owned ?? {}) };
+  // 会社所有の物件: 保存されていればそれを使い、なければ初期値。プレイヤーが持っている物件は会社所有から外す
+  const companyOwned = { ...(e.companyOwned ?? base.companyOwned) };
+  for (const id of Object.keys(owned)) delete companyOwned[id];
+  return { ...base, ...e, owned, cityMult: { ...base.cityMult, ...(e.cityMult ?? {}) }, companyOwned, nextUpdateIn: typeof e.nextUpdateIn === 'number' ? e.nextUpdateIn : base.nextUpdateIn };
+}
+
+function fixStocks(s: Partial<GameState['stocks']> | undefined): GameState['stocks'] {
+  const base = createInitialStocks();
+  if (!s) return base;
+  const companies: GameState['stocks']['companies'] = {};
+  for (const id of Object.keys(base.companies)) {
+    const c = s.companies?.[id];
+    companies[id] = c ? { ...createInitialCompanyStock(), ...c, history: Array.isArray(c.history) ? c.history : [] } : createInitialCompanyStock();
+  }
+  return { companies, nextUpdateIn: typeof s.nextUpdateIn === 'number' ? s.nextUpdateIn : base.nextUpdateIn };
 }
 
 /** 欠けているフィールドを初期値で補う（部分的に壊れたセーブにも耐える） */
@@ -96,6 +130,8 @@ export function fillDefaults(data: Record<string, unknown>): GameState {
     tutorial: { ...base.tutorial, ...(d.tutorial ?? {}) },
     research: { ...base.research, ...(d.research ?? {}) },
     events: { ...base.events, ...(d.events ?? {}), active: Array.isArray(d.events?.active) ? d.events.active : [] },
+    estate: fixEstate(d.estate),
+    stocks: fixStocks(d.stocks),
     eventLog: Array.isArray(d.eventLog) ? d.eventLog : [],
     nextEventId: typeof d.nextEventId === 'number' ? d.nextEventId : 1,
     settings: { ...base.settings, ...(d.settings ?? {}) },

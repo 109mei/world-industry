@@ -77,15 +77,36 @@ App.tsx
 - 研究所が `researchRate` で研究ポイントを貯め、`RESEARCH` のコストを払って即時完了。効果は `computeModifiers()` で係数にまとめ、毎 tick の最初に `derived.modifiers` へ
 - 解放条件 `research` / `landOwned` / `powerCapacity` を追加。土地の解放キーは `land:<id>`（土地システム自体は総資産 100万円）
 
+## 不動産（data/cities.ts, data/properties.ts, systems/estate.ts）
+
+- 物件は実在の場所（緯度経度）に置いた架空の資産。価格 = 基準価格 × 都市の地価倍率 `estate.cityMult[city]`。倍率は 20 秒ごとに都市ごとの幾何ブラウン運動（`trend`, `volatility`）で動き、`land_boom` / `land_slump` イベントで即時に動く
+- 賃料 = 価格 × 種類ごとの利回り（1時間あたり）÷ 3600 を毎 tick 所持金に加える。売買の手数料は `CONFIG.estate`
+- 所有者は 3 通り: プレイヤー（`estate.owned`）・会社（`estate.companyOwned`: 物件ID → 会社ID）・市場。会社の物件は買収で受け取り、解体で市場に戻る
+- 解放は総資産 `CONFIG.estate.unlockAssets`（`system:estate`）
+
+## 株式（data/companies.ts, systems/stocks.ts）
+
+- 理論株価 = (baseCap × growth ＋ cash ＋ 所有物件の評価額) ÷ 発行株数。表示株価 = 理論株価 × 需給係数 `sentiment` × イベント倍率 `eventMods.stock`
+- 利益/時 = baseCap × growth × earningsYield ＋ 所有物件の賃料。方針の配当率ぶんをプレイヤーの持株比率で配当し、残りを再投資（`growth` は事業が大きいほど伸びにくい直線的な増え方、余りは `cash`）
+- 売買は発行株数に対する割合 × `impact` だけ需給係数を動かす（買うと上がる）。需給係数は `sentimentReversion` で 1 へ戻る
+- 経営権は持株比率 ≥ 2/3（`CONTROL_RATIO`）。方針変更・増設（事業価値 × 10% を払って growth ×1.1）・完全買収（残りの株を株価 × 1.25 で買い、会社の物件をプレイヤーへ移す）・解体（内部留保 ＋ 物件 × 0.85 ＋ 事業 × 0.25 の持株比率ぶんを受け取り、`dissolved`）
+- 総資産に入れる株の評価額は理論株価ベース（自分の買いで膨らんだ時価は使わない）
+
 ## tick の順序（GameEngine.tick）
 
-modifiers・容量・イベント係数 → イベント進行 → 調査 → 電力 → 生産（商業収入・研究ポイントもここ）→ 物流 → 市場（需要の回復・相場変動）→ 自動売却 → 研究ポイント加算 → 収入記録 → 会社指標 → 解放 → チュートリアル → 実績
+modifiers・容量・イベント係数 → イベント進行 → 調査 → 電力 → 生産（商業収入・研究ポイントもここ）→ 物流 → 市場（需要の回復・相場変動）→ 自動売却 → 研究ポイント加算 → 不動産（賃料・地価）→ 株式（配当・再投資・株価）→ 収入記録 → 会社指標 → 解放 → チュートリアル → 実績
 
 ## UI まわり（v0.4）
 
 - 実績解除はエンジンのイベントに `achievementId` が付き、`runtime.ts` のリスナーが `uiStore.achievementQueue` に積む → `AchievementPopup` が順に表示
 - 効果音は `services/audio/sfx.ts`（Web Audio で合成、音声ファイルなし）。UI の操作は `utils/sfx.ts` の `sfx()`、エンジンのイベント（解放・実績・警告・イベント）は `runtime.ts` で鳴らす。設定 `sound` / `volume`
 - 世界地図は `features/land/worldMapData.ts` の簡略化した輪郭（経度・緯度）を SVG に描き、土地のマーカーは HTML で重ねる（近い土地は `spread()` で押し広げ、ラベルは `placeLabels()` で重ならない側に置く）
+
+## UI まわり（v0.5）
+
+- テーマは `settings.theme`（dark / light / system）。`utils/theme.ts` の `useResolvedTheme()` が端末設定も含めて解決し、`App` が `<html data-theme>` に付ける。色は `styles/tokens.css` の CSS 変数だけで切り替わる（部品側に色の直書きをしない）
+- 実在の地図は `features/estate/RealMap.tsx`（Leaflet、`React.lazy` で遅延読み込み）。タイルは CARTO（voyager / dark_all）でテーマに追従。ズーム 11 未満は都市ごとにまとめ（画面上で近い都市は1つに）、寄ると物件ピン・会社の本社・産業用地を出す。マーカーは `L.divIcon` で HTML/CSS 描画（画像なし）。`.rm__stage` は `isolation: isolate` で Leaflet の z-index をシートの下に閉じ込める
+- 物件・会社の詳細は `PropertySheet` / `CompanySheet`（`uiStore.selectedProperty` / `selectedCompany`）。「地図で見る」は `uiStore.flyTo()` で地図に位置を渡す
 
 ## 今後の拡張ポイント
 

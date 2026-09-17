@@ -1,3 +1,4 @@
+import type { CompanyPolicy } from '@/game/data/companies';
 import type { ResourceId } from '@/game/data/resources';
 import type { TerrainId } from '@/game/data/terrain';
 import type { ToolId } from '@/game/data/tools';
@@ -79,6 +80,20 @@ export interface StatsState {
   eventsOccurred: number;
   /** 乗り切った災害の回数 */
   disasters: number;
+  /** 累計の賃料収入（円） */
+  rentEarned: number;
+  /** 累計の配当収入（円） */
+  dividendsEarned: number;
+  /** 買った物件の数 */
+  propertiesBought: number;
+  /** 売った物件の数 */
+  propertiesSold: number;
+  /** 株の売買で確定した損益（円） */
+  tradingProfit: number;
+  /** 買収した会社の数 */
+  companiesAcquired: number;
+  /** 解体した会社の数 */
+  companiesDissolved: number;
 }
 
 export type GameEventType = 'info' | 'success' | 'warn' | 'unlock' | 'achievement' | 'tutorial' | 'event';
@@ -158,8 +173,12 @@ export interface ResearchState {
   totalPoints: number;
 }
 
+export type ThemeMode = 'dark' | 'light' | 'system';
+
 export interface SettingsState {
   numberFormat: NumberFormatMode;
+  /** 画面の配色 */
+  theme: ThemeMode;
   autosaveSeconds: number;
   maxOfflineSeconds: number;
   showTutorial: boolean;
@@ -171,6 +190,50 @@ export interface SettingsState {
   events: boolean;
   /** LAND 画面の表示（地図 or リスト） */
   landView: 'map' | 'list';
+  /** ESTATE 画面の表示 */
+  estateView: 'map' | 'list' | 'stocks';
+}
+
+/** 所有している不動産 */
+export interface OwnedProperty {
+  boughtAt: number;
+  /** 買値（手数料込み） */
+  boughtPrice: number;
+}
+
+export interface EstateState {
+  /** 物件ID → 所有情報 */
+  owned: Record<string, OwnedProperty>;
+  /** 都市ID → 地価の倍率（基準価格に掛かる） */
+  cityMult: Record<string, number>;
+  /** 会社が持っている物件（物件ID → 会社ID）。買収・解体で外れる */
+  companyOwned: Record<string, string>;
+  /** 次の地価更新までの秒数 */
+  nextUpdateIn: number;
+}
+
+/** 会社ごとの株式の状態 */
+export interface CompanyStockState {
+  /** 需給係数（売買と相場で動き、1に戻ろうとする） */
+  sentiment: number;
+  /** プレイヤーの保有株数 */
+  playerShares: number;
+  /** 平均取得単価（円/株） */
+  avgCost: number;
+  /** 事業価値の倍率（再投資・増設で増える） */
+  growth: number;
+  /** 内部留保（円） */
+  cash: number;
+  policy: CompanyPolicy;
+  expansions: number;
+  dissolved: boolean;
+  /** 株価の履歴 */
+  history: number[];
+}
+
+export interface StocksState {
+  companies: Record<string, CompanyStockState>;
+  nextUpdateIn: number;
 }
 
 export interface GameState {
@@ -195,6 +258,8 @@ export interface GameState {
   tutorial: { step: number; completed: boolean };
   research: ResearchState;
   events: EventsState;
+  estate: EstateState;
+  stocks: StocksState;
   eventLog: GameEvent[];
   nextEventId: number;
   settings: SettingsState;
@@ -270,6 +335,25 @@ export interface EventModifiers {
   power: number;
   /** 商業施設の収入倍率 */
   commercial: number;
+  /** 株価全体に掛かる倍率（株高・株安） */
+  stock: number;
+}
+
+/** 会社ごとの計算結果（保存しない） */
+export interface CompanyRuntime {
+  /** 現在の株価（円/株） */
+  price: number;
+  /** 需給を除いた理論株価 */
+  fundamental: number;
+  marketCap: number;
+  /** 1時間あたりの利益（円） */
+  earningsPerHour: number;
+  /** 所有物件の評価額（円） */
+  propertyValue: number;
+  /** プレイヤーの持株比率 0〜1 */
+  ownership: number;
+  /** プレイヤーへの配当（円/秒） */
+  dividendPerSec: number;
 }
 
 /** 毎 tick 計算し直す派生情報（保存しない） */
@@ -298,6 +382,17 @@ export interface DerivedState {
   transportCost: number;
   /** 研究ポイントの増加（/秒） */
   researchRate: number;
+  /** 所有する不動産の評価額（円） */
+  estateValue: number;
+  /** 賃料収入（円/秒） */
+  rentPerSec: number;
+  /** 物件を持っている国の数 */
+  estateCountries: number;
+  /** 保有株の評価額（円） */
+  stockValue: number;
+  /** 配当収入（円/秒） */
+  dividendPerSec: number;
+  companies: Record<string, CompanyRuntime>;
 }
 
 export interface OfflineReport {

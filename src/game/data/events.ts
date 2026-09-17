@@ -22,7 +22,15 @@ export type EventKind =
   /** 鉱脈発見: ある土地の鉱脈が増える（即時） */
   | 'discovery'
   /** 補助金: 所持金が増える（即時） */
-  | 'subsidy';
+  | 'subsidy'
+  /** 株高: すべての株価が上がる */
+  | 'bull'
+  /** 株安: すべての株価が下がる */
+  | 'bear'
+  /** 地価上昇: ある都市の地価が上がる（即時） */
+  | 'land_boom'
+  /** 地価下落: ある都市の地価が下がる（即時） */
+  | 'land_slump';
 
 export interface EventDef {
   id: string;
@@ -52,6 +60,10 @@ export const EVENTS = [
   { id: 'festival', kind: 'festival', name: '祭り', icon: 'icon_ui_star', duration: 120, weight: 3, magnitude: 2, description: '祭りで人出が増え、商業施設の収入が2倍。' },
   { id: 'discovery', kind: 'discovery', name: '鉱脈発見', icon: 'icon_marker_mine', duration: 0, weight: 2, magnitude: 0.25, description: '{target}で新しい鉱脈が見つかり、埋蔵量が増えた。' },
   { id: 'subsidy', kind: 'subsidy', name: '補助金', icon: 'icon_office_coins', duration: 0, weight: 2, magnitude: 90, description: '産業振興の補助金を受け取った。' },
+  { id: 'bull', kind: 'bull', name: '株高', icon: 'icon_ui_chart_trend', duration: 180, weight: 3, magnitude: 1.3, description: '株式相場が活況。すべての株価が1.3倍。売り時。' },
+  { id: 'bear', kind: 'bear', name: '株安', icon: 'icon_ui_loss', duration: 150, weight: 3, magnitude: 0.7, description: '株式相場が急落。すべての株価が70%に。買い時。' },
+  { id: 'land_boom', kind: 'land_boom', name: '地価上昇', icon: 'icon_terrain_city', duration: 0, weight: 3, magnitude: 1.15, description: '{target}の地価が15%上がった。' },
+  { id: 'land_slump', kind: 'land_slump', name: '地価下落', icon: 'icon_ui_warning', duration: 0, weight: 2, magnitude: 0.88, description: '{target}の地価が12%下がった。' },
 ] as const satisfies readonly EventDef[];
 
 export type EventDefId = (typeof EVENTS)[number]['id'];

@@ -1,4 +1,4 @@
-import type { ReactElement } from 'react';
+import { useEffect, type ReactElement } from 'react';
 import { BottomNav } from '@/components/layout/BottomNav';
 import { Header } from '@/components/layout/Header';
 import { SideNav } from '@/components/layout/SideNav';
@@ -7,6 +7,7 @@ import { Toasts } from '@/components/ui/Toasts';
 import { CompanyPage } from '@/features/company/CompanyPage';
 import { CraftPage } from '@/features/craft/CraftPage';
 import { DebugPanel } from '@/features/debug/DebugPanel';
+import { EstatePage } from '@/features/estate/EstatePage';
 import { FactoryPage } from '@/features/factory/FactoryPage';
 import { HomePage } from '@/features/home/HomePage';
 import { LandPage } from '@/features/land/LandPage';
@@ -19,12 +20,14 @@ import { LANDS } from '@/game/data/lands';
 import { useGame } from '@/stores/gameStore';
 import { useUiStore } from '@/stores/uiStore';
 import type { NavTab } from '@/types/ui';
+import { applyTheme, useResolvedTheme } from '@/utils/theme';
 
 const PAGES: Record<NavTab, () => ReactElement> = {
   home: HomePage,
   resources: ResourcesPage,
   craft: CraftPage,
   land: LandPage,
+  estate: EstatePage,
   factory: FactoryPage,
   company: CompanyPage,
 };
@@ -32,6 +35,8 @@ const PAGES: Record<NavTab, () => ReactElement> = {
 export function App() {
   const tab = useUiStore((s) => s.tab);
   const { state, derived } = useGame();
+  const theme = useResolvedTheme();
+  useEffect(() => applyTheme(theme), [theme]);
   const Page = PAGES[tab];
   const stopped = Object.values(derived.facilityRuntime).some((r) => r.status === 'no_input' || r.status === 'storage_full' || r.status === 'no_power' || r.status === 'depleted');
   // LAND: 買える土地があるのにまだ1つも持っていない／輸送手段がなく在庫が溜まっている土地がある

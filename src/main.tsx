@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { GAME_META } from './game/data/meta';
 import { createRuntime } from './game/runtime';
+import 'leaflet/dist/leaflet.css';
 import './styles/global.css';
 import './styles/components.css';
 

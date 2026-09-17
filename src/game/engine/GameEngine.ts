@@ -1,3 +1,4 @@
+import type { CompanyPolicy } from '@/game/data/companies';
 import { CONFIG } from '@/game/data/config';
 import { GATHER_ACTIONS, type GatherActionId } from '@/game/data/gathering';
 import { FACILITIES, type FacilityId } from '@/game/data/facilities';
@@ -15,6 +16,7 @@ import { calcCapacity, clean } from './inventory';
 import { landCapacity, ownedLands } from './land';
 import { createEmptyDerived, createInitialState } from './state/createInitialState';
 import { runCompanyMetrics } from './systems/company';
+import { buyProperty, isEstateUnlocked, runEstate, sellProperty } from './systems/estate';
 import { computeEventMods, runEvents, triggerEvent } from './systems/events';
 import { runLogistics } from './systems/logistics';
 import { runAutoSell, runMarket, sellResource } from './systems/market';
@@ -23,6 +25,7 @@ import { runPower } from './systems/power';
 import { runProduction } from './systems/production';
 import { runAchievements, runTutorial } from './systems/progress';
 import { completeResearch, runResearchPoints } from './systems/research';
+import { acquireCompany, buyShares, computeStocks, dissolveCompany, expandCompany, runStocks, sellShares, setCompanyPolicy } from './systems/stocks';
 import { runSurveys } from './systems/survey';
 import { runUnlocks } from './systems/unlocks';
 
@@ -125,6 +128,8 @@ export class GameEngine {
     runMarket(this.ctx, dt);
     const sold = runAutoSell(this.ctx);
     runResearchPoints(this.ctx, dt);
+    const { rent } = runEstate(this.ctx, dt);
+    const { dividends } = runStocks(this.ctx, dt);
     // 商業収入
     const earned = commercialIncome * dt;
     if (earned > 0) {
@@ -132,7 +137,7 @@ export class GameEngine {
       state.company.totalEarned += earned;
       state.stats.totalCommercialIncome += earned;
     }
-    this.recordIncome(sold + earned - cost, dt);
+    this.recordIncome(sold + earned + rent + dividends - cost, dt);
     state.stats.playtimeSeconds += dt;
     runCompanyMetrics(this.ctx);
     runUnlocks(this.ctx);
@@ -199,6 +204,7 @@ export class GameEngine {
   /** 保存前などに派生情報を最新にする */
   refreshDerived(): void {
     this.refreshCapacities();
+    computeStocks(this.ctx);
     runCompanyMetrics(this.ctx);
   }
 
@@ -269,6 +275,69 @@ export class GameEngine {
     return ok;
   }
 
+  // ---------- 不動産・株式 ----------
+  isEstateUnlocked(): boolean {
+    return isEstateUnlocked(this.state, this.derived.assets);
+  }
+
+  buyProperty(id: string): boolean {
+    const ok = buyProperty(this.ctx, id);
+    if (ok) {
+      this.refreshDerived();
+      runAchievements(this.ctx);
+    }
+    return ok;
+  }
+
+  sellProperty(id: string): number {
+    const got = sellProperty(this.ctx, id);
+    if (got > 0) this.refreshDerived();
+    return got;
+  }
+
+  buyShares(companyId: string, qty: number): number {
+    const n = buyShares(this.ctx, companyId, qty);
+    if (n > 0) {
+      this.refreshDerived();
+      runAchievements(this.ctx);
+    }
+    return n;
+  }
+
+  sellShares(companyId: string, qty: number): number {
+    const got = sellShares(this.ctx, companyId, qty);
+    if (got > 0) this.refreshDerived();
+    return got;
+  }
+
+  setCompanyPolicy(companyId: string, policy: CompanyPolicy): boolean {
+    return setCompanyPolicy(this.ctx, companyId, policy);
+  }
+
+  expandCompany(companyId: string): boolean {
+    const ok = expandCompany(this.ctx, companyId);
+    if (ok) this.refreshDerived();
+    return ok;
+  }
+
+  acquireCompany(companyId: string): boolean {
+    const ok = acquireCompany(this.ctx, companyId);
+    if (ok) {
+      this.refreshDerived();
+      runAchievements(this.ctx);
+    }
+    return ok;
+  }
+
+  dissolveCompany(companyId: string): boolean {
+    const ok = dissolveCompany(this.ctx, companyId);
+    if (ok) {
+      this.refreshDerived();
+      runAchievements(this.ctx);
+    }
+    return ok;
+  }
+
   renameCompany(name: string): void {
     const trimmed = name.trim().slice(0, 24);
     if (trimmed) this.state.company.name = trimmed;
@@ -306,6 +375,7 @@ export class GameEngine {
     for (const l of LANDS) s.unlocked[`land:${l.id}`] = true;
     for (const r of RESEARCH) s.research.completed[r.id] = true;
     s.unlocked['system:land'] = true;
+    s.unlocked['system:estate'] = true;
     this.refreshDerived();
     this.emit('info', 'デバッグ: すべて解放しました', { toast: true });
   }

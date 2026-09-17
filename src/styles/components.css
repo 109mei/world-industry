@@ -77,10 +77,10 @@
 
 .btn--primary {
   background: var(--accent);
-  color: #08111f;
+  color: var(--on-accent);
 }
 .btn--primary:hover:not(:disabled) {
-  background: #79b6ff;
+  background: var(--btn-primary-hover);
 }
 
 .btn--secondary {
@@ -89,7 +89,7 @@
   color: var(--text);
 }
 .btn--secondary:hover:not(:disabled) {
-  background: #253040;
+  background: var(--btn-secondary-hover);
 }
 
 .btn--ghost {
@@ -100,10 +100,10 @@
 
 .btn--sell {
   background: var(--profit);
-  color: #062611;
+  color: var(--on-profit);
 }
 .btn--sell:hover:not(:disabled) {
-  background: #7ad79c;
+  background: var(--btn-sell-hover);
 }
 
 .btn--danger {
@@ -239,7 +239,7 @@
   position: relative;
   height: 6px;
   border-radius: 999px;
-  background: #0b0e13;
+  background: var(--input-bg);
   overflow: hidden;
   border: 1px solid var(--border);
 }
@@ -339,8 +339,14 @@
 /* ---------- ナビゲーション ---------- */
 .nav {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(7, 1fr);
   height: var(--nav-h);
+}
+@media (max-width: 419px) {
+  .nav__item {
+    font-size: 8.5px;
+    letter-spacing: 0;
+  }
 }
 .nav__item {
   display: flex;
@@ -484,7 +490,7 @@
   position: fixed;
   inset: 0;
   z-index: 50;
-  background: rgba(0, 0, 0, 0.55);
+  background: var(--backdrop);
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -615,7 +621,7 @@
   padding: 0 12px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-strong);
-  background: #0b0e13;
+  background: var(--input-bg);
   color: var(--text);
   width: 100%;
 }
@@ -804,7 +810,7 @@ textarea.input {
   min-height: var(--tap);
   border-radius: 50%;
   background: var(--research);
-  color: #120a24;
+  color: var(--on-research);
   font-weight: 800;
   box-shadow: var(--shadow);
 }
@@ -890,7 +896,7 @@ textarea.input {
   gap: 12px;
   padding: 12px 14px;
   border-radius: 14px;
-  background: linear-gradient(135deg, #2a2340, #171c24 60%);
+  background: var(--achievement-bg);
   border: 1px solid rgba(164, 123, 255, 0.6);
   box-shadow: 0 10px 40px rgba(164, 123, 255, 0.25), var(--shadow);
   overflow: hidden;
@@ -900,7 +906,7 @@ textarea.input {
 .achievement-pop__shine {
   position: absolute;
   inset: 0;
-  background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, 0.18) 50%, transparent 70%);
+  background: linear-gradient(110deg, transparent 30%, var(--shine) 50%, transparent 70%);
   transform: translateX(-100%);
   animation: achievement-shine 1.4s ease-out 0.4s 2;
   pointer-events: none;
@@ -1042,17 +1048,17 @@ textarea.input {
   display: block;
 }
 .map__sea {
-  fill: #0b1a2c;
+  fill: var(--map-sea);
 }
 .map__land {
-  fill: #223244;
-  stroke: #34506b;
+  fill: var(--map-land);
+  stroke: var(--map-land-stroke);
   stroke-width: 0.8;
   stroke-linejoin: round;
   vector-effect: non-scaling-stroke;
 }
 .map__sea-fill {
-  fill: #0b1a2c;
+  fill: var(--map-sea);
 }
 .map__route {
   stroke: rgba(94, 167, 255, 0.55);
@@ -1118,11 +1124,11 @@ textarea.input {
   background: var(--accent);
 }
 .map__marker--unlocked .map__dot {
-  background: #5a6a7e;
+  background: var(--marker-unlocked);
 }
 .map__marker--locked .map__dot {
-  background: #3a4452;
-  border-color: #8a94a2;
+  background: var(--marker-locked);
+  border-color: var(--marker-locked-border);
 }
 .map__pulse {
   position: absolute;
@@ -1152,7 +1158,7 @@ textarea.input {
   font-size: 10px;
   font-weight: 700;
   color: var(--text);
-  text-shadow: 0 0 3px #0b1a2c, 0 0 3px #0b1a2c, 0 1px 2px #000;
+  text-shadow: 0 0 3px var(--map-label-shadow), 0 0 3px var(--map-label-shadow), 0 1px 2px var(--map-label-shadow);
   pointer-events: none;
   display: none;
 }
@@ -1227,9 +1233,199 @@ textarea.input {
   background: var(--accent);
 }
 .map__legend-dot--unlocked {
-  background: #5a6a7e;
+  background: var(--marker-unlocked);
 }
 .map__legend-dot--locked {
-  background: #3a4452;
-  border-color: #8a94a2;
+  background: var(--marker-locked);
+  border-color: var(--marker-locked-border);
+}
+
+/* ---------- 実在の地図（Leaflet） ---------- */
+.rm {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.rm__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.rm__stage {
+  position: relative;
+  /* Leaflet の z-index をこの中に閉じ込める（シートやナビより手前に出ないように） */
+  isolation: isolate;
+  z-index: 0;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--card);
+}
+.rm__map {
+  width: 100%;
+  height: min(62vh, 640px);
+  min-height: 320px;
+  background: var(--map-sea);
+}
+.rm__notice {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  z-index: 500;
+  background: var(--card);
+  color: var(--text);
+  border: 1px solid var(--warn);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  font-size: 12px;
+}
+.rm__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  font-size: 11px;
+  color: var(--text-sub);
+}
+.rm__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.rm-icon {
+  background: none;
+  border: none;
+}
+.rm-pin {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--pin, var(--accent));
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  opacity: 0.55;
+  margin: 5px;
+}
+.rm-pin--affordable {
+  opacity: 1;
+  box-shadow: 0 0 0 3px rgba(94, 167, 255, 0.35), 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+.rm-pin--player {
+  opacity: 1;
+  border: 3px solid var(--warn);
+  box-shadow: 0 0 0 2px rgba(233, 185, 73, 0.35), 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+.rm-pin--company {
+  opacity: 0.8;
+  border: 2px dashed #ddd;
+  background: repeating-linear-gradient(45deg, var(--pin, #888) 0 3px, #444 3px 5px);
+}
+.rm-hq,
+.rm-city,
+.rm-land,
+.rm-hqself {
+  display: inline-grid;
+  place-items: center;
+  font-weight: 800;
+  color: #fff;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+.rm-hq {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: #6b4fbb;
+  font-size: 11px;
+  margin: 2px;
+}
+.rm-hq--owned {
+  background: #3b8deb;
+}
+.rm-hq--control {
+  background: #1f9d55;
+  border-color: var(--warn);
+}
+.rm-hq--dissolved {
+  background: #666;
+  opacity: 0.5;
+}
+.rm-city {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(59, 141, 235, 0.85);
+  font-size: 12px;
+}
+.rm-city--affordable {
+  background: rgba(31, 157, 85, 0.9);
+}
+.rm-city--owned {
+  border-color: var(--warn);
+  box-shadow: 0 0 0 2px rgba(233, 185, 73, 0.4), 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+.rm-land {
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  background: #b5651d;
+  font-size: 11px;
+  margin: 2px;
+}
+.rm-land--owned {
+  background: #d9822b;
+  border-color: var(--warn);
+}
+.rm-hqself {
+  width: 40px;
+  height: 22px;
+  border-radius: 6px;
+  background: #e9b949;
+  color: #2a1e00;
+  font-size: 11px;
+}
+.leaflet-container {
+  font-family: var(--font);
+  font-size: 12px;
+}
+.leaflet-tooltip {
+  font-size: 12px;
+  line-height: 1.35;
+}
+.leaflet-control-attribution {
+  font-size: 10px;
+}
+:root[data-theme='dark'] .leaflet-control-zoom a,
+:root:not([data-theme='light']) .leaflet-control-zoom a {
+  background: var(--card);
+  color: var(--text);
+  border-color: var(--border);
+}
+:root:not([data-theme='light']) .leaflet-control-attribution,
+:root:not([data-theme='light']) .leaflet-tooltip {
+  background: rgba(23, 28, 36, 0.92);
+  color: var(--text);
+  border-color: var(--border);
+}
+:root:not([data-theme='light']) .leaflet-tooltip-top::before {
+  border-top-color: rgba(23, 28, 36, 0.92);
+}
+
+/* 押せるカード（物件・会社） */
+.card--click {
+  cursor: pointer;
+  width: 100%;
+  transition: border-color 0.15s, transform 0.1s;
+}
+.card--click:hover {
+  border-color: var(--border-strong);
+}
+.card--click:active {
+  transform: scale(0.99);
+}
+.card--owned {
+  border-color: rgba(233, 185, 73, 0.55);
 }

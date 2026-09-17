@@ -1,6 +1,7 @@
 import { Icon } from '@/components/ui/Icon';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { EVENT_MAP, isEventDefId, type EventKind } from '@/game/data/events';
+import { CITY_MAP, isCityId } from '@/game/data/cities';
 import { RESOURCE_MAP, isResourceId } from '@/game/data/resources';
 import { getLand } from '@/game/engine/land';
 import { useGame } from '@/stores/gameStore';
@@ -16,6 +17,10 @@ const TONE: Record<EventKind, 'profit' | 'loss' | 'warn' | 'power' | 'research'>
   festival: 'profit',
   discovery: 'research',
   subsidy: 'profit',
+  bull: 'profit',
+  bear: 'loss',
+  land_boom: 'profit',
+  land_slump: 'loss',
 };
 
 /** 進行中のイベント（相場変動・災害など）。残り時間つきで表示する */
@@ -27,7 +32,7 @@ export function EventBanner({ compact = false }: { compact?: boolean }) {
     <div className={`event-banner${compact ? ' event-banner--compact' : ''}`}>
       {active.map((a) => {
         const def = EVENT_MAP[a.defId as keyof typeof EVENT_MAP];
-        const targetName = a.target ? (isResourceId(a.target) ? RESOURCE_MAP[a.target].name : getLand(state, a.target)?.name ?? a.target) : '';
+        const targetName = a.target ? (isResourceId(a.target) ? RESOURCE_MAP[a.target].name : isCityId(a.target) ? CITY_MAP[a.target].name : getLand(state, a.target)?.name ?? a.target) : '';
         const tone = TONE[def.kind];
         return (
           <div key={a.id} className={`event-card event-card--${tone}`}>

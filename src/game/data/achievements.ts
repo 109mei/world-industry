@@ -33,4 +33,13 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'robot_age', name: 'ロボットの時代', description: '産業ロボットを累計10台生産する。', icon: 'icon_part_robot_arm', check: (s) => (s.stats.totalProduced['robot'] ?? 0) >= 10 },
   { id: 'survivor', name: '災害を乗り越えて', description: '災害（地震・嵐・猛暑）を5回経験する。', icon: 'icon_weather_storm', check: (s) => s.stats.disasters >= 5 },
   { id: 'tycoon', name: '大財閥', description: '累計売上が10億円に達する。', icon: 'icon_ui_medal', check: (s) => s.company.totalEarned >= 1_000_000_000 },
+  // ---- 不動産・株式 ----
+  { id: 'first_property', name: '初めての不動産', description: '実在の場所の土地や物件を初めて買う。', icon: 'icon_terrain_residential', check: (s) => s.stats.propertiesBought >= 1 },
+  { id: 'landlord', name: '大家さん', description: '物件を10件所有する。', icon: 'icon_commercial_apartment', check: (s) => Object.keys(s.estate?.owned ?? {}).length >= 10 },
+  { id: 'ginza', name: '銀座のビルオーナー', description: '銀座4丁目の商業ビルを所有する。', icon: 'icon_commercial_mall', check: (s) => s.estate?.owned?.['tk_ginza_bldg'] !== undefined },
+  { id: 'global_landlord', name: '世界の地主', description: '5か国以上に物件を持つ。', icon: 'icon_ui_location', check: (_s, d) => d.estateCountries >= 5 },
+  { id: 'shareholder', name: '株主', description: '初めて株を買う。', icon: 'icon_ui_chart', check: (s) => Object.values(s.stocks?.companies ?? {}).some((c) => c.playerShares > 0) },
+  { id: 'controller', name: '経営権', description: '会社の株を3分の2以上持つ。', icon: 'icon_office_contract', check: (_s, d) => Object.values(d.companies).some((c) => c.ownership + 1e-9 >= 2 / 3) },
+  { id: 'acquirer', name: '買収王', description: '会社を完全買収する。', icon: 'icon_ui_crown', check: (s) => s.stats.companiesAcquired >= 1 },
+  { id: 'trillionaire', name: '兆万長者', description: '総資産が1兆円に達する。', icon: 'icon_ui_trophy', check: (_s, d) => d.assets >= 1_000_000_000_000 },
 ];

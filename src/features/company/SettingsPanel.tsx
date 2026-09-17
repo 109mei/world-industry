@@ -38,6 +38,21 @@ export function SettingsPanel() {
       </div>
 
       <div className="field">
+        <span className="field__label">画面の配色</span>
+        <div className="btn-row">
+          <Button variant={state.settings.theme === 'dark' ? 'primary' : 'secondary'} size="sm" onClick={() => update({ theme: 'dark' })}>
+            ダーク
+          </Button>
+          <Button variant={state.settings.theme === 'light' ? 'primary' : 'secondary'} size="sm" onClick={() => update({ theme: 'light' })}>
+            ライト（白）
+          </Button>
+          <Button variant={state.settings.theme === 'system' ? 'primary' : 'secondary'} size="sm" onClick={() => update({ theme: 'system' })}>
+            端末に合わせる
+          </Button>
+        </div>
+      </div>
+
+      <div className="field">
         <span className="field__label">数字の表記</span>
         <div className="btn-row">
           <Button variant={state.settings.numberFormat === 'short' ? 'primary' : 'secondary'} size="sm" onClick={() => update({ numberFormat: 'short' })}>

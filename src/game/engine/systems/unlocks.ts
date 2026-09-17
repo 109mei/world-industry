@@ -7,6 +7,7 @@ import { RESEARCH_MAP, isResearchId } from '@/game/data/research';
 import type { UnlockCondition } from '@/game/data/unlockTypes';
 import type { DerivedState, GameState } from '@/types/state';
 import type { EngineContext } from '../context';
+import { isEstateUnlocked } from './estate';
 
 export interface UnlockEnv {
   assets: number;
@@ -149,7 +150,15 @@ export function runUnlocks(ctx: EngineContext): void {
       }
     }
   }
+  // 不動産・株式は総資産で解放
+  if (isEstateSystemUnlocked(state, env.assets) && !state.unlocked['system:estate']) {
+    state.unlocked['system:estate'] = true;
+    ctx.emit('unlock', '不動産と株式が解放されました。ESTATE画面で実在の土地・物件や会社の株を買えます', { toast: true });
+  }
 }
+
+/** 不動産・株式システムが使えるか（状態は変えない） */
+export const isEstateSystemUnlocked = isEstateUnlocked;
 
 /** 土地システムが使えるか（状態は変えない） */
 export function isLandSystemUnlocked(state: GameState, assets: number): boolean {

@@ -33,7 +33,13 @@ export function runCompanyMetrics(ctx: EngineContext): void {
   derived.inventoryValue = inventoryValue;
   derived.employees = employees;
   derived.assets =
-    state.company.cash + inventoryValue + toolsValue + state.company.facilityInvestment * CONFIG.facilityValueRatio + state.company.landInvestment * CONFIG.landValueRatio;
+    state.company.cash +
+    inventoryValue +
+    toolsValue +
+    state.company.facilityInvestment * CONFIG.facilityValueRatio +
+    state.company.landInvestment * CONFIG.landValueRatio +
+    derived.estateValue +
+    derived.stockValue;
   // 会社価値 = 総資産 + 収益力（1時間分の自動収入）
   derived.companyValue = derived.assets + Math.max(0, derived.incomePerSec) * 3600;
 }
