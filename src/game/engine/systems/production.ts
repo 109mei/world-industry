@@ -30,14 +30,14 @@ export function runProduction(ctx: EngineContext, dt: number): { commercialIncom
     const def = FACILITY_MAP[inst.typeId];
     const land = getLand(state, inst.landId);
     const idle = (): void => {
-      runtime[inst.id] = { status: 'idle', efficiency: 0, missingInputs: [], blockedOutputs: [], powerRatio: 1, depleted: [] };
+      runtime[inst.id] = { status: 'idle', efficiency: 0, missingInputs: [], blockedOutputs: [], powerRatio: 1, depleted: [], inputRates: {}, outputRates: {} };
     };
     if (!land || inst.count <= 0) {
       idle();
       continue;
     }
     if (!inst.enabled) {
-      runtime[inst.id] = { status: 'disabled', efficiency: 0, missingInputs: [], blockedOutputs: [], powerRatio: 1, depleted: [] };
+      runtime[inst.id] = { status: 'disabled', efficiency: 0, missingInputs: [], blockedOutputs: [], powerRatio: 1, depleted: [], inputRates: {}, outputRates: {} };
       continue;
     }
     const pr = def.powerUse ? powerRatio : 1;
@@ -46,13 +46,13 @@ export function runProduction(ctx: EngineContext, dt: number): { commercialIncom
     if (def.income !== undefined) {
       const income = def.income * inst.count * landPopulation(land) * mods.commercialIncome * pr * derived.eventMods.commercial;
       commercialIncome += income;
-      runtime[inst.id] = { status: pr <= 1e-6 ? 'no_power' : pr < 0.999 ? 'partial' : 'running', efficiency: pr, missingInputs: [], blockedOutputs: [], powerRatio: pr, depleted: [] };
+      runtime[inst.id] = { status: pr <= 1e-6 ? 'no_power' : pr < 0.999 ? 'partial' : 'running', efficiency: pr, missingInputs: [], blockedOutputs: [], powerRatio: pr, depleted: [], inputRates: {}, outputRates: {} };
       continue;
     }
     // ---- 研究所 ----
     if (def.researchRate) {
-      researchRate += def.researchRate * inst.count * pr;
-      runtime[inst.id] = { status: 'running', efficiency: pr, missingInputs: [], blockedOutputs: [], powerRatio: pr, depleted: [] };
+      researchRate += def.researchRate * inst.count * pr * mods.researchRate;
+      runtime[inst.id] = { status: 'running', efficiency: pr, missingInputs: [], blockedOutputs: [], powerRatio: pr, depleted: [], inputRates: {}, outputRates: {} };
       continue;
     }
     // ---- 発電所（出力は power.ts で計算済み） ----
@@ -64,7 +64,9 @@ export function runProduction(ctx: EngineContext, dt: number): { commercialIncom
       const stock = stockOf(state, land);
       for (const rid of Object.keys(def.fuel ?? {}) as ResourceId[]) if ((stock[rid] ?? 0) <= 1e-9) fuelMissing.push(rid);
       const status: FacilityStatus = fuelMissing.length > 0 && eff <= 1e-6 ? 'no_input' : eff <= 1e-6 ? 'idle' : eff < 0.999 ? 'partial' : 'running';
-      runtime[inst.id] = { status, efficiency: eff, missingInputs: fuelMissing, blockedOutputs: [], powerRatio: 1, depleted: [] };
+      const fuelRates: Partial<Record<ResourceId, number>> = {};
+      for (const [rid, rate] of Object.entries(def.fuel ?? {}) as [ResourceId, number][]) fuelRates[rid] = rate * inst.count * eff;
+      runtime[inst.id] = { status, efficiency: eff, missingInputs: fuelMissing, blockedOutputs: [], powerRatio: 1, depleted: [], inputRates: fuelRates, outputRates: {} };
       continue;
     }
     const prod = def.production;
@@ -111,6 +113,8 @@ export function runProduction(ctx: EngineContext, dt: number): { commercialIncom
       }
     }
     if (efficiency < 1e-6) efficiency = 0;
+    const inputRates: Partial<Record<ResourceId, number>> = {};
+    const outputRates: Partial<Record<ResourceId, number>> = {};
 
     if (efficiency > 0) {
       if (prod.inputs) {
@@ -118,6 +122,7 @@ export function runProduction(ctx: EngineContext, dt: number): { commercialIncom
           const perSec = rate * inst.count * mult * efficiency;
           stock[id] = clean(Math.max(0, (stock[id] ?? 0) - perSec * dt));
           consumption[id] = (consumption[id] ?? 0) + perSec;
+          inputRates[id] = perSec;
         }
       }
       if (prod.outputs) {
@@ -134,6 +139,7 @@ export function runProduction(ctx: EngineContext, dt: number): { commercialIncom
           }
           addToStock(state, stock, id, amount, capacity, 'produced');
           production[id] = (production[id] ?? 0) + perSec;
+          outputRates[id] = perSec;
         }
       }
     }
@@ -147,7 +153,7 @@ export function runProduction(ctx: EngineContext, dt: number): { commercialIncom
       else status = 'no_input';
     } else if (efficiency < 0.999) status = 'partial';
 
-    runtime[inst.id] = { status, efficiency, missingInputs, blockedOutputs, powerRatio: pr, depleted };
+    runtime[inst.id] = { status, efficiency, missingInputs, blockedOutputs, powerRatio: pr, depleted, inputRates, outputRates };
 
     // 稼働→停止 に変わった瞬間だけ通知する
     const prev = prevRuntime[inst.id];

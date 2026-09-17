@@ -1,3 +1,4 @@
+import { CONFIG } from '@/game/data/config';
 import { FACILITY_CATEGORIES } from '@/game/data/facilities';
 import { RESEARCH, type ResearchDef } from '@/game/data/research';
 import type { GameState, Modifiers } from '@/types/state';
@@ -16,12 +17,22 @@ export function createBaseModifiers(): Modifiers {
     storage: 1,
     commercialIncome: 1,
     demandRecovery: 1,
+    researchRate: 1,
   };
 }
 
-/** 完了した研究から係数をまとめて計算する */
+/** 再出発の永続ボーナス（生産・研究の倍率） */
+export function prestigeBonus(points: number): { production: number; research: number } {
+  const p = Math.max(0, points);
+  return { production: 1 + CONFIG.prestige.productionPerPoint * p, research: 1 + CONFIG.prestige.researchPerPoint * p };
+}
+
+/** 完了した研究と再出発ボーナスから係数をまとめて計算する */
 export function computeModifiers(state: GameState): Modifiers {
   const m = createBaseModifiers();
+  const bonus = prestigeBonus(state.prestige?.points ?? 0);
+  for (const c of Object.keys(m.production)) m.production[c] *= bonus.production;
+  m.researchRate *= bonus.research;
   for (const r of RESEARCH as readonly ResearchDef[]) {
     if (!state.research.completed[r.id]) continue;
     for (const e of r.effects) {

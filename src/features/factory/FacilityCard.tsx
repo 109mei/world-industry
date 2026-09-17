@@ -7,6 +7,7 @@ import { FACILITY_CATEGORY_LABEL, facilityCost, facilityMaxAffordable, type Faci
 import { RESOURCE_MAP, type ResourceId } from '@/game/data/resources';
 import { TERRAINS } from '@/game/data/terrain';
 import { findFacility } from '@/game/engine/actions/facility';
+import { diagnoseFacility } from '@/game/engine/analysis/diagnose';
 import { canBuildOn, getLand, landPopulation, surveyMultiplier, terrainMultiplier } from '@/game/engine/land';
 import { describeCondition, isUnlocked } from '@/game/engine/systems/unlocks';
 import { bumpGame, useGame } from '@/stores/gameStore';
@@ -14,6 +15,8 @@ import type { FacilityStatus } from '@/types/state';
 import { formatMoney, formatNumber, formatPercent, formatRate } from '@/utils/format';
 import { NAMES, formatMW } from '@/utils/names';
 import { sfx } from '@/utils/sfx';
+import { useRepeat } from '@/utils/useRepeat';
+import { FixPanel } from './FixPanel';
 
 export const STATUS_LABEL: Record<FacilityStatus, { label: string; tone: 'profit' | 'warn' | 'loss' | 'default' }> = {
   running: { label: '稼働中', tone: 'profit' },
@@ -52,6 +55,8 @@ export function FacilityCard({ def, landId = 'hq' }: Props) {
     if (engine.buyFacility(id, n, landId) > 0) sfx('buy');
     bumpGame();
   };
+  const hold = useRepeat(() => buy(1));
+  const diagnosis = inst && count > 0 && runtime ? diagnoseFacility(state, derived, inst) : null;
 
   if (!unlocked) {
     return (
@@ -191,7 +196,7 @@ export function FacilityCard({ def, landId = 'hq' }: Props) {
         </div>
       )}
       {runtime && count > 0 && (io || def.income) && (
-        <div style={{ marginTop: 8 }}>
+        <div style={{ marginTop: 8 }} className={runtime.efficiency > 0 ? 'gauge gauge--live' : 'gauge'}>
           <div className="row row--between text-sub" style={{ fontSize: 12, marginBottom: 4 }}>
             <span>稼働率</span>
             <span className="num">{formatPercent(runtime.efficiency)}</span>
@@ -199,13 +204,14 @@ export function FacilityCard({ def, landId = 'hq' }: Props) {
           <ProgressBar ratio={runtime.efficiency} tone={runtime.efficiency >= 0.999 ? 'profit' : runtime.efficiency > 0 ? 'warn' : 'loss'} />
         </div>
       )}
+      {diagnosis && <FixPanel diagnosis={diagnosis} />}
       {!build.ok ? (
         <div className="card__actions">
           <Badge tone="warn">{build.reason}</Badge>
         </div>
       ) : (
         <div className="card__actions btn-row">
-          <Button variant="primary" size="sm" disabled={affordable < 1 || atMax} onClick={() => buy(1)}>
+          <Button variant="primary" size="sm" disabled={affordable < 1 || atMax} onClick={() => buy(1)} title="長押しで連続" {...hold}>
             {def.isWorker ? '雇う' : def.transport ? '配備' : '建設'} {formatMoney(nextCost, mode)}
           </Button>
           <Button variant="secondary" size="sm" disabled={affordable < 10 || atMax} onClick={() => buy(10)}>

@@ -5,6 +5,7 @@ import type { LandRuntime, LandState } from '@/types/state';
 import { addToStock, clean } from '../inventory';
 import type { EngineContext } from '../context';
 import { facilitiesOn, isLiquid, landCapacity, ownedLands, surveyMultiplier, terrainMultiplier } from '../land';
+import { creditRankDef } from './contracts';
 import { transportEventMultiplier } from './events';
 
 interface Mode {
@@ -15,13 +16,14 @@ interface Mode {
 
 function transportModes(ctx: EngineContext, land: LandState): Mode[] {
   const mods = ctx.derived.modifiers;
+  const rankCost = creditRankDef(ctx.state).transportCost;
   const modes: Mode[] = [];
   for (const inst of facilitiesOn(ctx.state, land.id)) {
     if (!isFacilityId(inst.typeId) || !inst.enabled || inst.count <= 0) continue;
     const t = FACILITY_MAP[inst.typeId].transport;
     if (!t) continue;
     const eventMult = transportEventMultiplier(ctx.derived.eventMods, land.id, t.kind);
-    modes.push({ capacity: t.capacity * inst.count * mods.transportCapacity * eventMult, costPerTon: t.costPerTon * mods.transportCost, liquidOnly: !!t.liquidOnly });
+    modes.push({ capacity: t.capacity * inst.count * mods.transportCapacity * eventMult, costPerTon: t.costPerTon * mods.transportCost * rankCost, liquidOnly: !!t.liquidOnly });
   }
   // 安い手段から使う
   return modes.sort((a, b) => a.costPerTon - b.costPerTon);

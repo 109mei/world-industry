@@ -4,6 +4,8 @@ import type { ResourceId } from '@/game/data/resources';
 import type { GameEventType, OfflineReport } from '@/types/state';
 import type { NavTab } from '@/types/ui';
 
+export type CompanySubTab = 'info' | 'automation' | 'research' | 'achievements' | 'prestige' | 'settings';
+
 export interface Toast {
   id: number;
   type: GameEventType;
@@ -38,8 +40,8 @@ interface UiStore {
   /** FACTORY 画面で表示中の土地 */
   factoryLand: string;
   setFactoryLand: (id: string) => void;
-  companySubTab: 'info' | 'research' | 'achievements' | 'settings';
-  setCompanySubTab: (t: 'info' | 'research' | 'achievements' | 'settings') => void;
+  companySubTab: CompanySubTab;
+  setCompanySubTab: (t: CompanySubTab) => void;
   achievementQueue: AchievementPopup[];
   pushAchievement: (achievementId: string) => void;
   shiftAchievement: () => void;

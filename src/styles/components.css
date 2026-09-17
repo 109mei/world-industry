@@ -1436,3 +1436,186 @@ textarea.input {
 .card--owned {
   border-color: rgba(233, 185, 73, 0.55);
 }
+
+/* ---------- v0.6: 診断・おすすめ・注文・演出・自動化 ---------- */
+/* 施設の「止まっている理由」と直すボタン */
+.fix {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--warn) 12%, var(--card));
+  border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--border));
+}
+.fix__reason {
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.fix__mark {
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  align-items: center;
+  justify-content: center;
+  background: var(--warn);
+  color: #2a1e00;
+  font-size: 12px;
+  font-weight: 800;
+  flex: none;
+}
+
+/* 稼働ゲージのアニメーション（稼働中だけ光が流れる） */
+.gauge--live .bar__fill {
+  background-image: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.25) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: gauge-flow 1.8s linear infinite;
+}
+@keyframes gauge-flow {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* 採集ボタンの数字ポップ */
+.btn--gather {
+  position: relative;
+  overflow: visible;
+}
+.pops {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.pop {
+  position: absolute;
+  top: 6px;
+  transform: translateX(-50%);
+  font-weight: 800;
+  font-size: 15px;
+  color: var(--profit);
+  text-shadow: 0 1px 0 var(--card), 0 0 6px var(--card);
+  animation: pop-up 0.7s ease-out forwards;
+}
+@keyframes pop-up {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 6px) scale(0.8);
+  }
+  15% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1.1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -28px) scale(1);
+  }
+}
+
+/* おすすめの順位 */
+.rec__rank {
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 800;
+  background: var(--card-2);
+  color: var(--text-sub);
+  flex: none;
+  margin-top: 4px;
+}
+.rec__rank--top {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* 信用ランク */
+.rank {
+  display: inline-flex;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 900;
+  color: #fff;
+  background: var(--text-dim);
+  flex: none;
+}
+.rank--D {
+  background: #6b8bb5;
+}
+.rank--C {
+  background: var(--accent);
+}
+.rank--B {
+  background: var(--profit);
+}
+.rank--A {
+  background: var(--research);
+}
+.rank--S {
+  background: linear-gradient(135deg, #e9b949, #ff7a59);
+}
+
+/* 注文 */
+.contract {
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+}
+.contract:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+/* ハイライト */
+.highlights {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+.highlight {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+/* 資源の収支表 */
+.flows {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1fr 1fr;
+}
+@media (max-width: 419px) {
+  .flows {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 検索と絞り込み */
+.toolbar {
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.toolbar .input {
+  flex: 1;
+  min-width: 160px;
+}
+
+/* マネージャーの仕事 */
+.duties {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  font-size: 12px;
+  color: var(--text-sub);
+  line-height: 1.5;
+}

@@ -91,6 +91,78 @@ export const CONFIG = {
     /** 株価履歴の保持数 */
     historyLength: 120,
   },
+  /** 自動化（マネージャー） */
+  automation: {
+    /** 給料に加算する、総資産あたりの額（円/秒 ÷ 円） */
+    salaryAssetRate: 1e-6,
+    /** 自動処理の間隔（秒） */
+    intervalSeconds: 1,
+    /** 採集係の1秒あたりの採集回数（採集ごと） */
+    gatherPerSecond: 1,
+    /** 物流係が1回の購入に使える所持金の割合 */
+    logisticsBudgetRatio: 0.2,
+    /** 物流係が輸送手段を追加する使用率 */
+    transportBusyRatio: 0.9,
+    /** 投資係が1回の投資に使える、余剰現金の割合 */
+    investBudgetRatio: 0.5,
+    /** おまかせ販売で売り始める需要係数（これより飽和していたら待つ） */
+    smartSellMinDemand: 0.75,
+    /** おまかせ販売で残す量（秒数ぶんの生産量、最低個数） */
+    smartSellKeepSeconds: 60,
+    smartSellKeepMin: 50,
+  },
+  /** 注文 */
+  contracts: {
+    firstDelaySeconds: 180,
+    minIntervalSeconds: 240,
+    maxIntervalSeconds: 480,
+    maxActive: 2,
+    /** 期限（秒） */
+    minDuration: 600,
+    maxDuration: 1200,
+    /** 量 = 生産量 × この秒数（最低 minAmount） */
+    amountSeconds: 300,
+    minAmount: 20,
+    /** 報酬の倍率（基準価格に対する） */
+    minRewardMult: 1.4,
+    maxRewardMult: 2.0,
+    /** 達成で得る信用ポイントの基準（報酬額の対数で増える） */
+    creditPerContract: 25,
+    /** 期限切れで失う信用ポイント */
+    creditPenalty: 10,
+    /** 解放に必要な累計売上（円） */
+    unlockEarned: 5_000,
+  },
+  /** ライバル会社（他社の行動） */
+  rivals: {
+    /** 物件を買う判定の間隔（秒） */
+    buyIntervalSeconds: 60,
+    /** 1回の判定で各社が物件を買う確率 */
+    buyChance: 0.015,
+    /** 市場に残す物件の割合（これを下回ったら他社は買わない） */
+    marketFloorRatio: 0.4,
+    /** 各社が初期の物件に加えて買える上限 */
+    maxExtraProperties: 3,
+    /** 買う物件の価格の上限（会社の現金に対する割合） */
+    buyCashRatio: 0.8,
+    /** 増資の判定間隔（秒） */
+    issueIntervalSeconds: 600,
+    /** 増資の確率（成長重視の会社のみ） */
+    issueChance: 0.25,
+    /** 1回の増資で増える株の割合 */
+    issueRatio: 0.05,
+  },
+  /** 再出発（プレステージ） */
+  prestige: {
+    /** 会社を売却できる総資産（円） */
+    minAssets: 1_000_000_000,
+    /** ポイント = floor(sqrt(総資産 / この額)) */
+    assetsPerPoint: 100_000_000,
+    /** 1ポイントあたりの永続ボーナス */
+    productionPerPoint: 0.03,
+    researchPerPoint: 0.02,
+    startingCashPerPoint: 100_000,
+  },
   /** イベント履歴の保持数 */
   eventLogLength: 100,
   /** 会社価値の計算に使う、施設の購入額の評価率 */

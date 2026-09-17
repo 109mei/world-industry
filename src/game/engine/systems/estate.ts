@@ -5,6 +5,7 @@ import { PROPERTIES, PROPERTY_MAP, isPropertyId, propertyYield, type PropertyDef
 import type { GameState } from '@/types/state';
 import type { EngineContext, Rng } from '../context';
 import { createInitialEstate } from '../state/createInitialState';
+import { creditRankDef } from './contracts';
 
 /** 標準正規乱数（Box–Muller） */
 export function randn(rng: Rng): number {
@@ -65,14 +66,19 @@ export function rentPerSec(state: GameState): number {
   return r;
 }
 
+/** 不動産の売買手数料（信用ランクで下がる） */
+export function estateFee(state: GameState): number {
+  return creditRankDef(state).estateFee;
+}
+
 /** 購入の合計額（手数料込み） */
 export function propertyBuyCost(state: GameState, id: string): number {
-  return Math.ceil(propertyPrice(state, id) * (1 + CONFIG.estate.buyFee));
+  return Math.ceil(propertyPrice(state, id) * (1 + estateFee(state)));
 }
 
 /** 売却で受け取る額（手数料引き） */
 export function propertySellProceeds(state: GameState, id: string): number {
-  return Math.floor(propertyPrice(state, id) * (1 - CONFIG.estate.sellFee));
+  return Math.floor(propertyPrice(state, id) * (1 - estateFee(state)));
 }
 
 /** 地価を1回動かす（都市ごとのランダムウォーク） */

@@ -4,7 +4,7 @@ import { type FacilityId } from '@/game/data/facilities';
 import { isUnlocked } from '../systems/unlocks';
 
 // 簡単な「それなりに賢い」プレイヤーを模擬して、進行速度を確認する（開発用）
-it.runIf(process.env.WI_SIM === '1')('balance simulation (WI_SIM=1 で実行)', () => {
+it.runIf(process.env.WI_SIM === '1')('balance simulation (WI_SIM=1 で実行)', { timeout: 600_000 }, () => {
   let s = 1;
   const rng = () => ((s = (s * 1664525 + 1013904223) % 4294967296) / 4294967296);
   const e = new GameEngine({ rng, now: () => 0 });

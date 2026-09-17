@@ -6,7 +6,7 @@ import { LANDS, type LandDefId } from '@/game/data/lands';
 import { RECIPES, type RecipeId } from '@/game/data/recipes';
 import { RESEARCH, type ResearchId } from '@/game/data/research';
 import type { ResourceId } from '@/game/data/resources';
-import type { DerivedState, GameEvent, GameEventType, GameState, OfflineReport } from '@/types/state';
+import type { DerivedState, GameEvent, GameEventType, GameState, InvestRule, ManagerId, OfflineReport } from '@/types/state';
 import { craft } from './actions/craft';
 import { buyFacility, setFacilityEnabled } from './actions/facility';
 import { gather } from './actions/gather';
@@ -15,7 +15,9 @@ import type { EmitOptions, EngineContext, Rng } from './context';
 import { calcCapacity, clean } from './inventory';
 import { landCapacity, ownedLands } from './land';
 import { createEmptyDerived, createInitialState } from './state/createInitialState';
+import { applyTemplate, deleteTemplate, fireManager, hireManager, poolDividends, runAutomation, saveTemplate } from './systems/automation';
 import { runCompanyMetrics } from './systems/company';
+import { creditRankDef, declineContract, deliverContract, runContracts } from './systems/contracts';
 import { buyProperty, isEstateUnlocked, runEstate, sellProperty } from './systems/estate';
 import { computeEventMods, runEvents, triggerEvent } from './systems/events';
 import { runLogistics } from './systems/logistics';
@@ -23,8 +25,10 @@ import { runAutoSell, runMarket, sellResource } from './systems/market';
 import { computeModifiers } from './systems/modifiers';
 import { runPower } from './systems/power';
 import { runProduction } from './systems/production';
+import { buildPrestigeState } from './systems/prestige';
 import { runAchievements, runTutorial } from './systems/progress';
 import { completeResearch, runResearchPoints } from './systems/research';
+import { runRivals } from './systems/rivals';
 import { acquireCompany, buyShares, computeStocks, dissolveCompany, expandCompany, runStocks, sellShares, setCompanyPolicy } from './systems/stocks';
 import { runSurveys } from './systems/survey';
 import { runUnlocks } from './systems/unlocks';
@@ -126,10 +130,13 @@ export class GameEngine {
     const { commercialIncome } = runProduction(this.ctx, dt);
     const { cost } = runLogistics(this.ctx, dt);
     runMarket(this.ctx, dt);
+    runContracts(this.ctx, dt);
     const sold = runAutoSell(this.ctx);
     runResearchPoints(this.ctx, dt);
     const { rent } = runEstate(this.ctx, dt);
     const { dividends } = runStocks(this.ctx, dt);
+    poolDividends(state, dividends);
+    runRivals(this.ctx, dt);
     // 商業収入
     const earned = commercialIncome * dt;
     if (earned > 0) {
@@ -137,9 +144,14 @@ export class GameEngine {
       state.company.totalEarned += earned;
       state.stats.totalCommercialIncome += earned;
     }
-    this.recordIncome(sold + earned + rent + dividends - cost, dt);
+    // マネージャー（給料と自動処理）。総資産は前 tick の値を使う
+    const auto = runAutomation(this.ctx, dt);
+    const extra = this.derived.extraIncome;
+    this.derived.extraIncome = 0;
+    this.recordIncome(sold + earned + rent + dividends + auto.gained + extra - cost - auto.salaries, dt);
     state.stats.playtimeSeconds += dt;
     runCompanyMetrics(this.ctx);
+    this.derived.creditRank = creditRankDef(state).rank;
     runUnlocks(this.ctx);
     runTutorial(this.ctx);
     runAchievements(this.ctx);
@@ -341,6 +353,103 @@ export class GameEngine {
   renameCompany(name: string): void {
     const trimmed = name.trim().slice(0, 24);
     if (trimmed) this.state.company.name = trimmed;
+  }
+
+  // ---------- 自動化（マネージャー・ルール・テンプレート） ----------
+  hireManager(id: ManagerId): boolean {
+    const ok = hireManager(this.ctx, id);
+    if (ok) this.refreshDerived();
+    return ok;
+  }
+
+  fireManager(id: ManagerId): boolean {
+    const ok = fireManager(this.ctx, id);
+    if (ok) this.refreshDerived();
+    return ok;
+  }
+
+  /** 資源の「キープする量」（0 で解除） */
+  setCraftTarget(resourceId: ResourceId, amount: number): void {
+    const a = this.state.automation;
+    const n = Math.max(0, Math.floor(amount));
+    if (n > 0) a.craftTargets[resourceId] = n;
+    else delete a.craftTargets[resourceId];
+  }
+
+  setAutoSellMinPrice(resourceId: ResourceId, ratio: number | null): void {
+    const cfg = this.state.market.autoSell[resourceId] ?? { enabled: false, keep: 0 };
+    if (ratio && ratio > 0) cfg.minPriceRatio = ratio;
+    else delete cfg.minPriceRatio;
+    this.state.market.autoSell[resourceId] = cfg;
+  }
+
+  setSmartSell(enabled: boolean): void {
+    this.state.automation.smartSell = enabled;
+  }
+
+  updateInvestRule(patch: Partial<InvestRule>): void {
+    Object.assign(this.state.automation.invest, patch);
+  }
+
+  saveTemplate(landId: string, name: string): boolean {
+    return saveTemplate(this.ctx, landId, name) !== null;
+  }
+
+  deleteTemplate(id: number): boolean {
+    return deleteTemplate(this.ctx, id);
+  }
+
+  applyTemplate(templateId: number, landId: string): number {
+    const n = applyTemplate(this.ctx, templateId, landId);
+    if (n > 0) {
+      this.refreshDerived();
+      runUnlocks(this.ctx);
+    }
+    return n;
+  }
+
+  /** この土地の施設をすべて1個ずつ増やす。買えた個数を返す */
+  buyAllOnLand(landId: string): number {
+    let n = 0;
+    for (const inst of [...this.state.facilities]) {
+      if (inst.landId !== landId || inst.count <= 0) continue;
+      n += buyFacility(this.ctx, inst.typeId as FacilityId, 1, landId);
+    }
+    if (n > 0) {
+      this.refreshDerived();
+      runUnlocks(this.ctx);
+    }
+    return n;
+  }
+
+  // ---------- 注文 ----------
+  deliverContract(contractId: number, amount?: number): number {
+    const n = deliverContract(this.ctx, contractId, amount);
+    if (n > 0) {
+      this.refreshDerived();
+      runAchievements(this.ctx);
+    }
+    return n;
+  }
+
+  declineContract(contractId: number): boolean {
+    return declineContract(this.ctx, contractId);
+  }
+
+  // ---------- 再出発 ----------
+  /** 会社を売却して再出発する。実績・設定・永続ボーナスだけ持ち越す */
+  prestige(): boolean {
+    const next = buildPrestigeState(this.state, this.derived.assets, this.nowFn());
+    if (!next) return false;
+    const prevPoints = this.state.prestige?.points ?? 0;
+    this.state = next;
+    this.ctx.state = next;
+    this.derived = createEmptyDerived();
+    this.ctx.derived = this.derived;
+    this.refreshDerived();
+    runUnlocks(this.ctx);
+    this.emit('success', `会社を売却して再出発しました。永続ボーナス ${prevPoints} → ${next.prestige.points} ポイント（生産 ×${(1 + CONFIG.prestige.productionPerPoint * next.prestige.points).toFixed(2)}）`, { toast: true });
+    return true;
   }
 
   updateSettings(patch: Partial<GameState['settings']>): void {

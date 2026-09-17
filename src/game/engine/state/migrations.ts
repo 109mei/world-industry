@@ -1,6 +1,6 @@
 import { GAME_META } from '@/game/data/meta';
 import type { GameState, LandState } from '@/types/state';
-import { createHqLand, createInitialCompanyStock, createInitialEstate, createInitialState, createInitialStocks } from './createInitialState';
+import { createHqLand, createInitialAutomation, createInitialCompanyStock, createInitialContracts, createInitialEstate, createInitialPrestige, createInitialState, createInitialStocks } from './createInitialState';
 
 /**
  * 古いセーブデータを現在の形式へ変換する。
@@ -56,6 +56,19 @@ const MIGRATIONS: Record<number, Migration> = {
       settings: { ...base.settings, ...(d.settings ?? {}) },
     };
   },
+  // v4 → v5: 自動化（マネージャー・在庫ルール・自動投資・テンプレート）、注文と信用、再出発、増資、統計の追加
+  4: (data) => {
+    const d = data as Partial<GameState> & Record<string, unknown>;
+    const base = createInitialState();
+    return {
+      ...data,
+      saveVersion: 5,
+      automation: d.automation ?? createInitialAutomation(),
+      contracts: d.contracts ?? createInitialContracts(),
+      prestige: d.prestige ?? createInitialPrestige(),
+      stats: { ...base.stats, ...(d.stats ?? {}) },
+    };
+  },
 };
 
 export function migrateSave(raw: unknown): GameState {
@@ -92,7 +105,39 @@ function fixStocks(s: Partial<GameState['stocks']> | undefined): GameState['stoc
     const c = s.companies?.[id];
     companies[id] = c ? { ...createInitialCompanyStock(), ...c, history: Array.isArray(c.history) ? c.history : [] } : createInitialCompanyStock();
   }
-  return { companies, nextUpdateIn: typeof s.nextUpdateIn === 'number' ? s.nextUpdateIn : base.nextUpdateIn };
+  return {
+    companies,
+    nextUpdateIn: typeof s.nextUpdateIn === 'number' ? s.nextUpdateIn : base.nextUpdateIn,
+    rivalIn: typeof s.rivalIn === 'number' ? s.rivalIn : base.rivalIn,
+    issueIn: typeof s.issueIn === 'number' ? s.issueIn : base.issueIn,
+  };
+}
+
+function fixAutomation(a: Partial<GameState['automation']> | undefined): GameState['automation'] {
+  const base = createInitialAutomation();
+  if (!a) return base;
+  return {
+    ...base,
+    ...a,
+    managers: { ...(a.managers ?? {}) },
+    craftTargets: { ...(a.craftTargets ?? {}) },
+    invest: { ...base.invest, ...(a.invest ?? {}) },
+    templates: Array.isArray(a.templates) ? a.templates : [],
+    timer: typeof a.timer === 'number' ? a.timer : base.timer,
+    dividendPool: typeof a.dividendPool === 'number' ? a.dividendPool : 0,
+  };
+}
+
+function fixContracts(c: Partial<GameState['contracts']> | undefined): GameState['contracts'] {
+  const base = createInitialContracts();
+  if (!c) return base;
+  return { ...base, ...c, active: Array.isArray(c.active) ? c.active : [] };
+}
+
+function fixPrestige(p: Partial<GameState['prestige']> | undefined): GameState['prestige'] {
+  const base = createInitialPrestige();
+  if (!p) return base;
+  return { ...base, ...p, history: Array.isArray(p.history) ? p.history : [] };
 }
 
 /** 欠けているフィールドを初期値で補う（部分的に壊れたセーブにも耐える） */
@@ -132,6 +177,9 @@ export function fillDefaults(data: Record<string, unknown>): GameState {
     events: { ...base.events, ...(d.events ?? {}), active: Array.isArray(d.events?.active) ? d.events.active : [] },
     estate: fixEstate(d.estate),
     stocks: fixStocks(d.stocks),
+    automation: fixAutomation(d.automation),
+    contracts: fixContracts(d.contracts),
+    prestige: fixPrestige(d.prestige),
     eventLog: Array.isArray(d.eventLog) ? d.eventLog : [],
     nextEventId: typeof d.nextEventId === 'number' ? d.nextEventId : 1,
     settings: { ...base.settings, ...(d.settings ?? {}) },

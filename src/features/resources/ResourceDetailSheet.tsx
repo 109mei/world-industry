@@ -6,10 +6,12 @@ import { Sheet } from '@/components/ui/Sheet';
 import { Sparkline } from '@/components/ui/Sparkline';
 import { Stat } from '@/components/ui/Stat';
 import { RESOURCE_CATEGORY_LABEL, RESOURCE_MAP } from '@/game/data/resources';
+import { resourceFlows } from '@/game/engine/analysis/flows';
+import { isManagerHired } from '@/game/engine/systems/automation';
 import { currentPrice, demandFactor, eventPriceMultiplier, getMarketState, sellRevenue } from '@/game/engine/systems/market';
 import { bumpGame, useGame } from '@/stores/gameStore';
 import { useUiStore } from '@/stores/uiStore';
-import { formatAmount, formatMoney, formatNumber, formatPercent, formatRate } from '@/utils/format';
+import { formatAmount, formatDuration, formatMoney, formatNumber, formatPercent, formatRate } from '@/utils/format';
 import { sfx } from '@/utils/sfx';
 
 /** 資源の詳細と売却操作 */
@@ -19,9 +21,16 @@ export function ResourceDetailSheet() {
   const { state, derived, engine } = useGame();
   const [keep, setKeep] = useState('0');
   const [qty, setQty] = useState('10');
+  const [target, setTarget] = useState('0');
+  const [minPrice, setMinPrice] = useState('');
 
   useEffect(() => {
-    if (id) setKeep(String(state.market.autoSell[id]?.keep ?? 0));
+    if (id) {
+      setKeep(String(state.market.autoSell[id]?.keep ?? 0));
+      setTarget(String(state.automation.craftTargets[id] ?? 0));
+      const r = state.market.autoSell[id]?.minPriceRatio;
+      setMinPrice(r ? String(Math.round(r * 100)) : '');
+    }
     // 選択が変わったときだけ初期化する
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
@@ -40,12 +49,26 @@ export function ResourceDetailSheet() {
   const eventMult = eventPriceMultiplier(state, id);
   const allRevenue = sellRevenue(state, id, Math.floor(amount));
 
+  const flows = resourceFlows(state, derived, id);
+  const net = prod - cons;
+  const untilEmpty = net < -1e-9 ? amount / -net : null;
+  const untilFull = net > 1e-9 ? Math.max(0, derived.capacity - amount) / net : null;
+  const craftManager = isManagerHired(state, 'craft');
+  const salesManager = isManagerHired(state, 'sales');
+  const craftTarget = state.automation.craftTargets[id] ?? 0;
+
   const sell = (n: number | 'all') => {
     if (engine.sell(id, n) > 0) sfx('sell');
     bumpGame();
   };
   const applyAuto = (enabled: boolean) => {
     engine.setAutoSell(id, enabled, Number(keep) || 0);
+    const r = Number(minPrice);
+    engine.setAutoSellMinPrice(id, salesManager && r > 0 ? r / 100 : null);
+    bumpGame();
+  };
+  const applyTarget = () => {
+    engine.setCraftTarget(id, Number(target) || 0);
     bumpGame();
   };
 
@@ -66,6 +89,71 @@ export function ResourceDetailSheet() {
       </div>
       <div style={{ marginTop: 8 }}>
         <ProgressBar ratio={amount / derived.capacity} tone="auto" size="lg" />
+        <div className="row row--between text-sub num" style={{ fontSize: 12, marginTop: 4 }}>
+          {untilEmpty !== null ? <span className="text-loss">このままだと約 {formatDuration(untilEmpty)} で枯渇</span> : untilFull !== null ? <span>約 {formatDuration(untilFull)} で満杯</span> : <span>在庫は横ばい</span>}
+          {(flows.imports > 0 || flows.exports > 0) && (
+            <span>
+              輸送 {flows.imports > 0 ? `本社へ +${formatRate(flows.imports, mode)}/秒` : ''} {flows.exports > 0 ? `土地へ -${formatRate(flows.exports, mode)}/秒` : ''}
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className="sheet__section">
+        <div className="section-title" style={{ marginTop: 0 }}>
+          収支表
+        </div>
+        <div className="flows">
+          <div>
+            <div className="stat__label">作っている（個/秒）</div>
+            {flows.producers.length === 0 && flows.recipesMaking.length === 0 && !flows.gather && <div className="text-dim" style={{ fontSize: 12 }}>作る手段がまだありません</div>}
+            {flows.producers.slice(0, 6).map((f) => (
+              <div key={`p:${f.landId}:${f.typeId}`} className="row num" style={{ fontSize: 12, gap: 6 }}>
+                <Icon name={f.icon} size={16} />
+                <span className="row__grow">{f.label}</span>
+                <span className={f.rate > 0 ? 'text-profit' : 'text-dim'}>{formatRate(f.rate, mode)}</span>
+              </div>
+            ))}
+            {flows.gather && <div className="text-sub" style={{ fontSize: 12 }}>手作業: {flows.gather.label}（HOME）</div>}
+            {flows.recipesMaking.map((r) => (
+              <div key={r.id} className="text-sub" style={{ fontSize: 12 }}>
+                クラフト: {r.name}（{Object.entries(r.inputs).map(([k, v]) => `${RESOURCE_MAP[k as keyof typeof RESOURCE_MAP].name}×${v}`).join('・')}）
+              </div>
+            ))}
+            {flows.producers.length === 0 && flows.facilitiesMaking.slice(0, 3).map((f) => (
+              <div key={f.id} className="text-sub" style={{ fontSize: 12 }}>
+                施設: {f.name}（FACTORY）
+              </div>
+            ))}
+          </div>
+          <div>
+            <div className="stat__label">使っている（個/秒）</div>
+            {flows.consumers.length === 0 && flows.recipesUsing.length === 0 && <div className="text-dim" style={{ fontSize: 12 }}>どこでも使っていません{def.sellable ? '（売って現金に）' : ''}</div>}
+            {flows.consumers.slice(0, 6).map((f) => (
+              <div key={`c:${f.landId}:${f.typeId}`} className="row num" style={{ fontSize: 12, gap: 6 }}>
+                <Icon name={f.icon} size={16} />
+                <span className="row__grow">{f.label}</span>
+                <span className={f.rate > 0 ? 'text-loss' : 'text-dim'}>{formatRate(-f.rate, mode)}</span>
+              </div>
+            ))}
+            {flows.recipesUsing.slice(0, 4).map((r) => (
+              <div key={r.id} className="text-sub" style={{ fontSize: 12 }}>
+                クラフト: {r.name}
+              </div>
+            ))}
+          </div>
+        </div>
+        {(craftManager || craftTarget > 0) && flows.recipesMaking.length > 0 && (
+          <div className="row" style={{ marginTop: 10, alignItems: 'flex-end' }}>
+            <label className="field" style={{ flex: 1 }}>
+              <span className="field__label">クラフト係がキープする量（0 で解除）</span>
+              <input className="input input--sm num" type="number" inputMode="numeric" min={0} value={target} onChange={(e) => setTarget(e.target.value)} />
+            </label>
+            <Button variant="primary" size="sm" onClick={applyTarget}>
+              設定
+            </Button>
+          </div>
+        )}
       </div>
 
       {def.sellable && (
@@ -111,11 +199,17 @@ export function ResourceDetailSheet() {
           <p className="text-sub" style={{ fontSize: 12, marginTop: 4 }}>
             在庫が「残す量」を超えた分を自動で売ります。大量に売ると価格が下がるので注意。
           </p>
-          <div className="row" style={{ marginTop: 8 }}>
-            <label className="field" style={{ flex: 1 }}>
+          <div className="row" style={{ marginTop: 8, flexWrap: 'wrap' }}>
+            <label className="field" style={{ flex: 1, minWidth: 120 }}>
               <span className="field__label">残す量</span>
               <input className="input input--sm num" type="number" inputMode="numeric" min={0} value={keep} onChange={(e) => setKeep(e.target.value)} />
             </label>
+            {salesManager && (
+              <label className="field" style={{ flex: 1, minWidth: 120 }}>
+                <span className="field__label">下限価格（基準の %）</span>
+                <input className="input input--sm num" type="number" inputMode="numeric" min={0} placeholder="なし" value={minPrice} onChange={(e) => setMinPrice(e.target.value)} />
+              </label>
+            )}
             <div style={{ alignSelf: 'flex-end' }}>
               {auto?.enabled ? (
                 <Button variant="danger" size="sm" onClick={() => applyAuto(false)}>
@@ -131,6 +225,12 @@ export function ResourceDetailSheet() {
           {auto?.enabled && (
             <div className="text-profit" style={{ fontSize: 12, marginTop: 6 }}>
               自動売却中: {formatNumber(auto.keep, 'full')} を超えた分を売却
+              {salesManager && auto.minPriceRatio ? `（相場が基準の ${Math.round(auto.minPriceRatio * 100)}% 未満なら待つ）` : ''}
+            </div>
+          )}
+          {!salesManager && (
+            <div className="text-dim" style={{ fontSize: 11, marginTop: 4 }}>
+              販売係を雇うと「下限価格」と注文の自動納品が使えます（COMPANY → 自動化）。
             </div>
           )}
         </div>

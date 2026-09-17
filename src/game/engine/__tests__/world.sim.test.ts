@@ -10,7 +10,7 @@ import { isUnlocked } from '../systems/unlocks';
  * 土地以降の進行速度を確認する簡易シミュレーション（開発用）。
  * 総資産100万円・所持金80万円・工具工房などの中盤の状態から始める。
  */
-it.runIf(process.env.WI_SIM === '1')('world simulation (WI_SIM=1 で実行)', () => {
+it.runIf(process.env.WI_SIM === '1')('world simulation (WI_SIM=1 で実行)', { timeout: 600_000 }, () => {
   let s = 3;
   const rng = () => ((s = (s * 1664525 + 1013904223) % 4294967296) / 4294967296);
   const e = new GameEngine({ rng, now: () => 0 });

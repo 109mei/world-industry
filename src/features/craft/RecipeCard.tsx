@@ -10,6 +10,7 @@ import { craftableTimes } from '@/game/engine/actions/craft';
 import { describeCondition, isUnlocked } from '@/game/engine/systems/unlocks';
 import { bumpGame, useGame } from '@/stores/gameStore';
 import { sfx } from '@/utils/sfx';
+import { useRepeat } from '@/utils/useRepeat';
 
 const NAMES = {
   resource: (id: string) => (isResourceId(id) ? RESOURCE_MAP[id].name : id),
@@ -30,6 +31,8 @@ export function RecipeCard({ recipe }: { recipe: RecipeDef }) {
     if (engine.craft(id, n) > 0) sfx('craft');
     bumpGame();
   };
+  const hold = useRepeat(() => doCraft(1));
+  const keep = state.automation.craftTargets[Object.keys(recipe.outputs ?? {})[0] as ResourceId];
 
   if (!unlocked) {
     return (
@@ -72,7 +75,7 @@ export function RecipeCard({ recipe }: { recipe: RecipeDef }) {
         <Ingredients needs={recipe.inputs} />
       </div>
       <div className="card__actions btn-row">
-        <Button variant="primary" size="sm" disabled={times < 1} onClick={() => doCraft(1)}>
+        <Button variant="primary" size="sm" disabled={times < 1} onClick={() => doCraft(1)} title="長押しで連続" {...hold}>
           1個作る
         </Button>
         <Button variant="secondary" size="sm" disabled={times < 1} onClick={() => doCraft(10)}>
@@ -81,6 +84,7 @@ export function RecipeCard({ recipe }: { recipe: RecipeDef }) {
         <Button variant="secondary" size="sm" disabled={times < 1} onClick={() => doCraft('max')}>
           MAX ({times})
         </Button>
+        {keep ? <span className="badge badge--research">クラフト係がキープ {keep}</span> : null}
       </div>
     </Card>
   );

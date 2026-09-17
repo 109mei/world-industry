@@ -5,9 +5,8 @@ import { Sheet } from '@/components/ui/Sheet';
 import { Stat } from '@/components/ui/Stat';
 import { CITY_MAP } from '@/game/data/cities';
 import { COMPANY_MAP, isCompanyId } from '@/game/data/companies';
-import { CONFIG } from '@/game/data/config';
 import { PROPERTY_KIND, PROPERTY_MAP, isPropertyId, propertyYield } from '@/game/data/properties';
-import { cityMultiplier, propertyBuyCost, propertyOwner, propertyPrice, propertyRentPerSec, propertySellProceeds } from '@/game/engine/systems/estate';
+import { cityMultiplier, estateFee, propertyBuyCost, propertyOwner, propertyPrice, propertyRentPerSec, propertySellProceeds } from '@/game/engine/systems/estate';
 import { bumpGame, useGame } from '@/stores/gameStore';
 import { useUiStore } from '@/stores/uiStore';
 import { formatMoney, formatMoneyRate, formatNumber, formatPercent, formatRate } from '@/utils/format';
@@ -82,7 +81,7 @@ export function PropertySheet() {
                 }
               }}
             >
-              購入する（{formatMoney(cost, mode)}、手数料 {formatPercent(CONFIG.estate.buyFee, 0)} 込み）
+              購入する（{formatMoney(cost, mode)}、手数料 {formatPercent(estateFee(state), 1)} 込み）
             </Button>
             {!canBuy && (
               <div className="text-sub" style={{ fontSize: 12, marginTop: 6 }}>

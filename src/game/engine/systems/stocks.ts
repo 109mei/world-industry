@@ -4,6 +4,7 @@ import { PROPERTY_MAP, isPropertyId } from '@/game/data/properties';
 import type { CompanyRuntime, CompanyStockState, GameState } from '@/types/state';
 import type { EngineContext } from '../context';
 import { createInitialCompanyStock, createInitialStocks } from '../state/createInitialState';
+import { creditRankDef } from './contracts';
 import { companyProperties, isEstateUnlocked, propertyPrice, propertyRentPerSec, randn } from './estate';
 
 function stockOf(state: GameState, id: string): CompanyStockState {
@@ -14,6 +15,17 @@ function stockOf(state: GameState, id: string): CompanyStockState {
     state.stocks.companies[id] = s;
   }
   return s;
+}
+
+/** 発行株数（定義の株数 + 増資分） */
+export function sharesOf(state: GameState, id: string): number {
+  if (!isCompanyId(id)) return 0;
+  return COMPANY_MAP[id].shares + (stockOf(state, id).extraShares ?? 0);
+}
+
+/** 株の売買スプレッド（信用ランクで下がる） */
+function spreadOf(state: GameState): number {
+  return creditRankDef(state).stockSpread;
 }
 
 /** 会社が持つ物件の評価額（円） */
@@ -35,7 +47,7 @@ export function companyEarningsPerHour(state: GameState, def: CompanyDef): numbe
 /** 需給を除いた理論株価 */
 export function fundamentalPrice(state: GameState, def: CompanyDef): number {
   const s = stockOf(state, def.id);
-  return (def.baseCap * s.growth + s.cash + companyPropertyValue(state, def.id)) / def.shares;
+  return (def.baseCap * s.growth + s.cash + companyPropertyValue(state, def.id)) / sharesOf(state, def.id);
 }
 
 /** 現在の株価（円/株） */
@@ -49,7 +61,7 @@ export function stockPrice(state: GameState, id: string, eventMult = 1): number 
 
 export function ownershipOf(state: GameState, id: string): number {
   if (!isCompanyId(id)) return 0;
-  return stockOf(state, id).playerShares / COMPANY_MAP[id].shares;
+  return stockOf(state, id).playerShares / sharesOf(state, id);
 }
 
 /** 経営権（3分の2以上）を持っているか */
@@ -63,7 +75,7 @@ export function hasControl(state: GameState, id: string): boolean {
 export function sharesToControl(state: GameState, id: string): number {
   if (!isCompanyId(id)) return 0;
   const def = COMPANY_MAP[id];
-  const need = Math.ceil(def.shares * CONTROL_RATIO - 1e-6);
+  const need = Math.ceil(sharesOf(state, def.id) * CONTROL_RATIO - 1e-6);
   return Math.max(0, need - stockOf(state, id).playerShares);
 }
 
@@ -76,7 +88,7 @@ export function companyRuntime(state: GameState, id: string, eventMult = 1): Com
   return {
     price,
     fundamental: fundamentalPrice(state, def),
-    marketCap: price * def.shares,
+    marketCap: price * sharesOf(state, id),
     earningsPerHour: earnings,
     propertyValue: companyPropertyValue(state, id),
     ownership,
@@ -131,7 +143,7 @@ export function runStocks(ctx: EngineContext, dt: number): { dividends: number }
     if (s.dissolved) continue;
     const earnings = companyEarningsPerHour(state, c) * hours;
     const payout = POLICY_DEF[s.policy].payout;
-    const ownership = s.playerShares / c.shares;
+    const ownership = s.playerShares / sharesOf(state, c.id);
     if (ownership > 0) dividends += earnings * payout * ownership;
     const retained = earnings * (1 - payout);
     // 再投資による成長は事業が大きくなるほど効きにくい（事業価値は指数ではなく直線的に増える）
@@ -158,8 +170,8 @@ export function buyQuote(state: GameState, id: string, q: number, eventMult = 1)
   if (!isCompanyId(id) || q <= 0) return { unit: 0, total: 0 };
   const def = COMPANY_MAP[id];
   const s = stockOf(state, id);
-  const f = q / def.shares;
-  const unit = fundamentalPrice(state, def) * s.sentiment * eventMult * (1 + (CONFIG.stocks.impact * f) / 2) * (1 + CONFIG.stocks.spread);
+  const f = q / sharesOf(state, id);
+  const unit = fundamentalPrice(state, def) * s.sentiment * eventMult * (1 + (CONFIG.stocks.impact * f) / 2) * (1 + spreadOf(state));
   return { unit, total: unit * q };
 }
 
@@ -167,8 +179,8 @@ export function sellQuote(state: GameState, id: string, q: number, eventMult = 1
   if (!isCompanyId(id) || q <= 0) return { unit: 0, total: 0 };
   const def = COMPANY_MAP[id];
   const s = stockOf(state, id);
-  const f = q / def.shares;
-  const unit = ((fundamentalPrice(state, def) * s.sentiment * eventMult) / (1 + (CONFIG.stocks.impact * f) / 2)) * (1 - CONFIG.stocks.spread);
+  const f = q / sharesOf(state, id);
+  const unit = ((fundamentalPrice(state, def) * s.sentiment * eventMult) / (1 + (CONFIG.stocks.impact * f) / 2)) * (1 - spreadOf(state));
   return { unit, total: unit * q };
 }
 
@@ -178,14 +190,15 @@ export function maxAffordableShares(state: GameState, id: string, eventMult = 1)
   const def = COMPANY_MAP[id];
   const s = stockOf(state, id);
   const cash = state.company.cash;
-  const base = fundamentalPrice(state, def) * s.sentiment * eventMult * (1 + CONFIG.stocks.spread);
+  const total = sharesOf(state, id);
+  const base = fundamentalPrice(state, def) * s.sentiment * eventMult * (1 + spreadOf(state));
   if (base <= 0) return 0;
   let q = Math.floor(cash / base);
   for (let i = 0; i < 4; i++) {
-    const f = q / def.shares;
+    const f = q / total;
     q = Math.floor(cash / (base * (1 + (CONFIG.stocks.impact * f) / 2)));
   }
-  const available = def.shares - s.playerShares;
+  const available = total - s.playerShares;
   return Math.max(0, Math.min(q, available));
 }
 
@@ -196,7 +209,8 @@ export function buyShares(ctx: EngineContext, id: string, qty: number): number {
   const def = COMPANY_MAP[id];
   const s = stockOf(state, id);
   if (s.dissolved) return 0;
-  const q = Math.min(Math.floor(qty), def.shares - s.playerShares);
+  const shares = sharesOf(state, id);
+  const q = Math.min(Math.floor(qty), shares - s.playerShares);
   if (q <= 0) return 0;
   const { unit, total } = buyQuote(state, id, q, derived.eventMods.stock);
   if (state.company.cash + 1e-6 < total) return 0;
@@ -204,10 +218,10 @@ export function buyShares(ctx: EngineContext, id: string, qty: number): number {
   state.company.totalSpent += total;
   s.avgCost = (s.avgCost * s.playerShares + total) / (s.playerShares + q);
   s.playerShares += q;
-  const f = q / def.shares;
+  const f = q / shares;
   s.sentiment = Math.min(CONFIG.stocks.maxSentiment, s.sentiment * (1 + CONFIG.stocks.impact * f));
   computeStocks(ctx);
-  const own = s.playerShares / def.shares;
+  const own = s.playerShares / shares;
   ctx.emit('info', `${def.name}の株を${q.toLocaleString('ja-JP')}株購入（@${Math.round(unit).toLocaleString('ja-JP')}円、持株比率 ${(own * 100).toFixed(1)}%）`, { toast: true });
   if (own + 1e-9 >= CONTROL_RATIO && own - f + 1e-9 < CONTROL_RATIO) {
     ctx.emit('success', `${def.name}の経営権を握りました。方針の変更・増設・解体・買収ができます`, { toast: true });
@@ -228,7 +242,7 @@ export function sellShares(ctx: EngineContext, id: string, qty: number): number 
   state.stats.tradingProfit += total - q * s.avgCost;
   s.playerShares -= q;
   if (s.playerShares === 0) s.avgCost = 0;
-  const f = q / def.shares;
+  const f = q / sharesOf(state, id);
   s.sentiment = Math.max(CONFIG.stocks.minSentiment, s.sentiment / (1 + CONFIG.stocks.impact * f));
   computeStocks(ctx);
   ctx.emit('info', `${def.name}の株を${q.toLocaleString('ja-JP')}株売却（@${Math.round(unit).toLocaleString('ja-JP')}円）`, { toast: true });
@@ -273,9 +287,8 @@ export function expandCompany(ctx: EngineContext, id: string): boolean {
 /** 買収の費用（残りの株をプレミアム付きで買う） */
 export function acquireCost(state: GameState, id: string, eventMult = 1): number {
   if (!isCompanyId(id)) return 0;
-  const def = COMPANY_MAP[id];
   const s = stockOf(state, id);
-  const remaining = def.shares - s.playerShares;
+  const remaining = sharesOf(state, id) - s.playerShares;
   return Math.ceil(remaining * stockPrice(state, id, eventMult) * (1 + CONFIG.stocks.acquirePremium));
 }
 
@@ -285,13 +298,14 @@ export function acquireCompany(ctx: EngineContext, id: string): boolean {
   if (!hasControl(state, id)) return false;
   const def = COMPANY_MAP[id as keyof typeof COMPANY_MAP];
   const s = stockOf(state, id);
-  const remaining = def.shares - s.playerShares;
+  const shares = sharesOf(state, id);
+  const remaining = shares - s.playerShares;
   const cost = acquireCost(state, id, derived.eventMods.stock);
   if (state.company.cash + 1e-6 < cost) return false;
   state.company.cash -= cost;
   state.company.totalSpent += cost;
-  if (remaining > 0) s.avgCost = (s.avgCost * s.playerShares + cost) / def.shares;
-  s.playerShares = def.shares;
+  if (remaining > 0) s.avgCost = (s.avgCost * s.playerShares + cost) / shares;
+  s.playerShares = shares;
   const props = companyProperties(state, id);
   for (const p of props) {
     delete state.estate.companyOwned[p];

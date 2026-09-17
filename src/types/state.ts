@@ -46,6 +46,8 @@ export interface AutoSellConfig {
   enabled: boolean;
   /** この量を超えた分を自動で売る */
   keep: number;
+  /** 下限価格（基準価格に対する比率）。相場がこれを下回るときは売らない（販売係が必要） */
+  minPriceRatio?: number;
 }
 
 export interface MarketState {
@@ -94,6 +96,20 @@ export interface StatsState {
   companiesAcquired: number;
   /** 解体した会社の数 */
   companiesDissolved: number;
+  /** 達成した注文の数 */
+  contractsCompleted: number;
+  /** 期限切れになった注文の数 */
+  contractsFailed: number;
+  /** 注文で得た報酬（円） */
+  contractRewards: number;
+  /** マネージャーに払った給料の累計（円） */
+  salariesPaid: number;
+  /** マネージャーが代わりに採集した回数 */
+  autoGathered: number;
+  /** マネージャーが代わりにクラフトした回数 */
+  autoCrafted: number;
+  /** 一度の売却で最も高かった記録 */
+  bestSale: { resource: string; qty: number; revenue: number } | null;
 }
 
 export type GameEventType = 'info' | 'success' | 'warn' | 'unlock' | 'achievement' | 'tutorial' | 'event';
@@ -229,11 +245,101 @@ export interface CompanyStockState {
   dissolved: boolean;
   /** 株価の履歴 */
   history: number[];
+  /** 増資で増えた株数（発行株数 = 定義の株数 + これ） */
+  extraShares: number;
 }
 
 export interface StocksState {
   companies: Record<string, CompanyStockState>;
   nextUpdateIn: number;
+  /** ライバル会社が次に動くまでの秒数 */
+  rivalIn: number;
+  /** 次の増資判定までの秒数 */
+  issueIn: number;
+}
+
+// ---------- 自動化（マネージャー・在庫ルール・自動投資・テンプレート） ----------
+export type ManagerId = 'gather' | 'craft' | 'sales' | 'logistics' | 'invest';
+
+export interface ManagerHire {
+  hiredAt: number;
+}
+
+/** 利益の自動投資の設定（投資係が使う） */
+export interface InvestRule {
+  /** 手元に残す現金（これを超えた分だけ投資に回す） */
+  reserve: number;
+  /** 回収が最も早い施設を建てる */
+  facilities: boolean;
+  /** 配当を株に再投資する */
+  dividends: boolean;
+  /** 利回りの良い物件を買う */
+  properties: boolean;
+  /** 施設に投資するときに許す最長の回収時間（秒） */
+  maxPaybackSeconds: number;
+}
+
+/** 土地の施設構成のテンプレート */
+export interface LandTemplate {
+  id: number;
+  name: string;
+  /** 施設ID → 個数 */
+  facilities: Record<string, number>;
+  createdAt: number;
+}
+
+export interface AutomationState {
+  managers: Partial<Record<ManagerId, ManagerHire>>;
+  /** 資源ごとに「常にこの量をキープ」（不足分をクラフト係が作る） */
+  craftTargets: Partial<Record<ResourceId, number>>;
+  /** 販売係の「おまかせ販売」（消費されない資源の余剰を自動で売る） */
+  smartSell: boolean;
+  invest: InvestRule;
+  templates: LandTemplate[];
+  /** 次の自動処理までの秒数（負荷を下げるため1秒ごと） */
+  timer: number;
+  /** 再投資待ちの配当（円） */
+  dividendPool: number;
+}
+
+// ---------- 注文（コントラクト） ----------
+export interface Contract {
+  id: number;
+  /** 依頼主（架空） */
+  client: string;
+  resource: ResourceId;
+  amount: number;
+  delivered: number;
+  /** 達成時の報酬（円） */
+  reward: number;
+  /** 達成時の信用ポイント */
+  credit: number;
+  /** 残り秒数 */
+  remaining: number;
+  total: number;
+}
+
+export interface ContractsState {
+  active: Contract[];
+  nextIn: number;
+  nextId: number;
+  /** 信用ポイント（ランクの元） */
+  credit: number;
+}
+
+// ---------- 再出発（プレステージ） ----------
+export interface PrestigeRecord {
+  at: number;
+  assets: number;
+  points: number;
+}
+
+export interface PrestigeState {
+  /** 再出発した回数 */
+  count: number;
+  /** 累計ポイント（永続ボーナスの元） */
+  points: number;
+  history: PrestigeRecord[];
 }
 
 export interface GameState {
@@ -260,6 +366,9 @@ export interface GameState {
   events: EventsState;
   estate: EstateState;
   stocks: StocksState;
+  automation: AutomationState;
+  contracts: ContractsState;
+  prestige: PrestigeState;
   eventLog: GameEvent[];
   nextEventId: number;
   settings: SettingsState;
@@ -278,6 +387,10 @@ export interface FacilityRuntime {
   powerRatio: number;
   /** 枯渇した鉱床の資源 */
   depleted: ResourceId[];
+  /** 実際に消費している資源（個/秒） */
+  inputRates: Partial<Record<ResourceId, number>>;
+  /** 実際に作っている資源（個/秒） */
+  outputRates: Partial<Record<ResourceId, number>>;
 }
 
 export interface PowerRuntime {
@@ -323,6 +436,8 @@ export interface Modifiers {
   storage: number;
   commercialIncome: number;
   demandRecovery: number;
+  /** 研究ポイントの倍率（再出発ボーナス） */
+  researchRate: number;
 }
 
 /** 進行中のイベントから計算した係数（保存しない） */
@@ -368,6 +483,8 @@ export interface DerivedState {
   /** 収入の直近10秒ぶんの記録（1秒ごとのバケツ） */
   incomeBuckets: number[];
   incomeBucketElapsed: number;
+  /** tick の外（納品など）で得た収入。次の tick で incomePerSec に加算して 0 に戻す */
+  extraIncome: number;
   /** 総資産 */
   assets: number;
   companyValue: number;
@@ -393,7 +510,13 @@ export interface DerivedState {
   /** 配当収入（円/秒） */
   dividendPerSec: number;
   companies: Record<string, CompanyRuntime>;
+  /** マネージャーの給料（円/秒） */
+  salaryPerSec: number;
+  /** 信用ランク（E〜S） */
+  creditRank: CreditRank;
 }
+
+export type CreditRank = 'E' | 'D' | 'C' | 'B' | 'A' | 'S';
 
 export interface OfflineReport {
   elapsedSeconds: number;

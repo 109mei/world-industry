@@ -7,10 +7,15 @@ import { useGame } from '@/stores/gameStore';
 import { useUiStore } from '@/stores/uiStore';
 import { formatDuration, formatMoney, formatMoneyRate, formatNumber } from '@/utils/format';
 import { formatMW } from '@/utils/names';
+import { AutomationPanel } from '../automation/AutomationPanel';
 import { EventList } from '../home/EventList';
 import { ResearchPanel } from '../research/ResearchPanel';
 import { AchievementsList } from './AchievementsList';
+import { PrestigePanel } from './PrestigePanel';
 import { SettingsPanel } from './SettingsPanel';
+import { MANAGERS } from '@/game/data/managers';
+import { isManagerHired, isManagerUnlocked } from '@/game/engine/systems/automation';
+import { canPrestige } from '@/game/engine/systems/prestige';
 
 export function CompanyPage() {
   const { state, derived } = useGame();
@@ -21,6 +26,7 @@ export function CompanyPage() {
   const researchDone = Object.keys(state.research.completed).length;
   const achievementsDone = Object.keys(state.achievements).length;
   const researchAvailable = RESEARCH.some((r) => !state.research.completed[r.id] && r.requires.every((q) => state.research.completed[q]) && state.research.points >= r.cost);
+  const hireable = MANAGERS.filter((m) => !isManagerHired(state, m.id) && isManagerUnlocked(state, m.id, derived.assets) && state.company.cash >= m.hireCost).length;
   return (
     <div className="page">
       <h1 className="page__title">
@@ -30,8 +36,10 @@ export function CompanyPage() {
       <Segmented
         items={[
           { id: 'info', label: '会社' },
+          { id: 'automation', label: '自動化', badge: hireable },
           { id: 'research', label: '研究', badge: researchAvailable ? 1 : 0 },
           { id: 'achievements', label: `実績 ${achievementsDone}` },
+          { id: 'prestige', label: '再出発', badge: canPrestige(derived.assets) ? 1 : 0 },
           { id: 'settings', label: '設定' },
         ]}
         value={sub}
@@ -62,6 +70,10 @@ export function CompanyPage() {
               <Stat label="プレイ時間" value={formatDuration(state.stats.playtimeSeconds)} />
               <Stat label="タップ回数" value={formatNumber(state.stats.taps, mode)} />
               <Stat label="壊れた道具" value={formatNumber(state.stats.toolsBroken, mode)} />
+              <Stat label="信用ランク" value={derived.creditRank} tone="research" extra={`注文 達成 ${state.stats.contractsCompleted}・期限切れ ${state.stats.contractsFailed}`} />
+              <Stat label="注文の報酬（累計）" value={formatMoney(state.stats.contractRewards, mode)} tone="profit" />
+              <Stat label="給料 /秒" value={formatMoneyRate(-derived.salaryPerSec, mode)} tone={derived.salaryPerSec > 0 ? 'loss' : 'default'} extra={`累計 ${formatMoney(state.stats.salariesPaid, mode)}`} />
+              <Stat label="再出発" value={`${state.prestige.count}回・${state.prestige.points}pt`} tone="research" />
             </div>
           </Card>
           <div className="section-title">出来事の履歴</div>
@@ -70,7 +82,9 @@ export function CompanyPage() {
           </Card>
         </>
       )}
+      {sub === 'automation' && <AutomationPanel />}
       {sub === 'research' && <ResearchPanel />}
+      {sub === 'prestige' && <PrestigePanel />}
       {sub === 'achievements' && (
         <Card>
           <AchievementsList />

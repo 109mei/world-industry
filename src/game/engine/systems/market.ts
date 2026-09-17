@@ -1,7 +1,7 @@
 import { CONFIG } from '@/game/data/config';
 import { EVENT_MAP, isEventDefId } from '@/game/data/events';
 import { RESOURCE_MAP, type ResourceId } from '@/game/data/resources';
-import type { GameState, MarketResourceState } from '@/types/state';
+import type { AutoSellConfig, GameState, MarketResourceState } from '@/types/state';
 import { clean } from '../inventory';
 import type { EngineContext } from '../context';
 
@@ -119,6 +119,7 @@ export function sellResource(ctx: EngineContext, id: ResourceId, amount: number,
   state.company.cash += revenue;
   state.company.totalEarned += revenue;
   state.stats.totalSold[id] = (state.stats.totalSold[id] ?? 0) + qty;
+  if (!state.stats.bestSale || revenue > state.stats.bestSale.revenue) state.stats.bestSale = { resource: id, qty, revenue };
   const m = getMarketState(state, id);
   m.saturation += qty;
   const impact = Math.min(CONFIG.market.maxSellImpact, (qty / def.liquidity) * CONFIG.market.impactPerLiquidity);
@@ -129,14 +130,22 @@ export function sellResource(ctx: EngineContext, id: ResourceId, amount: number,
   return { amount: qty, revenue, unitPrice };
 }
 
-/** 自動売却。指定量を超えた分を売る。得た金額を返す */
+/**
+ * 自動売却。指定量を超えた分を売る。得た金額を返す。
+ * 販売係がいるときは、下限価格（相場が安いときは売らない）と注文ぶんの取り置きが効く
+ */
 export function runAutoSell(ctx: EngineContext): number {
   const { state } = ctx;
   let gained = 0;
-  for (const [id, cfg] of Object.entries(state.market.autoSell) as [ResourceId, { enabled: boolean; keep: number }][]) {
+  const sales = !!state.automation?.managers?.sales;
+  const reserve: Partial<Record<ResourceId, number>> = {};
+  if (sales) for (const c of state.contracts?.active ?? []) reserve[c.resource] = (reserve[c.resource] ?? 0) + Math.max(0, c.amount - c.delivered);
+  for (const [id, cfg] of Object.entries(state.market.autoSell) as [ResourceId, AutoSellConfig][]) {
     if (!cfg?.enabled) continue;
+    if (sales && cfg.minPriceRatio && referencePrice(state, id) < RESOURCE_MAP[id].basePrice * cfg.minPriceRatio) continue;
     const have = state.inventory[id] ?? 0;
-    const excess = Math.floor(have - cfg.keep);
+    const keep = cfg.keep + (reserve[id] ?? 0);
+    const excess = Math.floor(have - keep);
     if (excess >= 1) {
       gained += sellResource(ctx, id, excess, { auto: true }).revenue;
     }
