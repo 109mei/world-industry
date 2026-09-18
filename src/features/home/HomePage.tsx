@@ -37,7 +37,7 @@ export function HomePage() {
           <Stat label="総資産" value={formatMoney(derived.assets, mode)} />
           <Stat label="従業員" value={`${formatNumber(derived.employees, mode)}人`} />
           {(derived.power.capacity > 0 || derived.power.demand > 0) && (
-            <Stat label="電力" value={`${formatMW(derived.power.generation)} / ${formatMW(derived.power.capacity)}`} tone={derived.power.ratio >= 0.999 ? 'power' : 'loss'} extra={`供給率 ${formatPercent(derived.power.ratio)}`} />
+            <Stat label="電力" value={`${formatMW(derived.power.demand)} / ${formatMW(derived.power.capacity)}`} tone={derived.power.ratio >= 0.999 ? 'power' : 'loss'} extra={`必要 / 設備・供給率 ${formatPercent(derived.power.ratio)}`} />
           )}
           {derived.wageCost > 0 && <Stat label="人件費 /秒" value={formatMoneyRate(-derived.wageCost, mode)} tone="loss" extra={`従業員 ${formatNumber(derived.employees, mode)}人`} />}
           {state.lands.length > 1 && <Stat label="土地" value={`${state.lands.length - 1}か所`} extra={derived.transportCost > 0 ? `輸送費 ${formatMoney(derived.transportCost, mode)}/秒` : undefined} />}

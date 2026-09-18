@@ -13,17 +13,17 @@ import { gather } from './actions/gather';
 import { buyLand, startSurvey } from './actions/land';
 import type { EmitOptions, EngineContext, Rng } from './context';
 import { calcCapacity, clean } from './inventory';
-import { landCapacity, ownedLands } from './land';
+import { landCapacity, ownedLands, resetLandIndex } from './land';
 import { createEmptyDerived, createInitialState } from './state/createInitialState';
 import { runCompanyMetrics } from './systems/company';
 import { creditRankDef } from './systems/contracts';
 import { acceptOffer, cancelDeal, declineOffer, deliverDeal, pitchToClient, pitchToPlace, runSales } from './systems/sales';
 import { runInfluence } from './systems/influence';
-import { buildBankruptState, runFinance } from './systems/finance';
+import { buildBankruptState, runSolvency, runWages } from './systems/finance';
 import { runHistory } from './systems/history';
-import { cancelProject, closeDivision, openDivision, restockShop, returnFromShop, runBusiness, setStaff, startAd, startProject, toggleParking, getDivision } from './systems/business';
+import { cancelProject, closeDivision, openDivision, restockShop, returnFromShop, runBusiness, setStaff, shopStockCapacity, startAd, startProject, toggleParking, getDivision } from './systems/business';
 import { buyTickets, play, runLottery, type PlayResult } from './systems/gambling';
-import { buyProperty, isEstateUnlocked, runEstate, sellProperty } from './systems/estate';
+import { buyProperty, computeEstate, isEstateUnlocked, runEstate, sellProperty } from './systems/estate';
 import { buyCustomProperty, customBuyCost, quoteFeature, sellCustomProperty } from './systems/customEstate';
 import { placeLabel } from './hq';
 import type { OsmFeature } from '@/game/services/osm/overpass';
@@ -139,7 +139,7 @@ export class GameEngine {
     runPower(this.ctx, dt);
     const { commercialIncome } = runProduction(this.ctx, dt);
     const { cost } = runLogistics(this.ctx, dt);
-    const { wages, bankrupt } = runFinance(this.ctx, dt);
+    const wages = runWages(this.ctx, dt);
     runMarket(this.ctx, dt);
     runSales(this.ctx, dt);
     const business = runBusiness(this.ctx, dt);
@@ -160,9 +160,11 @@ export class GameEngine {
     }
     const extra = this.derived.extraIncome;
     this.derived.extraIncome = 0;
-    this.recordIncome(sold + earned + rent + dividends + extra + business.income - cost - wages, dt);
+    this.recordIncome(sold + earned + rent + dividends + extra + business.income - business.costs - cost - wages, dt);
     state.stats.playtimeSeconds += dt;
     runCompanyMetrics(this.ctx);
+    // 収入がすべて入ってから、赤字かどうかを判定する
+    const { bankrupt } = runSolvency(this.ctx, dt);
     runHistory(this.ctx, dt);
     this.derived.creditRank = creditRankDef(state).rank;
     runUnlocks(this.ctx);
@@ -174,6 +176,7 @@ export class GameEngine {
   /** 倒産。永続ポイント・アップグレード・実績は残して、会社だけ最初からにする */
   private goBankrupt(): void {
     const next = buildBankruptState(this.state, this.nowFn(), createInitialState);
+    resetLandIndex();
     this.state = next;
     this.ctx.state = next;
     this.derived = createEmptyDerived();
@@ -183,16 +186,35 @@ export class GameEngine {
     this.emit('warn', `資金が尽きて倒産しました。会社を畳んで、もう一度やり直します（永続ポイント ${next.prestige.points}pt と実績は残っています）`, { toast: true });
   }
 
-  /** 収入を1秒ごとのバケツに記録し、直近10秒の平均を incomePerSec にする */
+  /**
+   * 収入を1秒ごとのバケツに記録し、直近10秒の平均を incomePerSec にする。
+   *
+   * 追いつき計算では dt が 10秒まとめて来るので、
+   * 先にバケツを送ってから入れないと、入れた直後に全部押し出されて 0 になってしまう。
+   * dt が長いときは、そのぶんを秒ごとに割り振る。
+   */
   private recordIncome(gained: number, dt: number): void {
     const d = this.derived;
     const buckets = d.incomeBuckets;
-    buckets[buckets.length - 1] += gained;
-    d.incomeBucketElapsed += dt;
-    while (d.incomeBucketElapsed >= 1) {
-      d.incomeBucketElapsed -= 1;
-      buckets.shift();
-      buckets.push(0);
+    const perSec = dt > 0 ? gained / dt : 0;
+    let left = dt;
+    let guard = 0;
+    while (left > 1e-9 && guard++ < 100) {
+      const room = 1 - d.incomeBucketElapsed;
+      const step = Math.min(left, room);
+      buckets[buckets.length - 1] += perSec * step;
+      d.incomeBucketElapsed += step;
+      left -= step;
+      if (d.incomeBucketElapsed >= 1 - 1e-9) {
+        d.incomeBucketElapsed = 0;
+        buckets.shift();
+        buckets.push(0);
+      }
+    }
+    // dt がとても長いときは、最後の1秒ぶんの平均をそのまま使う
+    if (left > 1e-9) {
+      for (let i = 0; i < buckets.length; i++) buckets[i] = perSec;
+      d.incomeBucketElapsed = 0;
     }
     const sum = buckets.reduce((a, b) => a + b, 0);
     d.incomePerSec = Math.abs(sum) < 1e-6 ? 0 : sum / buckets.length;
@@ -202,11 +224,23 @@ export class GameEngine {
    * 実時間で seconds 秒経過したぶんを進める。長い場合は分割して計算する。
    * 倉庫の満杯・資源不足は分割ごとに反映されるので、単純な「生産量×秒」にはならない。
    */
+  /** まとめて進めるときに、途中の通知（倉庫が満杯など）を出さないようにする */
+  advanceQuiet(seconds: number): void {
+    this.silent = true;
+    try {
+      this.advance(seconds);
+    } finally {
+      this.silent = false;
+    }
+  }
+
   advance(seconds: number): void {
     let remaining = seconds;
-    const chunk = CONFIG.catchUpChunkSeconds;
     let guard = 0;
     while (remaining > 1e-9 && guard++ < 1_000_000) {
+      // 昔のぶんは大きくまとめて、直近ぶんは細かく進める。
+      // 何時間ぶんも 10秒きざみで回すと、開いた瞬間に画面が固まってしまうため
+      const chunk = remaining > 1800 ? CONFIG.catchUpChunkSeconds * 6 : CONFIG.catchUpChunkSeconds;
       const dt = Math.min(remaining, remaining > CONFIG.maxStepSeconds ? chunk : remaining);
       this.tick(dt);
       remaining -= dt;
@@ -243,6 +277,8 @@ export class GameEngine {
   refreshDerived(): void {
     this.refreshCapacities();
     computeStocks(this.ctx);
+    // 不動産も入れないと総資産が足りず、再出発のポイントが少なく計算されてしまう
+    computeEstate(this.ctx);
     runCompanyMetrics(this.ctx);
   }
 
@@ -578,7 +614,9 @@ export class GameEngine {
   setRestockTarget(id: number, resource: ResourceId, target: number): boolean {
     const div = getDivision(this.state, id);
     if (!div) return false;
-    const n = Math.max(0, Math.floor(target));
+    // 店に置ける量を超える目標は意味がないので、そこで止める
+    const cap = shopStockCapacity(this.state, div);
+    const n = Math.max(0, Math.min(cap, Math.floor(target)));
     if (n <= 0) delete div.restock[resource];
     else div.restock[resource] = n;
     return true;
@@ -669,6 +707,7 @@ export class GameEngine {
     const next = buildPrestigeState(this.state, this.derived.assets, this.nowFn());
     if (!next) return false;
     const prevPoints = this.state.prestige?.points ?? 0;
+    resetLandIndex();
     this.state = next;
     this.ctx.state = next;
     this.derived = createEmptyDerived();

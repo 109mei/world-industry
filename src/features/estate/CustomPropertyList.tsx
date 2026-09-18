@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Icon } from '@/components/ui/Icon';
@@ -18,14 +19,23 @@ export function CustomPropertyList() {
   const setTab = useUiStore((s) => s.setTab);
   const mode = state.settings.numberFormat;
   const list = Object.values(state.estate.custom ?? {});
+  // 施設の数は1回だけ数える（カードごとに全施設を見ていくと、件数が増えるほど重くなる）
+  const builtByLand = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const f of state.facilities) m.set(f.landId, (m.get(f.landId) ?? 0) + f.count);
+    return m;
+  }, [state.facilities]);
+  // 数が多いときは少しずつ出す（数百件を一度に並べると画面がもたつく）
+  const [shown, setShown] = useState(40);
   if (list.length === 0) return null;
+  const visible = list.slice(0, shown);
   return (
     <div>
       <div className="section-title">地図で買った場所（{list.length}件）</div>
       <div className="grid grid--2">
-        {list.map((cp) => {
+        {visible.map((cp) => {
           const kind = PROPERTY_KIND[cp.kind];
-          const built = state.facilities.filter((f) => f.landId === customLandId(cp.id)).reduce((a, f) => a + f.count, 0);
+          const built = builtByLand.get(customLandId(cp.id)) ?? 0;
           return (
             <Card key={cp.id} flat>
               <div className="card__head">
@@ -77,6 +87,13 @@ export function CustomPropertyList() {
           );
         })}
       </div>
+      {shown < list.length && (
+        <div className="btn-row" style={{ marginTop: 8 }}>
+          <Button size="sm" onClick={() => setShown((n) => n + 40)}>
+            もっと見る（あと {list.length - shown} 件）
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

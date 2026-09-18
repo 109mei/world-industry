@@ -20,10 +20,13 @@ export function craft(ctx: EngineContext, recipeId: RecipeId, times = 1): number
   if (possible <= 0 || !hasResources(state, def.inputs, possible)) return 0;
 
   // 出力先の倉庫に空きがないときは作らない（材料が消えてしまうのを防ぐ）
+  // 出来高の倍率（再出発のアップグレード）を掛けたあとの量で見ないと、
+  // 入りきらないぶんが切り捨てられて材料だけが減ってしまう
+  const yieldMult = derived.modifiers?.craftYield ?? 1;
   if (def.outputs) {
     for (const [id, n] of Object.entries(def.outputs) as [ResourceId, number][]) {
       const space = derived.capacity - (state.inventory[id] ?? 0);
-      if (space < n) {
+      if (space < n * yieldMult) {
         ctx.emit('warn', `倉庫が満杯のため作れません: ${def.name}`, { toast: true });
         return 0;
       }
@@ -33,13 +36,12 @@ export function craft(ctx: EngineContext, recipeId: RecipeId, times = 1): number
   if (def.outputs) {
     for (const [id, n] of Object.entries(def.outputs) as [ResourceId, number][]) {
       const space = derived.capacity - (state.inventory[id] ?? 0);
-      made = Math.min(made, Math.floor(space / n));
+      made = Math.min(made, Math.floor(space / (n * yieldMult)));
     }
   }
   if (made <= 0) return 0;
 
   removeResources(state, def.inputs, made);
-  const yieldMult = derived.modifiers?.craftYield ?? 1;
   if (def.outputs) {
     for (const [id, n] of Object.entries(def.outputs) as [ResourceId, number][]) {
       addResource(state, id, n * made * yieldMult, derived.capacity, 'crafted');

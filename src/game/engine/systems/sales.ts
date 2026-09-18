@@ -19,6 +19,8 @@ import { referencePrice } from './market';
 
 /** 落としてよい回数（超えると契約は打ち切り） */
 const MAX_MISS = 2;
+/** 覚えておく取引先の数の上限（セーブが際限なく膨らまないように） */
+export const MAX_CLIENTS = 250;
 
 export function createInitialSales(): SalesState {
   return { clients: {}, offers: [], deals: [], nextId: 1 };
@@ -27,6 +29,26 @@ export function createInitialSales(): SalesState {
 export function salesState(state: GameState): SalesState {
   if (!state.sales) state.sales = createInitialSales();
   return state.sales;
+}
+
+/**
+ * 覚えている取引先が増えすぎたら、関係の薄いものから忘れる。
+ * 契約中・商談中の相手と、関係のある相手は残す。
+ */
+function forgetOldClients(s: SalesState): void {
+  const ids = Object.keys(s.clients);
+  if (ids.length <= MAX_CLIENTS) return;
+  const busy = new Set([...s.deals.map((d) => d.clientId), ...s.offers.map((o) => o.clientId)]);
+  const removable = ids
+    .filter((id) => !busy.has(id))
+    .map((id) => s.clients[id])
+    .sort((a, b) => a.relation - b.relation || a.deliveries - b.deliveries || a.lastPitchAt - b.lastPitchAt);
+  let over = ids.length - MAX_CLIENTS;
+  for (const c of removable) {
+    if (over <= 0) break;
+    delete s.clients[c.id];
+    over -= 1;
+  }
 }
 
 /** 建物を取引先として覚える（初めて営業したとき） */
@@ -52,6 +74,7 @@ export function rememberClient(state: GameState, f: OsmFeature): SalesClient {
     missed: 0,
   };
   s.clients[f.id] = client;
+  forgetOldClients(s);
   return client;
 }
 

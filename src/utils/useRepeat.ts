@@ -20,6 +20,18 @@ export function useRepeat(fn: () => void, options: { delay?: number; interval?: 
 
   const start = useCallback(() => {
     stop();
+    // 指を離したことは window で受ける。
+    // 押している途中でボタンが使えなくなる（お金や材料が尽きる）と、
+    // ボタン自身の onPointerUp が来なくなり、連打が止まらなくなるため。
+    const release = () => {
+      stop();
+      window.removeEventListener('pointerup', release);
+      window.removeEventListener('pointercancel', release);
+      window.removeEventListener('blur', release);
+    };
+    window.addEventListener('pointerup', release);
+    window.addEventListener('pointercancel', release);
+    window.addEventListener('blur', release);
     timer.current = window.setTimeout(() => {
       ticker.current = window.setInterval(() => fnRef.current(), interval);
     }, delay);

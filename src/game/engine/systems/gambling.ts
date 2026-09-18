@@ -20,12 +20,16 @@ export interface PlayResult {
   label: string;
 }
 
-/** 1回の賭け金（総資産に応じて上がるが、上限を付けて破産しにくくする） */
+/**
+ * 1回の賭け金（総資産に応じて上がる）。
+ * 所持金の5%を超える賭けはできない。5%が最低額に届かないときは、そもそも遊べない（0 を返す）。
+ */
 export function betSize(state: GameState, assets: number, gameId: GameId): number {
   const def = GAME_MAP[gameId];
-  const scaled = def.baseBet * Math.max(1, Math.pow(Math.max(1, assets) / 1_000_000, 0.45));
-  // 所持金の5%を超える賭けはできない
-  return Math.max(def.baseBet, Math.min(Math.round(scaled), Math.floor(state.company.cash * 0.05)));
+  const scaled = Math.round(def.baseBet * Math.max(1, Math.pow(Math.max(1, assets) / 1_000_000, 0.45)));
+  const cap = Math.floor(Math.max(0, state.company.cash) * 0.05);
+  if (cap < def.baseBet) return 0;
+  return Math.min(Math.max(def.baseBet, scaled), cap);
 }
 
 /** 遊ぶ。結果を返す */
@@ -35,7 +39,7 @@ export function play(ctx: EngineContext, gameId: GameId): PlayResult {
   if (!def) return { ok: false, reason: 'その遊びはありません', bet: 0, payout: 0, label: '' };
   if (!state.research.completed.gaming_license) return { ok: false, reason: '研究「遊技場の許可」がまだです', bet: 0, payout: 0, label: '' };
   const bet = betSize(state, derived.assets, gameId);
-  if (bet <= 0 || state.company.cash < bet) return { ok: false, reason: '所持金が足りません', bet: 0, payout: 0, label: '' };
+  if (bet <= 0 || state.company.cash < bet) return { ok: false, reason: `所持金が足りません（1回の賭け金は所持金の5%までで、最低 ${def.baseBet.toLocaleString('ja-JP')}円）`, bet: 0, payout: 0, label: '' };
 
   state.company.cash = safe(state.company.cash - bet);
   state.company.totalSpent = safe(state.company.totalSpent + bet);
@@ -101,7 +105,7 @@ export function buyTickets(ctx: EngineContext, count: number): { ok: boolean; re
   state.company.totalSpent = safe(state.company.totalSpent + cost);
   l.tickets += n;
   // 売上の一部が賞金に積まれる（買い占めるほど賞金も増えるが、増えるのは一部だけ）
-  l.jackpot = safe(l.jackpot + cost * LOTTERY.payoutRatio);
+  l.jackpot = Math.min(LOTTERY.maxJackpot, safe(l.jackpot + cost * LOTTERY.payoutRatio));
   state.stats.gambleBet = safe((state.stats.gambleBet ?? 0) + cost);
   return { ok: true, bought: n };
 }
@@ -117,7 +121,7 @@ export function runLottery(ctx: EngineContext, dt: number): void {
   l.draws += 1;
   if (l.tickets <= 0) {
     // 誰も（＝自分は）買っていない回。賞金は次に持ち越す
-    l.jackpot = safe(l.jackpot * 1.05);
+    l.jackpot = Math.min(LOTTERY.maxJackpot, safe(l.jackpot * 1.05));
     l.lastMessage = '買っていないので、賞金は次回に持ち越しです';
     return;
   }
@@ -135,7 +139,7 @@ export function runLottery(ctx: EngineContext, dt: number): void {
     ctx.emit('success', `宝くじが当たりました！ +${prize.toLocaleString('ja-JP')}円`, { toast: true });
   } else {
     // はずれ。賞金は次回に持ち越して大きくなる
-    l.jackpot = safe(l.jackpot * 1.08);
+    l.jackpot = Math.min(LOTTERY.maxJackpot, safe(l.jackpot * 1.08));
     l.lastMessage = `はずれ（${l.tickets.toLocaleString('ja-JP')}枚・確率 ${(chance * 100).toFixed(2)}%）。賞金は次回に持ち越し`;
     ctx.emit('info', `宝くじははずれでした（${spent.toLocaleString('ja-JP')}円）。賞金が次回に積み上がりました`);
   }

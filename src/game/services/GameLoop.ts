@@ -53,10 +53,11 @@ export class GameLoop {
     if (dt > CONFIG.offlineThresholdSeconds) {
       // タブが長く止まっていた: まとめて計算（上限あり）
       const seconds = Math.min(dt, this.engine.state.settings.maxOfflineSeconds + (this.engine.derived.modifiers?.offlineBonusSec ?? 0));
-      this.engine.advance(seconds);
+      // まとめて進めるあいだの通知は出さない（戻ってきた瞬間に何十個も出てしまうため）
+      this.engine.advanceQuiet(seconds);
       this.hooks.onCatchUp?.(seconds);
     } else if (dt > CONFIG.maxStepSeconds) {
-      this.engine.advance(dt);
+      this.engine.advanceQuiet(dt);
     } else {
       this.engine.tick(dt);
     }

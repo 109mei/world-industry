@@ -15,6 +15,8 @@ export const SAVE_KEY = 'world-industry.save.v1';
 export const SAVE_BACKUP_KEY = 'world-industry.save.backup';
 /** 読み込めなかったセーブの退避先（上書きしないで残す） */
 export const SAVE_BROKEN_KEY = 'world-industry.save.broken';
+/** バックアップを取り直す間隔（ミリ秒） */
+const BACKUP_INTERVAL_MS = 60_000;
 
 export function serializeState(state: GameState, savedAt: number): string {
   const file: SaveFile = { saveVersion: GAME_META.saveVersion, app: GAME_META.title, savedAt, state };
@@ -105,17 +107,28 @@ export class SaveService {
     return (await this.loadSafe()).state;
   }
 
+  /** 直前にバックアップを取った時刻（毎回取ると重いので間隔をあける） */
+  private lastBackupAt = 0;
+
   async save(state: GameState, now = Date.now()): Promise<void> {
-    const current = await this.repo.load();
+    const played = hasProgress(state);
     // 遊んだ跡のあるセーブを、まっさらな状態で上書きしない（何かの拍子に初期化されても消えないように）
-    if (current && !hasProgress(state) && savedHasProgress(current)) {
-      throw new Error('進行中のセーブデータがあるため、初期状態での上書きを中止しました');
+    // 解析が要るのは「いまの状態に進行が無い」ときだけなので、ふだんは読み込みも解析もしない
+    if (!played) {
+      const current = await this.repo.load();
+      if (current && savedHasProgress(current)) {
+        throw new Error('進行中のセーブデータがあるため、初期状態での上書きを中止しました');
+      }
     }
     state.meta.lastSaveTime = now;
     const json = serializeState(state, now);
-    // 直前のセーブをバックアップへ（遊んだ跡があるものだけ）
-    if (current && current !== json && savedHasProgress(current)) {
-      await this.repo.setItem(SAVE_BACKUP_KEY, current).catch(() => {});
+    // 直前のセーブをバックアップへ。毎回だと保存2回ぶんの時間がかかるので、1分に1回にする
+    if (played && now - this.lastBackupAt >= BACKUP_INTERVAL_MS) {
+      const current = await this.repo.load();
+      if (current && current !== json) {
+        this.lastBackupAt = now;
+        await this.repo.setItem(SAVE_BACKUP_KEY, current).catch(() => {});
+      }
     }
     await this.repo.save(json);
   }

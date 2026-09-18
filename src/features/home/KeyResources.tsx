@@ -21,7 +21,13 @@ export function KeyResources() {
         const amount = state.inventory[id] ?? 0;
         const net = (derived.production[id] ?? 0) - (derived.consumption[id] ?? 0);
         return (
-          <Card key={id} flat role="button" tabIndex={0} onClick={() => openResource(id)} onKeyDown={(e) => e.key === 'Enter' && openResource(id)} style={{ cursor: 'pointer' }}>
+          <Card key={id} flat role="button" tabIndex={0} onClick={() => openResource(id)} onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                // スペースでも開けるようにする（本物のボタンと同じ動き）
+                e.preventDefault();
+                openResource(id);
+              }
+            }} style={{ cursor: 'pointer' }}>
             <div className="card__head">
               <Icon name={def.icon} size={28} fallback={def.name.slice(0, 2)} />
               <div className="row__grow">

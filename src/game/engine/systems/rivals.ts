@@ -3,7 +3,7 @@ import { COMPANIES, COMPANY_MAP, CONTROL_RATIO, type CompanyDef } from '@/game/d
 import { CONFIG } from '@/game/data/config';
 import { PROPERTIES, PROPERTY_MAP, isPropertyId, type PropertyDef } from '@/game/data/properties';
 import type { EngineContext } from '../context';
-import { companyProperties, isEstateUnlocked, propertyOwner, propertyPrice } from './estate';
+import { companyProperties, isEstateUnlocked, propertyOwner, propertyPrice, resetCompanyOwnedIndex } from './estate';
 import { computeStocks, fundamentalPrice, ownershipOf, sharesOf } from './stocks';
 
 /** 会社の本社がある国（都市データから引く。見つからなければ null） */
@@ -74,6 +74,7 @@ function rivalsBuyProperties(ctx: EngineContext): void {
     const price = propertyPrice(state, pick.id);
     s.cash -= price;
     state.estate.companyOwned[pick.id] = c.id;
+    resetCompanyOwnedIndex();
     onMarket -= 1;
     changed = true;
     const held = ownershipOf(state, c.id) > 0;

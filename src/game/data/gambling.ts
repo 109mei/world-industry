@@ -89,7 +89,14 @@ export function expectedReturn(def: GameDef): number {
   return def.outcomes.reduce((a, o) => a + o.payout * o.p, 0);
 }
 
-/** 宝くじ */
+/**
+ * 宝くじ。
+ *
+ * はずれた回の賞金は次回に持ち越して膨らむので、
+ * 「積み上がった回を狙って多めに買う」のがいちばん分がいい遊び方になる。
+ * ただし賞金には上限があり、1回に買える枚数も出回っている枚数より少ないので、
+ * どれだけうまく立ち回っても、買った額より戻る額のほうが小さい（胴元が勝つ）。
+ */
 export const LOTTERY = {
   /** 1枚の値段（円） */
   ticketPrice: 300,
@@ -101,6 +108,8 @@ export const LOTTERY = {
   payoutRatio: 0.47,
   /** 最初から積んである賞金（円） */
   baseJackpot: 200_000_000,
-  /** 1回に買える上限 */
-  maxPerDraw: 5_000_000,
+  /** 持ち越しで積み上がる賞金の上限（円）。ここで止めないと必ず勝てる回ができてしまう */
+  maxJackpot: 600_000_000,
+  /** 1回に買える上限（出回っている枚数の 1/4） */
+  maxPerDraw: 500_000,
 } as const;

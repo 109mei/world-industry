@@ -5,7 +5,7 @@ import type { CompanyRuntime, CompanyStockState, GameState } from '@/types/state
 import type { EngineContext } from '../context';
 import { createInitialCompanyStock, createInitialStocks } from '../state/createInitialState';
 import { creditRankDef } from './contracts';
-import { companyProperties, isEstateUnlocked, propertyPrice, propertyRentPerSec, randn } from './estate';
+import { companyProperties, isEstateUnlocked, propertyPrice, propertyRentPerSec, randn, resetCompanyOwnedIndex } from './estate';
 
 function stockOf(state: GameState, id: string): CompanyStockState {
   if (!state.stocks) state.stocks = createInitialStocks();
@@ -309,6 +309,7 @@ export function acquireCompany(ctx: EngineContext, id: string): boolean {
   const props = companyProperties(state, id);
   for (const p of props) {
     delete state.estate.companyOwned[p];
+    resetCompanyOwnedIndex();
     state.estate.owned[p] = { boughtAt: ctx.now(), boughtPrice: propertyPrice(state, p) };
     state.stats.propertiesBought += 1;
   }
@@ -340,6 +341,7 @@ export function dissolveCompany(ctx: EngineContext, id: string): boolean {
   state.company.totalEarned += payout;
   state.stats.tradingProfit += payout - s.playerShares * s.avgCost;
   for (const p of companyProperties(state, id)) delete state.estate.companyOwned[p];
+  resetCompanyOwnedIndex();
   s.dissolved = true;
   s.playerShares = 0;
   s.avgCost = 0;

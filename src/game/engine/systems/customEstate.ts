@@ -180,6 +180,7 @@ export function getCustom(state: GameState, id: string): CustomProperty | null {
 
 /** いまの評価額（円） */
 export function customPrice(state: GameState, cp: CustomProperty): number {
+  if (!cp || typeof cp.basePrice !== 'number' || !Number.isFinite(cp.basePrice)) return 0;
   return Math.round(cp.basePrice * multiplierOf(state, cp.cityId));
 }
 
@@ -202,14 +203,30 @@ export function customSellProceeds(state: GameState, cp: CustomProperty): number
  * （知名度のぶんを割り戻してから利回りを掛ける）。
  */
 export function customRentPerSec(state: GameState, cp: CustomProperty): number {
+  const kind = PROPERTY_KIND[cp?.kind];
+  if (!kind) return 0;
   const rentable = customPrice(state, cp) / Math.max(1, cp.prominence ?? 1);
-  return (rentable * PROPERTY_KIND[cp.kind].yield) / 3600;
+  return (rentable * kind.yield) / 3600;
 }
 
 export function customEstateValue(state: GameState): number {
   let v = 0;
   for (const cp of customProperties(state)) v += customPrice(state, cp);
   return v;
+}
+
+/** 壊れた物件（種類や値段が無いもの）を取り除く。読み込み時に一度だけ使う */
+export function dropBrokenCustom(state: GameState): number {
+  const all = state.estate?.custom;
+  if (!all) return 0;
+  let removed = 0;
+  for (const [id, cp] of Object.entries(all)) {
+    if (!cp || !PROPERTY_KIND[cp.kind] || typeof cp.basePrice !== 'number' || !Number.isFinite(cp.basePrice)) {
+      delete all[id];
+      removed += 1;
+    }
+  }
+  return removed;
 }
 
 export function customRentTotal(state: GameState): number {

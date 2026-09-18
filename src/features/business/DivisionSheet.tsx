@@ -10,8 +10,9 @@ import { Stat } from '@/components/ui/Stat';
 import { ADS, AD_MAP, type AdDef, BUSINESS_MAP, SQM_PER_PARKING, awarenessLabel, brandLabel } from '@/game/data/business';
 import { PROJECT_MAP, projectsOf } from '@/game/data/projects';
 import { RESOURCE_MAP, type ResourceId } from '@/game/data/resources';
-import { claimDeposits, customersPerSec, competition, devPerSec, digPerSec, localDemand, shopCapacity, shopModel, staffRatio, topDemand, variety, divisionProfitPerSec, divisionWage, footfall, getDivision, isProjectAvailable, parkingSpaces, retailPrice } from '@/game/engine/systems/business';
+import { claimDeposits, customersPerSec, competition, devPerSec, digPerSec, localDemand, shopCapacity, shopModel, shopStockCapacity, staffRatio, topDemand, variety, divisionProfitPerSec, divisionWage, footfall, getDivision, isProjectAvailable, parkingSpaces, retailPrice } from '@/game/engine/systems/business';
 import { getCustom, landCustomId } from '@/game/engine/systems/customEstate';
+import { referencePrice } from '@/game/engine/systems/market';
 import { bumpGame, useGame } from '@/stores/gameStore';
 import { useUiStore } from '@/stores/uiStore';
 import { formatAmount, formatDuration, formatMoney, formatMoneyRate, formatNumber, formatPercent } from '@/utils/format';
@@ -41,6 +42,7 @@ export function DivisionSheet() {
   };
   const land = state.lands.find((l) => l.id === div.landId);
   const profit = divisionProfitPerSec(state, div);
+  const stockCap = shopStockCapacity(state, div);
 
   return (
     <Sheet open onClose={close} title={div.name} icon={<Icon name={def.icon} size={32} fallback={def.name.slice(0, 2)} />}>
@@ -218,7 +220,7 @@ export function DivisionSheet() {
                   <div className="row__grow">
                     <div style={{ fontSize: 13 }}>{res.name}</div>
                     <div className="text-sub num" style={{ fontSize: 11 }}>
-                      店頭 {formatMoney(price, mode)}（相場比 +{formatPercent(price / Math.max(1, res.basePrice) - 1, 0)}・この街の人気 ×{localDemand(state, div.landId, g).toFixed(2)}）
+                      店頭 {formatMoney(price, mode)}（仕入れ比 {price >= referencePrice(state, g) ? '+' : ''}{formatPercent(price / Math.max(1, referencePrice(state, g)) - 1, 0)}・この街の人気 ×{localDemand(state, div.landId, g).toFixed(2)}）
                     </div>
                   </div>
                   <span className="num" style={{ fontSize: 13 }}>
@@ -438,6 +440,7 @@ export function DivisionSheet() {
         <div className="sheet__section">
           <div className="text-sub" style={{ fontSize: 12, marginBottom: 6 }}>
             本社の在庫からお店へ送る（入荷）、お店から本社へ戻す（返品）ができます。目標を決めると自動で補充します。
+            置ける量はお店の広さで決まり、いまは1品につき {formatAmount(stockCap, mode)}個までです。
           </div>
           <div className="list" style={{ gap: 10 }}>
             {(def.goods ?? []).map((g) => {
@@ -452,7 +455,7 @@ export function DivisionSheet() {
                     <div className="row__grow" style={{ fontSize: 13 }}>
                       {res.name}
                       <span className="text-sub num" style={{ fontSize: 11, marginLeft: 6 }}>
-                        本社 {formatAmount(atHq, mode)} / 店 {formatAmount(atShop, mode)}
+                        本社 {formatAmount(atHq, mode)} / 店 {formatAmount(atShop, mode)}（上限 {formatAmount(stockCap, mode)}）
                       </span>
                     </div>
                   </div>

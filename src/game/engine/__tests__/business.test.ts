@@ -6,6 +6,7 @@ import { RESOURCE_MAP } from '@/game/data/resources';
 import { RESEARCH_MAP } from '@/game/data/research';
 import { customersPerSec, divisionWage, getDivision, shopCapacity, shopModel, variety } from '../systems/business';
 import { LOTTERY } from '@/game/data/gambling';
+import { betSize, lotteryState, winChance } from '../systems/gambling';
 import { expectedReturn, GAMES } from '@/game/data/gambling';
 import { myRank, ranking } from '../systems/richList';
 import type { OsmFeature } from '@/game/services/osm/overpass';
@@ -285,14 +286,36 @@ describe('賭け事', () => {
     expect(e.state.stats.gambleBet).toBeGreaterThan(0);
   });
 
-  it('宝くじは買うほど当たりやすく、賞金も積み上がる', () => {
+  it('宝くじは買うほど当たりやすいが、1回に買える枚数には上限がある', () => {
     const e = makeEngine(10_000_000_000);
     e.state.research.completed.gaming_license = true;
-    const before = e.state.lottery?.jackpot ?? 0;
-    const r = e.buyLotteryTickets(1_000_000);
-    expect(r.bought).toBe(1_000_000);
-    expect(e.state.lottery!.tickets).toBe(1_000_000);
-    expect(e.state.lottery!.jackpot).toBeGreaterThan(before);
+    const r = e.buyLotteryTickets(LOTTERY.maxPerDraw * 5);
+    expect(r.bought).toBe(LOTTERY.maxPerDraw);
+    expect(e.state.lottery!.tickets).toBe(LOTTERY.maxPerDraw);
+    expect(winChance(LOTTERY.maxPerDraw)).toBeGreaterThan(winChance(1000));
+    expect(winChance(LOTTERY.maxPerDraw)).toBeLessThan(0.5);
+  });
+
+  it('賞金には上限があり、買い占めても必ず損になる', () => {
+    const e = makeEngine(10_000_000_000);
+    e.state.research.completed.gaming_license = true;
+    // 何回も流れて賞金が積み上がった状態にする
+    lotteryState(e.state).jackpot = LOTTERY.maxJackpot * 10;
+    e.buyLotteryTickets(LOTTERY.maxPerDraw);
+    expect(e.state.lottery!.jackpot).toBeLessThanOrEqual(LOTTERY.maxJackpot);
+    // 満額まで積み上がった回に買い占めても、期待値は賭けた額を下回る
+    const cost = LOTTERY.maxPerDraw * LOTTERY.ticketPrice;
+    expect(LOTTERY.maxJackpot * winChance(LOTTERY.maxPerDraw)).toBeLessThan(cost);
+  });
+
+  it('賭け金は所持金の5%を超えない', () => {
+    const e = makeEngine(0);
+    e.state.research.completed.gaming_license = true;
+    e.debugAddCash(12_000);
+    expect(betSize(e.state, e.derived.assets, 'cards')).toBe(0); // 5%が最低額に届かない
+    e.debugAddCash(10_000_000);
+    const b = betSize(e.state, e.derived.assets, 'cards');
+    expect(b).toBeLessThanOrEqual(e.state.company.cash * 0.05 + 1);
   });
 
   it('抽選が来ると枚数は0に戻る', () => {
@@ -370,5 +393,137 @@ describe('場所ごとの需要と供給', () => {
     // 雪国では衣類の人気が高い
     expect(localDemand(e.state, landId, 'clothing')).toBeGreaterThan(1);
     expect(retailPrice(e.state, div, 'clothing') / RESOURCE_MAP.clothing.basePrice).toBeGreaterThan(retailPrice(e.state, div, 'glass') / RESOURCE_MAP.glass.basePrice);
+  });
+});
+
+describe('点検で見つかった穴をふさぐ', () => {
+  it('店の在庫には上限があり、自動補充が本社を吸い尽くさない', async () => {
+    const { shopStockCapacity } = await import('../systems/business');
+    const e = makeEngine(100_000_000);
+    const landId = buyPlace(e, { id: 'w920', areaSqm: 400 });
+    e.state.research.completed.retail = true;
+    const id = e.openDivision('shop', landId).id!;
+    const div = getDivision(e.state, id)!;
+    e.debugUnlockAll();
+    e.buyFacility('small_warehouse', 40);
+    e.refreshDerived();
+    e.debugAddResource('food', 500_000);
+    const cap = shopStockCapacity(e.state, div);
+    // 目標をいくら大きくしても、店に置ける量は決まっている
+    e.setRestockTarget(id, 'food', 1_000_000);
+    for (let i = 0; i < 50; i++) e.tick(1);
+    expect(div.stock.food ?? 0).toBeLessThanOrEqual(cap + 1);
+    // 一度に本社の在庫をすべて吸い出したりはしない
+    expect(e.restockShop(id, 'food', 1_000_000)).toBeLessThanOrEqual(cap);
+  });
+
+  it('鉱区は倉庫が満杯なら埋蔵を減らさない', () => {
+    const e = makeEngine(100_000_000);
+    const landId = buyPlace(e, { id: 'w921', kind: 'land', areaSqm: 40_000 });
+    const land = e.state.lands.find((l) => l.id === landId)!;
+    land.survey = 4;
+    land.deposits = { gold_ore: { total: 100_000, remaining: 100_000 } };
+    e.state.research.completed.gold_rush = true;
+    const id = e.openDivision('prospecting', landId).id!;
+    e.setDivisionStaff(id, 100);
+    // 倉庫を満杯にする
+    e.state.inventory.gold_ore = e.derived.capacity;
+    for (let i = 0; i < 60; i++) e.tick(1);
+    expect(land.deposits.gold_ore!.remaining).toBe(100_000);
+    expect(getDivision(e.state, id)!.note).toContain('倉庫');
+  });
+
+  it('知名度の伸びは、まとめて進めても同じ速さ', () => {
+    function grow(step: number, total: number) {
+      const e = makeEngine(100_000_000);
+      const landId = buyPlace(e, { id: `w93${step}`, areaSqm: 1_000 });
+      e.state.research.completed.retail = true;
+      const id = e.openDivision('shop', landId).id!;
+      const div = getDivision(e.state, id)!;
+      div.awareness = 20;
+      e.debugAddResource('food', 200_000);
+      e.restockShop(id, 'food', 100_000);
+      for (let i = 0; i < total / step; i++) e.tick(step);
+      return div.awareness;
+    }
+    const fine = grow(0.2, 60);
+    const coarse = grow(10, 60);
+    // 追いつき計算でも、実時間と大きく変わらない
+    expect(Math.abs(coarse - fine)).toBeLessThan(0.5);
+  });
+
+  it('製品は運用の人手が要る', () => {
+    const e = makeEngine(100_000_000);
+    const landId = buyPlace(e, { id: 'w940', kind: 'office' });
+    e.state.research.completed.software = true;
+    e.state.research.completed.cybersecurity = true;
+    const id = e.openDivision('it', landId).id!;
+    const div = getDivision(e.state, id)!;
+    e.setDivisionStaff(id, 200);
+    div.awareness = 80;
+    e.startProject(id, 'it_security');
+    for (let i = 0; i < 120; i++) e.tick(1);
+    expect(div.products.length).toBeGreaterThanOrEqual(1);
+    const earnedBefore = div.totalEarned;
+    e.tick(10);
+    const gainStaffed = div.totalEarned - earnedBefore;
+    // 全員やめさせると、製品からの売上が落ちる（人件費が浮くかどうかとは別の話）
+    e.setDivisionStaff(id, 0);
+    const before = div.totalEarned;
+    e.tick(10);
+    const gainEmpty = div.totalEarned - before;
+    expect(gainEmpty).toBeLessThan(gainStaffed);
+    expect(div.note).toContain('運用の人手');
+  });
+
+  it('自分の店が建っている土地は駐車場にできない', () => {
+    const e = makeEngine(100_000_000);
+    const landId = buyPlace(e, { id: 'w950', areaSqm: 20_000 });
+    e.state.research.completed.retail = true;
+    const id = e.openDivision('shop', landId).id!;
+    expect(e.toggleParking(id, landId)).toBe(false);
+    expect(getDivision(e.state, id)!.parkingLands).toEqual([]);
+  });
+
+  it('知名度が上限に届いた広告は打ち切られ、お金を払い続けない', () => {
+    const e = makeEngine(100_000_000);
+    const landId = buyPlace(e, { id: 'w960', areaSqm: 500 });
+    e.state.research.completed.retail = true;
+    const id = e.openDivision('shop', landId).id!;
+    const div = getDivision(e.state, id)!;
+    e.startAd(id, 'flyer');
+    div.awareness = 95; // チラシの上限(30)を大きく超えている
+    const cash = e.state.company.cash;
+    e.tick(5);
+    expect(div.ads.length).toBe(0);
+    expect(cash - e.state.company.cash).toBeLessThan(10);
+  });
+
+  it('店で売り続けると相場が下がる', () => {
+    const e = makeEngine(100_000_000);
+    const landId = buyPlace(e, { id: 'w970', areaSqm: 2_000 });
+    e.state.research.completed.retail = true;
+    const id = e.openDivision('shop', landId).id!;
+    const div = getDivision(e.state, id)!;
+    div.awareness = 90;
+    e.debugAddResource('food', 500_000);
+    e.restockShop(id, 'food', 100_000);
+    const before = e.state.market.prices.food?.modifier ?? 1;
+    for (let i = 0; i < 200; i++) e.tick(1);
+    expect(div.sold ?? 0).toBeGreaterThan(0);
+    expect(e.state.market.prices.food!.modifier).toBeLessThan(before);
+  });
+
+  it('鉱区の収支はマイナス固定にならない', async () => {
+    const { divisionProfitPerSec } = await import('../systems/business');
+    const e = makeEngine(100_000_000);
+    const landId = buyPlace(e, { id: 'w980', kind: 'land', areaSqm: 40_000 });
+    const land = e.state.lands.find((l) => l.id === landId)!;
+    land.survey = 4;
+    land.deposits = { gold_ore: { total: 1_000_000, remaining: 1_000_000 } };
+    e.state.research.completed.gold_rush = true;
+    const id = e.openDivision('prospecting', landId).id!;
+    e.setDivisionStaff(id, 50);
+    expect(divisionProfitPerSec(e.state, getDivision(e.state, id)!)).toBeGreaterThan(0);
   });
 });

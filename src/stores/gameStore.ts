@@ -49,3 +49,12 @@ export function bumpGame(): void {
   useGameStore.getState().bump();
   onChanged?.();
 }
+
+/**
+ * 画面を描き直すだけ（保存は予約しない）。
+ * ゲームループの定期更新はこちらを使う。すべての更新で保存すると、
+ * 何もしていなくても1秒に1回以上セーブが走ってしまうため。
+ */
+export function refreshGame(): void {
+  useGameStore.getState().bump();
+}

@@ -48,10 +48,34 @@ export function propertyOwner(state: GameState, id: string): PropertyOwner {
 }
 
 /** 会社が持っている物件のID */
+/**
+ * 会社ごとの所有物件の索引。
+ * 株価の計算で1 tick に百回以上引くので、持ち主の一覧が変わったときだけ作り直す。
+ */
+let ownedIndex: { src: Record<string, string>; size: number; map: Map<string, string[]> } | null = null;
+const NO_PROPERTIES: string[] = [];
+
+function companyOwnedMap(state: GameState): Map<string, string[]> {
+  const src = state.estate.companyOwned;
+  const size = Object.keys(src).length;
+  if (ownedIndex && ownedIndex.src === src && ownedIndex.size === size) return ownedIndex.map;
+  const map = new Map<string, string[]>();
+  for (const [p, c] of Object.entries(src)) {
+    const list = map.get(c);
+    if (list) list.push(p);
+    else map.set(c, [p]);
+  }
+  ownedIndex = { src, size, map };
+  return map;
+}
+
+/** 索引を捨てる（物件の持ち主が入れ替わったとき） */
+export function resetCompanyOwnedIndex(): void {
+  ownedIndex = null;
+}
+
 export function companyProperties(state: GameState, companyId: string): string[] {
-  return Object.entries(state.estate.companyOwned)
-    .filter(([, c]) => c === companyId)
-    .map(([p]) => p);
+  return companyOwnedMap(state).get(companyId) ?? NO_PROPERTIES;
 }
 
 /** プレイヤーの不動産の評価額（円）。地図で買った実在の場所も含む */
@@ -107,8 +131,26 @@ export function shiftCityPrice(state: GameState, cityId: string, factor: number)
 }
 
 /** 賃料の受け取りと地価の変動 */
-export function runEstate(ctx: EngineContext, dt: number): { rent: number } {
+/**
+ * 不動産の派生値（賃料・評価額・国の数）を計算する。
+ * tick の外（読み込み直後や売買の直後）でも総資産が正しくなるよう、
+ * runEstate から切り出して refreshDerived からも呼べるようにしている。
+ */
+export function computeEstate(ctx: EngineContext, knownRent?: number): void {
   const { state, derived } = ctx;
+  if (!state.estate) state.estate = createInitialEstate();
+  derived.rentPerSec = knownRent ?? rentPerSec(state);
+  derived.estateValue = estateValue(state);
+  const countries = new Set<string>();
+  for (const id of Object.keys(state.estate.owned)) {
+    if (isPropertyId(id)) countries.add(CITY_MAP[PROPERTY_MAP[id].city].country);
+  }
+  for (const cp of customProperties(state)) countries.add(cp.country);
+  derived.estateCountries = countries.size;
+}
+
+export function runEstate(ctx: EngineContext, dt: number): { rent: number } {
+  const { state } = ctx;
   if (!state.estate) state.estate = createInitialEstate();
   const perSec = rentPerSec(state);
   const rent = perSec * dt;
@@ -123,14 +165,7 @@ export function runEstate(ctx: EngineContext, dt: number): { rent: number } {
     stepCityPrices(ctx, CONFIG.estate.updateSeconds);
     state.estate.nextUpdateIn += CONFIG.estate.updateSeconds;
   }
-  derived.rentPerSec = perSec;
-  derived.estateValue = estateValue(state);
-  const countries = new Set<string>();
-  for (const id of Object.keys(state.estate.owned)) {
-    if (isPropertyId(id)) countries.add(CITY_MAP[PROPERTY_MAP[id].city].country);
-  }
-  for (const cp of customProperties(state)) countries.add(cp.country);
-  derived.estateCountries = countries.size;
+  computeEstate(ctx, perSec);
   return { rent };
 }
 

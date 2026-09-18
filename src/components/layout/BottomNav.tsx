@@ -13,9 +13,9 @@ export function BottomNav({ attention = {} }: NavProps) {
     <nav className="app__nav" aria-label="メインナビゲーション">
       <div className="nav">
         {NAV_ITEMS.map((it) => (
-          <button key={it.id} className="nav__item" aria-current={tab === it.id ? 'page' : undefined} aria-label={it.label} title={attention[it.id] ? '確認してください' : undefined} onClick={() => setTab(it.id)}>
-            <Icon name={it.icon} size={22} fallback={it.label.slice(0, 2)} />
-            <span aria-hidden="true">{it.label}</span>
+          <button key={it.id} className="nav__item" aria-current={tab === it.id ? 'page' : undefined} aria-label={it.labelJa} title={attention[it.id] ? '確認してください' : undefined} onClick={() => setTab(it.id)}>
+            <Icon name={it.icon} size={22} fallback={it.labelJa.slice(0, 2)} />
+            <span aria-hidden="true">{it.labelJa}</span>
             {attention[it.id] && <span className="nav__dot" aria-hidden="true" />}
           </button>
         ))}

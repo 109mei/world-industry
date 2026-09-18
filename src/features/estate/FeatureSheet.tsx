@@ -15,7 +15,7 @@ import { RESOURCE_MAP } from '@/game/data/resources';
 import { SURVEY_LEVEL_LABEL, nextSurveyStage } from '@/game/data/survey';
 import { surveyCost } from '@/game/engine/actions/land';
 import { getLand } from '@/game/engine/land';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { bumpGame, useGame } from '@/stores/gameStore';
 import { useUiStore } from '@/stores/uiStore';
 import { formatAmount, formatDuration, formatMoney, formatMoneyRate, formatNumber, formatPercent, formatRate } from '@/utils/format';
@@ -35,6 +35,8 @@ export function FeatureSheet() {
   const { state, derived, engine } = useGame();
   const mode = state.settings.numberFormat;
   const [pitchMsg, setPitchMsg] = useState('');
+  // 別の建物を開いたら、前の建物へのメッセージは消す
+  useEffect(() => setPitchMsg(''), [feature?.id]);
   if (!feature) return null;
   const close = () => openFeature(null);
   const owned = getCustom(state, feature.id);

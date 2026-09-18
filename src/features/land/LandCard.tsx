@@ -42,7 +42,13 @@ export function LandCard({ def }: { def: LandDef }) {
   const stopped = land ? state.facilities.some((f) => f.landId === land.id && ['no_input', 'storage_full', 'no_power', 'depleted'].includes(derived.facilityRuntime[f.id]?.status ?? '')) : false;
   const depositIds = Object.keys(def.deposits) as ResourceId[];
   return (
-    <Card role="button" tabIndex={0} onClick={() => openLand(def.id)} onKeyDown={(e) => e.key === 'Enter' && openLand(def.id)} style={{ cursor: 'pointer' }}>
+    <Card role="button" tabIndex={0} onClick={() => openLand(def.id)} onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                // スペースでも開けるようにする（本物のボタンと同じ動き）
+                e.preventDefault();
+                openLand(def.id);
+              }
+            }} style={{ cursor: 'pointer' }}>
       <div className="card__head">
         <Icon name={terrain.icon} size={40} fallback={terrain.name.slice(0, 2)} />
         <div className="row__grow">

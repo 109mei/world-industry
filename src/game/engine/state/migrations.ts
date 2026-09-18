@@ -96,7 +96,7 @@ const MIGRATIONS: Record<number, Migration> = {
     return { ...data, saveVersion: 8, contracts, sales: { clients: {}, offers: [], deals: [], nextId: 1 } };
   },
   // v8 → v9: 自動化（永続アップグレードで買う）の設定を追加
-  8: (data) => ({ ...data, saveVersion: 9, automation: { on: {}, recipes: [], gathers: [], timers: {} } }),
+  8: (data) => ({ ...data, saveVersion: 9, automation: (data as Partial<GameState>).automation ?? { on: {}, recipes: [], gathers: [], timers: {} } }),
   // v9 → v10: 人件費と倒産、通貨と単位の設定、ランダムイベントの常時発生
   9: (data) => {
     const d = data as Partial<GameState> & Record<string, unknown>;
@@ -109,11 +109,11 @@ const MIGRATIONS: Record<number, Migration> = {
     return { ...data, saveVersion: 10, company, settings };
   },
   // v10 → v11: 自分で始める事業（お店・IT会社など）を追加
-  10: (data) => ({ ...data, saveVersion: 11, business: { divisions: [], nextId: 1 } }),
+  10: (data) => ({ ...data, saveVersion: 11, business: (data as Partial<GameState>).business ?? { divisions: [], nextId: 1 } }),
   // v11 → v12: 宝くじ
   11: (data) => ({ ...data, saveVersion: 12 }),
   // v12 → v13: グラフ用の記録
-  12: (data) => ({ ...data, saveVersion: 13, history: { assets: [], income: [], employees: [], nextIn: 0 } }),
+  12: (data) => ({ ...data, saveVersion: 13, history: (data as Partial<GameState>).history ?? { assets: [], income: [], employees: [], nextIn: 0 } }),
 };
 
 export function migrateSave(raw: unknown): GameState {
@@ -150,6 +150,17 @@ function fixSales(v: Partial<GameState['sales']> | undefined): GameState['sales'
     offers: Array.isArray(v.offers) ? v.offers : [],
     deals: Array.isArray(v.deals) ? v.deals : [],
     nextId: typeof v.nextId === 'number' ? v.nextId : 1,
+  };
+}
+
+/** グラフ用の記録。配列でなければ作り直す（壊れていると毎 tick で例外になる） */
+function fixHistory(v: Partial<GameState['history']> | undefined): GameState['history'] {
+  const nums = (a: unknown): number[] => (Array.isArray(a) ? a.filter((x): x is number => typeof x === 'number' && Number.isFinite(x)) : []);
+  return {
+    assets: nums(v?.assets),
+    income: nums(v?.income),
+    employees: nums(v?.employees),
+    nextIn: typeof v?.nextIn === 'number' && Number.isFinite(v.nextIn) ? v.nextIn : 0,
   };
 }
 
@@ -214,6 +225,20 @@ function fixPrestige(p: Partial<GameState['prestige']> | undefined): GameState['
   return { ...base, ...p, history: Array.isArray(p.history) ? p.history : [] };
 }
 
+/** 数として読めないもの（null・undefined・NaN）を既定値にする */
+function num(v: unknown, fallback = 0): number {
+  return typeof v === 'number' && Number.isFinite(v) ? v : fallback;
+}
+
+/** 数字だけの入れ物を掃除する（壊れた値が混ざっていても止まらないように） */
+function cleanNumbers<T extends Record<string, unknown>>(rec: T | undefined): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const [k, v] of Object.entries(rec ?? {})) {
+    if (typeof v === 'number' && Number.isFinite(v)) out[k] = v;
+  }
+  return out;
+}
+
 /** 欠けているフィールドを初期値で補う（部分的に壊れたセーブにも耐える） */
 export function fillDefaults(data: Record<string, unknown>): GameState {
   const base = createInitialState();
@@ -236,18 +261,41 @@ export function fillDefaults(data: Record<string, unknown>): GameState {
     ...d,
     saveVersion: GAME_META.saveVersion,
     meta: { ...base.meta, ...(d.meta ?? {}) },
-    company: { ...base.company, ...(d.company ?? {}) },
-    inventory: { ...(d.inventory ?? {}) },
+    // 壊れた数（null や NaN）が紛れ込んでいても、そこから先が全部おかしくならないように直す
+    company: {
+      ...base.company,
+      ...(d.company ?? {}),
+      cash: num(d.company?.cash, base.company.cash),
+      totalEarned: num(d.company?.totalEarned, 0),
+      totalSpent: num(d.company?.totalSpent, 0),
+      facilityInvestment: num(d.company?.facilityInvestment, 0),
+      landInvestment: num(d.company?.landInvestment, 0),
+      debtSeconds: num(d.company?.debtSeconds, 0),
+    },
+    inventory: cleanNumbers(d.inventory as Record<string, unknown> | undefined),
     discovered: { ...base.discovered, ...(d.discovered ?? {}) },
     tools: { ...(d.tools ?? {}) },
-    facilities: Array.isArray(d.facilities) ? d.facilities.map((f) => ({ ...f, landId: f.landId ?? 'hq' })) : [],
+    facilities: Array.isArray(d.facilities)
+      ? d.facilities
+          .filter((f) => f && typeof f.typeId === 'string')
+          .map((f) => {
+            const landId = f.landId ?? 'hq';
+            return { ...f, landId, id: f.id ?? `${landId}:${f.typeId}`, enabled: f.enabled ?? true, count: num(f.count, 0) };
+          })
+      : [],
     lands: fixedLands,
     market: { ...base.market, ...(d.market ?? {}), prices: { ...(d.market?.prices ?? {}) }, autoSell: { ...(d.market?.autoSell ?? {}) } },
     stats: { ...base.stats, ...(d.stats ?? {}) },
     unlocked: { ...(d.unlocked ?? {}) },
     achievements: { ...(d.achievements ?? {}) },
     tutorial: { ...base.tutorial, ...(d.tutorial ?? {}) },
-    research: { ...base.research, ...(d.research ?? {}) },
+    research: {
+      ...base.research,
+      ...(d.research ?? {}),
+      points: num(d.research?.points, 0),
+      totalPoints: num(d.research?.totalPoints, 0),
+      completed: { ...(d.research?.completed ?? {}) },
+    },
     events: { ...base.events, ...(d.events ?? {}), active: Array.isArray(d.events?.active) ? d.events.active : [] },
     estate: fixEstate(d.estate),
     stocks: fixStocks(d.stocks),
@@ -256,6 +304,7 @@ export function fillDefaults(data: Record<string, unknown>): GameState {
     prestige: fixPrestige(d.prestige),
     automation: fixAutomation(d.automation),
     business: fixBusiness(d.business),
+    history: fixHistory(d.history),
     eventLog: Array.isArray(d.eventLog) ? d.eventLog : [],
     nextEventId: typeof d.nextEventId === 'number' ? d.nextEventId : 1,
     settings: { ...base.settings, ...(d.settings ?? {}) },

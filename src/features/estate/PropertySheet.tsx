@@ -140,6 +140,8 @@ export function PropertySheet() {
               if (engine.sellProperty(id) > 0) {
                 sfx('sell');
                 bumpGame();
+                // 売ったあともシートが開いたままだと、すぐ下に「購入する」が出て買い戻してしまう
+                close();
               }
             }}
           >

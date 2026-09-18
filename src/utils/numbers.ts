@@ -15,9 +15,11 @@ export const MAX_VALUE = 1e60;
 
 /** NaN・Infinity を取り除き、上限・下限で止める */
 export function safe(n: number, min = -MAX_VALUE, max = MAX_VALUE): number {
+  // 数でないもの（undefined・null・文字列）は 0 として扱う。
+  // JSON は NaN や Infinity を null にするので、壊れたセーブからここに来ることがある
+  if (typeof n !== 'number' || Number.isNaN(n)) return 0;
   if (!Number.isFinite(n)) {
-    // NaN は 0、+Infinity は上限、-Infinity は下限として扱う
-    if (Number.isNaN(n)) return 0;
+    // +Infinity は上限、-Infinity は下限
     return n > 0 ? max : min;
   }
   if (n > max) return max;

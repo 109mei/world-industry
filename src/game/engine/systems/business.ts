@@ -15,7 +15,7 @@ import { RESOURCE_MAP, type ResourceId } from '@/game/data/resources';
 import { getCustom } from './customEstate';
 import { landCustomId } from './customEstate';
 import { getLand, landPopulation } from '../land';
-import { referencePrice } from './market';
+import { addMarketSupply, referencePrice } from './market';
 import { isUnlocked } from './unlocks';
 import { addResource, clean } from '../inventory';
 import { safe, safePositive } from '@/utils/numbers';
@@ -63,7 +63,9 @@ export function footfall(state: GameState, landId: string): number {
   const unit = cp?.unitPrice ?? 30_000;
   const placeMult = Math.min(4, Math.max(0.3, Math.pow(unit / 30_000, 0.45)));
   const sizeMult = cp ? Math.min(3, Math.max(0.4, Math.pow(Math.max(30, cp.areaSqm) / 200, 0.3))) : 1;
-  return safePositive(pop * placeMult * sizeMult * (value > 0 ? 1 : 1));
+  // 地図から買った場所でなくても、土地の評価額が高いほど人が集まる
+  const valueMult = cp ? 1 : Math.min(2.5, Math.max(0.5, Math.pow(Math.max(1, value) / 50_000_000, 0.18)));
+  return safePositive(pop * placeMult * sizeMult * valueMult);
 }
 
 /**
@@ -152,6 +154,16 @@ export function shopModel(kind: BusinessKindId): ShopModel {
   );
 }
 
+/**
+ * お店に置ける在庫の上限（品物1種類あたり）。
+ * ここが無いと、自動補充が本社の倉庫を無限に吸い出してしまう。
+ */
+export function shopStockCapacity(state: GameState, div: Division): number {
+  const cp = getCustom(state, landCustomId(div.landId) ?? '');
+  const area = cp ? cp.areaSqm * Math.max(1, cp.levels) : 200;
+  return Math.max(120, Math.floor(area * 1.5));
+}
+
 /** 席・部屋・台の数（広さで決まる。0 なら上限なし） */
 export function shopCapacity(state: GameState, div: Division): number {
   const m = shopModel(div.kind);
@@ -201,7 +213,7 @@ export function houseEdge(): number {
 /**
  * その場所でその品物がどれだけ求められているか。
  * 1 より大きいほどよく売れる（高く・たくさん）。
- * 自分がその近くで大量に作っているものは、供給が増えて安くなる。
+ * たくさん売り続けると市場そのものが値崩れするので、そちらは referencePrice に任せている。
  */
 export function localDemand(state: GameState, landId: string, id: ResourceId): number {
   const land = getLand(state, landId);
@@ -249,7 +261,8 @@ export function customersPerSec(state: GameState, div: Division): number {
   // 駐車場が足りないと、車で来る客は入れない
   const spaces = parkingSpaces(state, div);
   const needed = raw * PARKING_PER_CUSTOMER;
-  const parkingOk = needed <= spaces ? 1 : 0.55 + 0.45 * (spaces / Math.max(1e-6, needed));
+  // 車で来る客だけが入れなくなる（歩きや電車の客はそのまま来る）
+  const parkingOk = needed <= spaces ? 1 : 1 - PARKING_PER_CUSTOMER + PARKING_PER_CUSTOMER * (spaces / Math.max(1e-6, needed));
   return safePositive(raw * Math.min(1, parkingOk));
 }
 
@@ -286,7 +299,9 @@ function runShop(ctx: EngineContext, div: Division, dt: number): number {
       div.totalEarned = safe(div.totalEarned + revenue);
       state.stats.totalCommercialIncome = safe(state.stats.totalCommercialIncome + revenue);
       div.handle = safe((div.handle ?? 0) + handle);
-      div.awareness = Math.min(100, div.awareness + Math.min(0.04, customers * 0.0005) * dt);
+      // customers はすでに dt を掛けた人数なので、1秒あたりに直してから伸ばす
+      const casinoGain = Math.min(0.04, (customers / Math.max(1e-9, dt)) * 0.0005);
+      div.awareness = Math.min(100, div.awareness + casinoGain * dt);
     }
     return revenue;
   }
@@ -319,6 +334,9 @@ function runShop(ctx: EngineContext, div: Division, dt: number): number {
     div.stock[g] = clean(have - take);
     revenue += take * retailPrice(state, div, g, shopMult);
     sold += take;
+    // 店で売ったぶんも市場に出ている。半分の重みで相場に効かせる
+    // （そうしないと、お店だけはいくら売っても値崩れしない抜け道になる）
+    addMarketSupply(state, g, take, 0.5);
   }
   if (sold > 0) {
     state.company.cash = safe(state.company.cash + revenue);
@@ -327,7 +345,8 @@ function runShop(ctx: EngineContext, div: Division, dt: number): number {
     state.stats.totalCommercialIncome = safe(state.stats.totalCommercialIncome + revenue);
     div.sold = safe((div.sold ?? 0) + sold);
     // 売れた数のぶんだけ、口コミで少しずつ知られていく
-    const gain = Math.min(0.05, sold * 0.0006) * (ctx.derived.modifiers?.awarenessGain ?? 1);
+    // sold はすでに dt を掛けた数なので、1秒あたりに直してから伸ばす（でないとオフライン中だけ速くなる）
+    const gain = Math.min(0.05, (sold / Math.max(1e-9, dt)) * 0.0006) * (ctx.derived.modifiers?.awarenessGain ?? 1);
     div.awareness = Math.min(100, div.awareness + gain * dt);
   }
   // 売り切れていたぶんは機会損失
@@ -342,7 +361,8 @@ function runShop(ctx: EngineContext, div: Division, dt: number): number {
 export function restockShop(ctx: EngineContext, div: Division, resource: ResourceId, amount: number): number {
   const { state } = ctx;
   const have = state.inventory[resource] ?? 0;
-  const take = Math.min(have, Math.floor(amount));
+  const room = Math.max(0, shopStockCapacity(state, div) - (div.stock[resource] ?? 0));
+  const take = Math.min(have, Math.floor(amount), Math.floor(room));
   if (take <= 0) return 0;
   state.inventory[resource] = clean(have - take);
   div.stock[resource] = clean((div.stock[resource] ?? 0) + take);
@@ -363,11 +383,13 @@ export function returnFromShop(ctx: EngineContext, div: Division, resource: Reso
 
 /** 自動入荷（目標の個数まで、本社の在庫から補充する） */
 function runAutoRestock(ctx: EngineContext, div: Division): void {
+  const cap = shopStockCapacity(ctx.state, div);
   for (const [id, target] of Object.entries(div.restock ?? {}) as [ResourceId, number][]) {
     if (!target || target <= 0) continue;
+    const want = Math.min(target, cap);
     const have = div.stock[id] ?? 0;
-    if (have >= target * 0.5) continue;
-    restockShop(ctx, div, id, target - have);
+    if (have >= want * 0.5) continue;
+    restockShop(ctx, div, id, want - have);
   }
 }
 
@@ -426,20 +448,26 @@ function runMine(ctx: EngineContext, div: Division, dt: number): number {
   const total = digPerSec(state, div, derived.modifiers?.devSpeed ?? 1) * dt;
   if (total <= 0) return 0;
   // 価値の高いものほど出にくい。上から順に少しずつ
-  let left = total;
+  // 価値の高いものほど出にくいが、掘る力は無駄にしない（配分を足して1にする）
+  const shares = deposits.map((_, i) => (i === 0 ? 0.55 : 0.45 / Math.max(1, deposits.length - 1)));
+  let got = 0;
   let value = 0;
-  for (let i = 0; i < deposits.length && left > 0; i++) {
+  let full = false;
+  for (let i = 0; i < deposits.length; i++) {
     const d = deposits[i];
-    const share = i === 0 ? left * 0.55 : left * 0.35;
-    const take = Math.min(d.remaining, share, left);
+    const take = Math.min(d.remaining, total * shares[i]);
     if (take <= 0) continue;
-    const dep = land.deposits[d.id];
-    if (dep) dep.remaining = clean(dep.remaining - take);
+    // 倉庫に入ったぶんだけ埋蔵を減らす（満杯のときに鉱脈だけ減るのを防ぐ）
     const added = addResource(state, d.id, take, derived.capacity, 'gathered');
+    if (added + 1e-9 < take) full = true;
+    if (added <= 0) continue;
+    const dep = land.deposits[d.id];
+    if (dep) dep.remaining = clean(dep.remaining - added);
     value += added * (RESOURCE_MAP[d.id]?.basePrice ?? 1);
-    left -= take;
+    got += added;
   }
-  div.dug = safe((div.dug ?? 0) + (total - left));
+  if (full) div.note = '本社の倉庫が満杯です。売るか倉庫を増やすまで、掘っても持ち帰れません';
+  div.dug = safe((div.dug ?? 0) + got);
   return value;
 }
 
@@ -497,11 +525,11 @@ export function cancelProject(ctx: EngineContext, div: Division, projectId: stri
   return true;
 }
 
-/** 案件が完成したときの処理 */
-function completeProject(ctx: EngineContext, div: Division, active: ActiveProject): void {
+/** 案件が完成したときの処理。入ったお金を返す */
+function completeProject(ctx: EngineContext, div: Division, active: ActiveProject): number {
   const { state } = ctx;
   const def = PROJECT_MAP[active.projectId];
-  if (!def) return;
+  if (!def) return 0;
   if (def.reward > 0) {
     state.company.cash = safe(state.company.cash + def.reward);
     state.company.totalEarned = safe(state.company.totalEarned + def.reward);
@@ -529,11 +557,13 @@ function completeProject(ctx: EngineContext, div: Division, active: ActiveProjec
   } else {
     ctx.emit('success', `${div.name}が「${def.name}」を完了しました${def.reward > 0 ? ` (+${def.reward.toLocaleString('ja-JP')}円)` : ''}`, { toast: true });
   }
+  return def.reward;
 }
 
 /** 会社（案件をこなす事業）を1 tick 進める。収入を返す */
 function runStudio(ctx: EngineContext, div: Division, dt: number): number {
   const { state } = ctx;
+  let rewards = 0;
   const power = devPerSec(state, div, ctx.derived.modifiers?.devSpeed ?? 1) * dt;
   if (power > 0 && div.projects.length > 0) {
     const share = power / div.projects.length;
@@ -543,18 +573,27 @@ function runStudio(ctx: EngineContext, div: Division, dt: number): number {
       active.work += share;
       if (active.work >= def.work) {
         div.projects = div.projects.filter((p) => p !== active);
-        completeProject(ctx, div, active);
+        rewards += completeProject(ctx, div, active);
       }
     }
   }
-  // 発売した製品の収入
+  // 発売した製品の収入。運用の人手が足りないと、そのぶんしか回せない
+  const needStaff = div.products.reduce((a, p) => a + (PROJECT_MAP[p.projectId]?.product?.upkeepStaff ?? 0), 0);
+  const upkeepRatio = needStaff > 0 ? Math.min(1, div.staff / needStaff) : 1;
+  if (needStaff > 0 && upkeepRatio < 1) {
+    div.note = `運用の人手が足りません（${needStaff}人ほしいところに ${div.staff}人）。収入が ${Math.round(upkeepRatio * 100)}% に落ちています`;
+  } else if (div.note?.startsWith('運用の人手')) {
+    div.note = '';
+  }
   let revenue = 0;
   for (const p of [...div.products]) {
     const def = PROJECT_MAP[p.projectId];
     if (!def?.product) continue;
-    revenue += p.users * def.product.revenuePerUser * (ctx.derived.modifiers?.productRevenue ?? 1) * dt;
+    revenue += p.users * def.product.revenuePerUser * (ctx.derived.modifiers?.productRevenue ?? 1) * upkeepRatio * dt;
     // 飽きられて減っていく。知名度とブランドが高いと減りが遅い
-    const decay = def.product.decayPerHour * (1 - Math.min(0.6, div.awareness / 250 + div.brand / 250));
+    // 知名度とブランドが高いと離れにくい。運用の人手が足りないと早く離れる
+    const neglect = upkeepRatio >= 1 ? 1 : 1 + (1 - upkeepRatio) * 1.5;
+    const decay = def.product.decayPerHour * (1 - Math.min(0.6, div.awareness / 250 + div.brand / 250)) * neglect;
     p.users = safePositive(p.users * Math.pow(1 - decay, dt / 3600));
     if (p.users < 10) {
       div.products = div.products.filter((x) => x.id !== p.id);
@@ -566,7 +605,7 @@ function runStudio(ctx: EngineContext, div: Division, dt: number): number {
     state.company.totalEarned = safe(state.company.totalEarned + revenue);
     div.totalEarned = safe(div.totalEarned + revenue);
   }
-  return revenue;
+  return revenue + rewards;
 }
 
 // ---------- 開業・従業員・広告 ----------
@@ -639,7 +678,6 @@ export function startAd(ctx: EngineContext, id: number, adId: string): { ok: boo
   if (!def) return { ok: false, reason: 'その広告はありません' };
   if (def.research && !state.research.completed[def.research]) return { ok: false, reason: '研究がまだ終わっていません' };
   if (div.ads.some((a) => a.adId === adId)) return { ok: false, reason: 'すでに出しています' };
-  if (adId === 'billboard' && (div.parkingLands.length === 0 ? false : false)) return { ok: false };
   if (adId === 'billboard') {
     // 看板は自分の土地に立てる。どこか1つでも持っていればよい
     const owned = Object.keys(state.estate.custom ?? {}).length;
@@ -658,8 +696,9 @@ export function toggleParking(ctx: EngineContext, id: number, landId: string): b
   const i = div.parkingLands.indexOf(landId);
   if (i >= 0) div.parkingLands.splice(i, 1);
   else {
-    // ほかの事業が使っている土地は使えない
+    // ほかの事業が使っている土地、事業が建っている土地は駐車場にできない
     if (divisions(state).some((d) => d.parkingLands.includes(landId))) return false;
+    if (divisions(state).some((d) => d.landId === landId)) return false;
     if (!getCustom(state, landCustomId(landId) ?? '')) return false;
     div.parkingLands.push(landId);
   }
@@ -668,17 +707,28 @@ export function toggleParking(ctx: EngineContext, id: number, landId: string): b
 
 // ---------- 毎 tick ----------
 
-/** すべての事業を進める。収入の合計を返す */
-export function runBusiness(ctx: EngineContext, dt: number): { income: number; wages: number } {
+/** すべての事業を進める。収入と、そこで使ったお金（広告費）を返す */
+export function runBusiness(ctx: EngineContext, dt: number): { income: number; costs: number } {
   const { state } = ctx;
   const bs = state.business;
-  if (!bs || bs.divisions.length === 0) return { income: 0, wages: 0 };
+  if (!bs || bs.divisions.length === 0) {
+    ctx.derived.businessIncome = 0;
+    ctx.derived.adCost = 0;
+    return { income: 0, costs: 0 };
+  }
   let income = 0;
   let adCost = 0;
   for (const div of bs.divisions) {
     // 広告
     const ad = adEffect(div);
-    if (ad.perSec > 0) {
+    // 知名度がその広告の上限に届いていたら、もう効かないので払わない
+    if (ad.perSec > 0 && div.awareness >= ad.cap) {
+      const done = div.ads.filter((a) => (AD_MAP[a.adId]?.cap ?? 0) <= div.awareness);
+      if (done.length > 0) {
+        div.ads = div.ads.filter((a) => (AD_MAP[a.adId]?.cap ?? 0) > div.awareness);
+        for (const e of done) ctx.emit('info', `${div.name}の「${AD_MAP[e.adId]?.name ?? e.adId}」は、もう知名度が上限に届いているので打ち切りました`);
+      }
+    } else if (ad.perSec > 0) {
       const cost = ad.costPerSec * (ctx.derived.modifiers?.adCost ?? 1) * dt;
       if (state.company.cash >= cost) {
         state.company.cash = safe(state.company.cash - cost);
@@ -710,7 +760,7 @@ export function runBusiness(ctx: EngineContext, dt: number): { income: number; w
   }
   ctx.derived.businessIncome = dt > 0 ? income / dt : 0;
   ctx.derived.adCost = dt > 0 ? adCost / dt : 0;
-  return { income, wages: 0 };
+  return { income, costs: adCost };
 }
 
 /** 表示用: 事業の1秒あたりの利益（売上 − 人件費 − 広告費） */
@@ -718,7 +768,12 @@ export function divisionProfitPerSec(state: GameState, div: Division): number {
   const def = BUSINESS_MAP[div.kind];
   const ad = adEffect(div);
   let revenue = 0;
-  if (def.style === 'shop') {
+  if (def.style === 'mine') {
+    // 掘り出したものの値打ちを収入として見る
+    for (const d of claimDeposits(state, div).slice(0, 1)) {
+      revenue += digPerSec(state, div) * 0.55 * (RESOURCE_MAP[d.id]?.basePrice ?? 1);
+    }
+  } else if (def.style === 'shop') {
     const m = shopModel(div.kind);
     const customers = customersPerSec(state, div);
     if (div.kind === 'casino') {

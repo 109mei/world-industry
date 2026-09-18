@@ -119,7 +119,10 @@ describe('営業', () => {
     const e = makeEngine(1_000_000);
     prepare(e);
     const f = place('w5');
-    e.state.estate.custom = { ...(e.state.estate.custom ?? {}), [f.id]: { boughtAt: 0, boughtPrice: 1 } as never };
+    e.state.estate.custom = {
+      ...(e.state.estate.custom ?? {}),
+      [f.id]: { id: f.id, name: f.name, label: f.label, kind: f.kind, lat: f.lat, lon: f.lon, areaSqm: f.areaSqm, levels: f.levels, unitPrice: 1000, basePrice: 1000, cityId: 'osaka', regionLabel: 'テスト', country: '日本', boughtAt: 0, boughtPrice: 1 },
+    };
     const r = e.pitchToPlace(f);
     expect(r.ok).toBe(false);
   });

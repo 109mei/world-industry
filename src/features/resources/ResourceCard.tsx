@@ -20,7 +20,13 @@ export function ResourceCard({ id, onOpen }: Props) {
   const net = prod - cons;
   const auto = state.market.autoSell[id];
   return (
-    <Card role="button" tabIndex={0} onClick={() => onOpen(id)} onKeyDown={(e) => e.key === 'Enter' && onOpen(id)} style={{ cursor: 'pointer' }}>
+    <Card role="button" tabIndex={0} onClick={() => onOpen(id)} onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                // スペースでも開けるようにする（本物のボタンと同じ動き）
+                e.preventDefault();
+                onOpen(id);
+              }
+            }} style={{ cursor: 'pointer' }}>
       <div className="card__head">
         <Icon name={def.icon} size={36} fallback={def.name.slice(0, 2)} />
         <div className="row__grow">

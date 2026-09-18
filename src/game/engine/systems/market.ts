@@ -113,6 +113,22 @@ export interface SellResult {
  * 売却。売上は需要曲線を積分した額（大量に売るほど1個あたりは安くなる）。
  * 売った量は市場の飽和量に加わり、短期の変動係数も少し下がる。
  */
+/**
+ * 市場に出た量を記録して、相場を押し下げる。
+ * お店の売上も同じ市場に出ているので、weight を下げて同じ仕組みに通す
+ * （そうしないと、お店だけがいくら売っても値崩れしない抜け道になる）。
+ */
+export function addMarketSupply(state: GameState, id: ResourceId, qty: number, weight = 1): void {
+  if (qty <= 0) return;
+  const def = RESOURCE_MAP[id];
+  if (!def?.sellable) return;
+  const m = getMarketState(state, id);
+  const effective = qty * weight;
+  m.saturation += effective;
+  const impact = Math.min(CONFIG.market.maxSellImpact, (effective / def.liquidity) * CONFIG.market.impactPerLiquidity);
+  m.modifier = Math.max(CONFIG.market.minModifier, m.modifier * (1 - impact));
+}
+
 export function sellResource(ctx: EngineContext, id: ResourceId, amount: number, options: { auto?: boolean } = {}): SellResult {
   const { state } = ctx;
   const def = RESOURCE_MAP[id];

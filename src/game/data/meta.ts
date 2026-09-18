@@ -5,7 +5,7 @@ export const GAME_META = {
   description: '石を拾うところから始めて、世界規模の産業企業を築く経営シミュレーション',
   themeColor: '#0E1116',
   /** アプリのバージョン（表示用） */
-  version: '1.2.0',
+  version: '1.3.0',
   /** セーブデータの形式バージョン。形式を変えたら +1 して migrations に変換処理を追加する */
   saveVersion: 13,
 } as const;

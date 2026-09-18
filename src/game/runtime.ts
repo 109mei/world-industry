@@ -4,7 +4,7 @@ import { playSfx, type SfxName } from '@/game/services/audio/sfx';
 import { GameLoop } from '@/game/services/GameLoop';
 import { LocalStorageSaveRepository, MemorySaveRepository, type SaveRepository } from '@/game/services/save/SaveRepository';
 import { SAVE_KEY, SaveService, hasProgress, savedHasProgress, serializeState } from '@/game/services/save/SaveService';
-import { bumpGame, setChangeHook, useGameStore } from '@/stores/gameStore';
+import { bumpGame, refreshGame, setChangeHook, useGameStore } from '@/stores/gameStore';
 import { useUiStore } from '@/stores/uiStore';
 import type { GameState, OfflineReport } from '@/types/state';
 
@@ -135,7 +135,8 @@ export async function createRuntime(): Promise<GameRuntime> {
   };
 
   const loop = new GameLoop(engine, {
-    onUiRefresh: () => bumpGame(),
+    // 画面の更新では保存しない（保存は操作したときと、一定間隔の自動保存にまかせる）
+    onUiRefresh: () => refreshGame(),
     onAutosave: () => void doSave(),
     onCatchUp: (seconds) => {
       if (seconds >= 300) useUiStore.getState().pushToast('info', `離席中の${Math.floor(seconds / 60)}分ぶんを計算しました`);

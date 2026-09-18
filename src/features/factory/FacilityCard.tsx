@@ -48,7 +48,8 @@ export function FacilityCard({ def, landId = 'hq' }: Props) {
   const status = runtime ? STATUS_LABEL[runtime.status] : null;
   const atMax = def.maxCount !== undefined && count >= def.maxCount;
   const build = land ? canBuildOn(def, land) : { ok: false as const, reason: '土地がありません' };
-  const eventMult = land ? derived.eventMods.landProduction[land.id] ?? 1 : 1;
+  // 地震などその土地だけの影響と、ストライキなど全社に効く影響の両方を掛ける
+  const eventMult = (land ? derived.eventMods.landProduction[land.id] ?? 1 : 1) * (derived.eventMods.production ?? 1);
   const mult = land ? terrainMultiplier(def, land) * surveyMultiplier(def, land) * (derived.modifiers.production[def.category] ?? 1) * (def.production ? eventMult : 1) : 1;
 
   const buy = (n: number | 'max') => {

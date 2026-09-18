@@ -10,8 +10,44 @@ export function isHq(landId: string): boolean {
   return landId === HQ_LAND_ID;
 }
 
+/**
+ * 土地と施設の索引。
+ *
+ * 土地も施設も数百まで増えるので、毎 tick に何十回も端から探していると重くなる。
+ * 配列そのものと長さが変わったときだけ作り直して使いまわす。
+ * （土地・施設が増えるのは push、減るのは filter による作り直しなので、この2つで見分けられる）
+ */
+let landIndex: { src: LandState[]; len: number; map: Map<string, LandState> } | null = null;
+let facilityIndex: { src: FacilityInstance[]; len: number; map: Map<string, FacilityInstance[]> } | null = null;
+
+function landMap(state: GameState): Map<string, LandState> {
+  if (landIndex && landIndex.src === state.lands && landIndex.len === state.lands.length) return landIndex.map;
+  const map = new Map<string, LandState>();
+  for (const l of state.lands) map.set(l.id, l);
+  landIndex = { src: state.lands, len: state.lands.length, map };
+  return map;
+}
+
+function facilityMap(state: GameState): Map<string, FacilityInstance[]> {
+  if (facilityIndex && facilityIndex.src === state.facilities && facilityIndex.len === state.facilities.length) return facilityIndex.map;
+  const map = new Map<string, FacilityInstance[]>();
+  for (const f of state.facilities) {
+    const list = map.get(f.landId);
+    if (list) list.push(f);
+    else map.set(f.landId, [f]);
+  }
+  facilityIndex = { src: state.facilities, len: state.facilities.length, map };
+  return map;
+}
+
+/** 索引を捨てる（会社を作り直したときなど） */
+export function resetLandIndex(): void {
+  landIndex = null;
+  facilityIndex = null;
+}
+
 export function getLand(state: GameState, landId: string): LandState | undefined {
-  return state.lands.find((l) => l.id === landId);
+  return landMap(state).get(landId);
 }
 
 export function ownedLands(state: GameState): LandState[] {
@@ -32,15 +68,17 @@ export function stockOf(state: GameState, land: LandState): Partial<Record<Resou
   return isHq(land.id) ? state.inventory : land.stock;
 }
 
+const NO_FACILITIES: FacilityInstance[] = [];
+
 export function facilitiesOn(state: GameState, landId: string): FacilityInstance[] {
-  return state.facilities.filter((f) => f.landId === landId);
+  return facilityMap(state).get(landId) ?? NO_FACILITIES;
 }
 
 /** 土地ごとの倉庫容量 */
 export function landCapacity(state: GameState, land: LandState, mods: Modifiers): number {
   let cap = isHq(land.id) ? CONFIG.baseStorage : CONFIG.landBaseStorage;
-  for (const f of state.facilities) {
-    if (f.landId !== land.id || !isFacilityId(f.typeId)) continue;
+  for (const f of facilitiesOn(state, land.id)) {
+    if (!isFacilityId(f.typeId)) continue;
     const def = FACILITY_MAP[f.typeId];
     if (def.storageBonus) cap += def.storageBonus * f.count;
   }

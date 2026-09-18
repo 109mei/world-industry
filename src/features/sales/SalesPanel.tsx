@@ -10,16 +10,24 @@ import { PROPERTY_KIND } from '@/game/data/properties';
 import { RESOURCE_MAP } from '@/game/data/resources';
 import { creditRankDef } from '@/game/engine/systems/contracts';
 import { clientList, getClient, isSalesUnlocked, pitchCooldownLeft, salesState, wantedByKind } from '@/game/engine/systems/sales';
+import { referencePrice } from '@/game/engine/systems/market';
 import { bumpGame, useGame } from '@/stores/gameStore';
 import { useUiStore } from '@/stores/uiStore';
 import { formatAmount, formatDuration, formatMoney, formatPercent } from '@/utils/format';
 import { sfx } from '@/utils/sfx';
+
+/** いまの相場と比べて何%か（符号も自分で付ける） */
+function priceLabel(price: number, reference: number): string {
+  const diff = price / Math.max(1, reference) - 1;
+  return `相場比 ${diff >= 0 ? '+' : ''}${formatPercent(diff, 0)}`;
+}
 
 /** 営業・契約・納品。取引先は地図で見つけた実在の建物 */
 export function SalesPanel() {
   const { state, derived, engine } = useGame();
   const mode = state.settings.numberFormat;
   const [message, setMessage] = useState('');
+  const [shownClients, setShownClients] = useState(30);
   const setTab = useUiStore((s) => s.setTab);
   const setMapSubTab = useUiStore((s) => s.setMapSubTab);
   const flyTo = useUiStore((s) => s.flyTo);
@@ -43,6 +51,7 @@ export function SalesPanel() {
   }
 
   const clients = clientList(state);
+  const visibleClients = clients.slice(0, shownClients);
   const cost = pitchCost(derived.assets);
 
   return (
@@ -92,7 +101,7 @@ export function SalesPanel() {
                   {c?.name ?? o.clientId} — {res.name} {formatAmount(o.amountPer, mode)}個 × {o.deliveries}回
                 </div>
                 <div className="card__sub">
-                  単価 {formatMoney(o.unitPrice, mode)}（相場比 +{formatPercent(o.unitPrice / Math.max(1, res.basePrice) - 1, 0)}）・納期 {formatDuration(o.intervalSec)}ごと
+                  単価 {formatMoney(o.unitPrice, mode)}（{priceLabel(o.unitPrice, referencePrice(state, o.resource))}）・納期 {formatDuration(o.intervalSec)}ごと
                 </div>
               </div>
               <Badge tone="profit">合計 {formatMoney(total, mode)}</Badge>
@@ -198,7 +207,7 @@ export function SalesPanel() {
         </Card>
       )}
       <div className="grid grid--2">
-        {clients.map((c) => {
+        {visibleClients.map((c) => {
           const tier = relationTier(c.relation);
           const wait = pitchCooldownLeft(state, c.id, now);
           const wants = wantedByKind(state, c.kind);
@@ -249,6 +258,13 @@ export function SalesPanel() {
           );
         })}
       </div>
+      {shownClients < clients.length && (
+        <div className="btn-row" style={{ marginTop: 8 }}>
+          <Button size="sm" onClick={() => setShownClients((n) => n + 30)}>
+            もっと見る（あと {clients.length - shownClients} 社）
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

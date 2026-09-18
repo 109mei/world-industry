@@ -1643,8 +1643,8 @@ textarea.input {
 /* 入力欄の横に置く「×」（設定をなしに戻す） */
 .input__clear {
   flex: 0 0 auto;
-  width: 34px;
-  height: 34px;
+  width: var(--tap, 44px);
+  height: var(--tap, 44px);
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   background: var(--surface-2);
@@ -1652,6 +1652,8 @@ textarea.input {
   font-size: 18px;
   line-height: 1;
   cursor: pointer;
+  min-width: var(--tap, 44px);
+  min-height: var(--tap, 44px);
 }
 .input__clear:hover {
   color: var(--text);
@@ -1924,4 +1926,77 @@ html[data-theme='dark'] .maplibregl-ctrl-attrib {
   text-overflow: ellipsis;
   white-space: nowrap;
   opacity: 0.85;
+}
+
+/* ---------- 本社を地図から選ぶ ---------- */
+.hq-picker {
+  border: 1px solid var(--line, rgba(255, 255, 255, 0.08));
+  border-radius: 12px;
+  overflow: hidden;
+  margin-top: 8px;
+}
+.hq-picker__stage {
+  position: relative;
+  height: 320px;
+}
+.hq-picker__map {
+  position: absolute;
+  inset: 0;
+}
+.hq-picker__cross {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 34px;
+  height: 34px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 500;
+}
+.hq-picker__cross span {
+  position: absolute;
+  background: var(--accent, #7aa2f7);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45);
+}
+.hq-picker__cross span:first-child {
+  left: 50%;
+  top: 0;
+  width: 2px;
+  height: 100%;
+  margin-left: -1px;
+}
+.hq-picker__cross span:last-child {
+  top: 50%;
+  left: 0;
+  height: 2px;
+  width: 100%;
+  margin-top: -1px;
+}
+.hq-picker__foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  background: var(--surface-2, rgba(255, 255, 255, 0.04));
+}
+
+.tutorial__why {
+  font-size: 12px;
+  opacity: 0.8;
+  margin: 6px 0 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  line-height: 1.5;
+}
+.tutorial__skip {
+  background: none;
+  border: none;
+  color: inherit;
+  opacity: 0.6;
+  font-size: 11.5px;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
 }

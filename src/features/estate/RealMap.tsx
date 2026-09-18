@@ -1,5 +1,5 @@
 import L from 'leaflet';
-import { Suspense, lazy, useEffect, useRef, useState } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { COMPANIES, SECTOR_LABEL, type CompanyDef } from '@/game/data/companies';
 import { LANDS, type LandDef } from '@/game/data/lands';
@@ -222,6 +222,10 @@ export function RealMap() {
 
   // --- 実在の建物（OpenStreetMap）: 寄ったときだけ読み込む ---
   const customKey = Object.keys(state.estate.custom ?? {}).sort().join(',');
+  const numberFormat = state.settings.numberFormat;
+  // 3D に渡す配列は、持ち物が変わったときだけ作り直す（毎回作ると 3D が作り直される）
+  const ownedIds = useMemo(() => (customKey ? customKey.split(',') : []), [customKey]);
+  const use3DRef = useRef(false);
 
   useEffect(() => {
     if (!ready || !bounds) return;
@@ -291,7 +295,15 @@ export function RealMap() {
       poly.on('click', () => openFeature(f));
       poly.addTo(layer);
     }
-  }, [features, zoom, customKey, state.company.cash, state.settings.numberFormat]);
+  }, [features, zoom, customKey, numberFormat]);
+
+  // 3D から 2D に戻ったら、隠れていたあいだに変わった大きさを地図に教える
+  useEffect(() => {
+    if (use3DRef.current && !use3D) {
+      setTimeout(() => mapRef.current?.invalidateSize(), 60);
+    }
+    use3DRef.current = use3D;
+  });
 
   // 既定は平面。近づいたときだけ「3D」ボタンが出て、押した人だけ立体になる
   const canUse3D = view.zoom >= THREE_D_ZOOM;
@@ -383,7 +395,7 @@ export function RealMap() {
             <Map3D
               center={view}
               features={features}
-              ownedIds={Object.keys(state.estate.custom ?? {})}
+              ownedIds={ownedIds}
               onSelect={(f) => openFeature(f)}
               onView={(v) => {
                 setView({ lat: v.lat, lon: v.lon, zoom: v.zoom });
@@ -392,9 +404,15 @@ export function RealMap() {
               onError={(m) => setThreeDError(m)}
             />
           </Suspense>
-        ) : (
-          <div ref={containerRef} className="rm__map" role="application" aria-label="実在の地図" />
-        )}
+        ) : null}
+        {/* 2D の入れ物は外さない。外すと 3D から戻ったときに地図が作り直されず真っ白になる */}
+        <div
+          ref={containerRef}
+          className="rm__map"
+          role="application"
+          aria-label="実在の地図"
+          style={{ display: use3D ? 'none' : 'block' }}
+        />
         {!use3D && tileError && (
           <div className="rm__notice" role="status">
             地図の画像を読み込めません（オフラインかブロックされています）。ピンは表示されるので、そのまま使えます。

@@ -75,21 +75,30 @@ export function buildBankruptState(state: GameState, now: number, createInitialS
   return next;
 }
 
-/** 毎 tick: 人件費を払い、赤字なら利息を付け、限界を超えたら破産を知らせる */
-export function runFinance(ctx: EngineContext, dt: number): { wages: number; bankrupt: boolean } {
+/** 毎 tick（前半）: 人件費を払う。収支の判定はこの tick の収入が入ったあとに行う */
+export function runWages(ctx: EngineContext, dt: number): number {
   const { state, derived } = ctx;
   const wageMult = derived.modifiers?.wage ?? 1;
-  const wages = wagePerSec(state) * wageMult * dt;
+  const perSec = wagePerSec(state) * wageMult;
+  const wages = perSec * dt;
   if (wages > 0) {
     state.company.cash = safe(state.company.cash - wages);
     state.company.totalSpent = safe(state.company.totalSpent + wages);
     state.stats.totalWages = safe((state.stats.totalWages ?? 0) + wages);
   }
-  derived.wageCost = wagePerSec(state) * wageMult;
+  derived.wageCost = perSec;
+  return wages;
+}
 
+/**
+ * 毎 tick（後半）: その tick の収入がすべて入ったあとで、赤字かどうかを見る。
+ * 先に判定すると「売れば足りるのに倒産する」ことになるので、順番が大事。
+ */
+export function runSolvency(ctx: EngineContext, dt: number): { bankrupt: boolean } {
+  const { state, derived } = ctx;
   if (state.company.cash >= 0) {
     state.company.debtSeconds = 0;
-    return { wages, bankrupt: false };
+    return { bankrupt: false };
   }
   // 借金には利息が付く
   const interest = -state.company.cash * DEBT_INTEREST_PER_HOUR * (dt / 3600);
@@ -104,5 +113,5 @@ export function runFinance(ctx: EngineContext, dt: number): { wages: number; ban
   }
   const limit = debtLimit(derived.assets);
   const bankrupt = state.company.debtSeconds >= GRACE_SECONDS || -state.company.cash >= limit;
-  return { wages, bankrupt };
+  return { bankrupt };
 }
