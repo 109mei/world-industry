@@ -21,6 +21,22 @@
   --power-bg: rgba(94, 167, 255, 0.14);
   --research-bg: rgba(164, 123, 255, 0.14);
 
+  /* 図表の内訳に使う色。色覚の分離を検証済み（どの組み合わせでも見分けられる） */
+  --series-1: #0072B2;
+  --series-2: #C08A00;
+  --series-3: #009E73;
+  --series-other: #6B7684;
+
+  /* カードのレア度8段（色だけに頼らず、必ずN/R/SR…の文字も出している） */
+  --rar-n: #8A97A8;
+  --rar-r: #5EA7FF;
+  --rar-sr: #A47BFF;
+  --rar-ssr: #4ED9A4;
+  --rar-ar: #E9B949;
+  --rar-sar: #FB923C;
+  --rar-ur: #F472B6;
+  --rar-lr: #FFD75E;
+
   /* テーマで変わる補助色 */
   --header-bg: rgba(14, 17, 22, 0.92);
   --nav-bg: rgba(23, 28, 36, 0.96);
@@ -77,6 +93,22 @@
   --loss-bg: rgba(210, 63, 63, 0.12);
   --power-bg: rgba(43, 123, 214, 0.12);
   --research-bg: rgba(123, 79, 224, 0.12);
+
+  /* 図表の内訳に使う色（明るい配色用）。こちらも検証済み */
+  --series-1: #1F6FB2;
+  --series-2: #9A6E00;
+  --series-3: #0E8A63;
+  --series-other: #8A97A8;
+
+  /* カードのレア度8段（明るい配色用） */
+  --rar-n: #7A8698;
+  --rar-r: #2B7BD6;
+  --rar-sr: #7B4FE0;
+  --rar-ssr: #12876A;
+  --rar-ar: #B8860B;
+  --rar-sar: #C2410C;
+  --rar-ur: #BE185D;
+  --rar-lr: #9A6A00;
 
   --header-bg: rgba(255, 255, 255, 0.9);
   --nav-bg: rgba(255, 255, 255, 0.96);

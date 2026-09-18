@@ -141,9 +141,6 @@ export const CONFIG = {
     /** ポイント = floor(sqrt(総資産 / この額)) */
     assetsPerPoint: 100_000_000,
     /** 1ポイントあたりの永続ボーナス */
-    productionPerPoint: 0.03,
-    researchPerPoint: 0.02,
-    startingCashPerPoint: 100_000,
   },
   /** イベント履歴の保持数 */
   eventLogLength: 100,

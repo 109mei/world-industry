@@ -8,6 +8,9 @@ import type { EngineContext, Rng } from '../context';
 import { createInitialEstate } from '../state/createInitialState';
 import { creditRankDef } from './contracts';
 import { customEstateValue, customProperties, customRentTotal } from './customEstate';
+import { rentMult, tradeFeeMult } from './synergy';
+import { closeDivisionsOnLand } from './business';
+import { dropFacilityInvestment } from '../actions/facility';
 
 /** 標準正規乱数（Box–Muller） */
 export function randn(rng: Rng): number {
@@ -91,12 +94,14 @@ export function rentPerSec(state: GameState): number {
   let r = 0;
   for (const id of Object.keys(state.estate.owned)) r += propertyRentPerSec(state, id);
   r += customRentTotal(state);
-  return r;
+  // 自社の不動産会社があると空室が減る
+  return r * rentMult(state);
 }
 
 /** 不動産の売買手数料（信用ランクで下がる） */
 export function estateFee(state: GameState): number {
-  return creditRankDef(state).estateFee;
+  // 自社の銀行・証券・不動産があると手数料が内側に残る
+  return creditRankDef(state).estateFee * tradeFeeMult(state);
 }
 
 /** 購入の合計額（手数料込み） */
@@ -195,8 +200,11 @@ export function sellProperty(ctx: EngineContext, id: string): number {
   const proceeds = propertySellProceeds(state, id);
   const bought = state.estate.owned[id].boughtPrice;
   delete state.estate.owned[id];
-  // 土地としての登録と、そこに建てた施設を外す
+  // 土地としての登録と、そこに建てた施設・事業を外す
   const landId = propertyLandId(id);
+  closeDivisionsOnLand(ctx, landId);
+  // 施設ぶんの投資額も帳簿から外す（総資産に幽霊が残らないように）
+  dropFacilityInvestment(state, landId);
   state.lands = state.lands.filter((l) => l.id !== landId);
   state.facilities = state.facilities.filter((f) => f.landId !== landId);
   state.company.cash += proceeds;

@@ -1,7 +1,6 @@
 import { Card } from '@/components/ui/Card';
 import { Segmented } from '@/components/ui/Segmented';
 import { Stat } from '@/components/ui/Stat';
-import { CONFIG } from '@/game/data/config';
 import { useGame } from '@/stores/gameStore';
 import { useUiStore } from '@/stores/uiStore';
 import { formatMoney, formatMoneyRate, formatNumber, formatPercent } from '@/utils/format';
@@ -42,7 +41,9 @@ export function HomePage() {
           {derived.wageCost > 0 && <Stat label="人件費 /秒" value={formatMoneyRate(-derived.wageCost, mode)} tone="loss" extra={`従業員 ${formatNumber(derived.employees, mode)}人`} />}
           {state.lands.length > 1 && <Stat label="土地" value={`${state.lands.length - 1}か所`} extra={derived.transportCost > 0 ? `輸送費 ${formatMoney(derived.transportCost, mode)}/秒` : undefined} />}
           {state.contracts.credit > 0 && <Stat label="信用ランク" value={derived.creditRank} tone="research" extra={`信用 ${formatNumber(state.contracts.credit, mode)}`} />}
-          {state.prestige.points > 0 && <Stat label="再出発ボーナス" value={`${state.prestige.points}pt`} tone="research" extra={`生産 ×${(1 + CONFIG.prestige.productionPerPoint * state.prestige.points).toFixed(2)}`} />}
+          {state.prestige.points > 0 && (
+            <Stat label="永続ポイント" value={`${state.prestige.points}pt`} tone="research" extra={`会社の「再出発」で使えます（${state.prestige.count}回目）`} />
+          )}
         </div>
       </Card>
 
@@ -67,10 +68,11 @@ export function HomePage() {
 
       {state.settings.hqChosen && (
       <>
+      {/* 案内は、ホームのどのタブにいても出す（誘導先へ行ったとたんに消えないように） */}
+      <TutorialCard />
       {sub === 'home' && (
         <>
           <EventBanner />
-          <TutorialCard />
 
           <AutomationCard />
 

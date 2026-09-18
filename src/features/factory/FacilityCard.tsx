@@ -42,8 +42,10 @@ export function FacilityCard({ def, landId = 'hq' }: Props) {
   const unlocked = isUnlocked(state, 'facility', id);
   const inst = findFacility(state, id, landId);
   const count = inst?.count ?? 0;
-  const nextCost = facilityCost(def, count);
-  const affordable = facilityMaxAffordable(def, count, state.company.cash);
+  // 自社の建設会社があると建設費が安くなる
+  const buildMult = derived.modifiers.buildCost ?? 1;
+  const nextCost = Math.ceil(facilityCost(def, count) * buildMult);
+  const affordable = facilityMaxAffordable(def, count, state.company.cash / buildMult);
   const runtime = inst ? derived.facilityRuntime[inst.id] : undefined;
   const status = runtime ? STATUS_LABEL[runtime.status] : null;
   const atMax = def.maxCount !== undefined && count >= def.maxCount;
@@ -51,6 +53,10 @@ export function FacilityCard({ def, landId = 'hq' }: Props) {
   // 地震などその土地だけの影響と、ストライキなど全社に効く影響の両方を掛ける
   const eventMult = (land ? derived.eventMods.landProduction[land.id] ?? 1 : 1) * (derived.eventMods.production ?? 1);
   const mult = land ? terrainMultiplier(def, land) * surveyMultiplier(def, land) * (derived.modifiers.production[def.category] ?? 1) * (def.production ? eventMult : 1) : 1;
+  // 発電・倉庫・研究にも、全社にかかる係数を入れて出す（増設の判断に使う数字なので）
+  const powerMult = derived.modifiers.powerGeneration * (def.renewable ? derived.modifiers.renewableGeneration : 1) * (derived.eventMods.power ?? 1);
+  const storageMult = derived.modifiers.storage;
+  const researchMult = derived.modifiers.researchRate;
 
   const buy = (n: number | 'max') => {
     if (engine.buyFacility(id, n, landId) > 0) sfx('buy');
@@ -154,10 +160,10 @@ export function FacilityCard({ def, landId = 'hq' }: Props) {
       )}
       {def.powerGen && (
         <div className="card__body num" style={{ fontSize: 13 }}>
-          発電 <span className="text-power">{formatMW(def.powerGen * terrainMult)}</span> / 個
+          発電 <span className="text-power">{formatMW(def.powerGen * terrainMult * powerMult)}</span> / 個
           {count > 0 && (
             <span className="text-sub">
-              （現在 {formatMW(powerOut)} / 最大 {formatMW(def.powerGen * terrainMult * count)}）
+              （現在 {formatMW(powerOut)} / 最大 {formatMW(def.powerGen * terrainMult * powerMult * count)}）
             </span>
           )}
           {def.fuel && (
@@ -174,8 +180,8 @@ export function FacilityCard({ def, landId = 'hq' }: Props) {
       )}
       {def.storageBonus && (
         <div className="card__body num" style={{ fontSize: 13 }}>
-          倉庫容量 <span className="text-profit">+{formatNumber(def.storageBonus, 'full')}</span> / 個
-          {count > 0 && <span className="text-sub">（合計 +{formatNumber(def.storageBonus * count, 'full')}）</span>}
+          倉庫容量 <span className="text-profit">+{formatNumber(Math.round(def.storageBonus * storageMult), 'full')}</span> / 個
+          {count > 0 && <span className="text-sub">（合計 +{formatNumber(Math.round(def.storageBonus * storageMult * count), 'full')}）</span>}
         </div>
       )}
       {def.transport && (
@@ -193,7 +199,8 @@ export function FacilityCard({ def, landId = 'hq' }: Props) {
       )}
       {def.researchRate && (
         <div className="card__body num" style={{ fontSize: 13 }}>
-          研究ポイント <span className="text-research">+{def.researchRate}/秒</span> / 個
+          研究ポイント <span className="text-research">+{(def.researchRate * researchMult).toFixed(2)}/秒</span> / 個
+          {count > 0 && <span className="text-sub">（合計 +{(def.researchRate * researchMult * count).toFixed(2)}/秒）</span>}
         </div>
       )}
       {runtime && count > 0 && (io || def.income) && (

@@ -1,3 +1,4 @@
+import type { ProjectPace, ProjectPhaseId } from '@/game/data/projectPhases';
 import type { PropertyKind } from '@/game/data/properties';
 import type { BusinessKindId } from '@/game/data/business';
 import type { CompanyPolicy } from '@/game/data/companies';
@@ -37,6 +38,12 @@ export interface FacilityInstance {
   landId: string;
   count: number;
   enabled: boolean;
+  /**
+   * これまでに実際に払った額（割引こみ）。
+   * 土地を手放したときに、帳簿からちょうど同じだけ引くために持っている。
+   * 古いセーブには無いので、無いときは定価から見積もる。
+   */
+  spent?: number;
 }
 
 export interface MarketResourceState {
@@ -214,6 +221,10 @@ export interface SettingsState {
   sound: boolean;
   /** 効果音の音量 0〜1 */
   volume: number;
+  /** BGM を流す */
+  music?: boolean;
+  /** BGM の音量 0〜1 */
+  musicVolume?: number;
   /** ランダムイベントを起こす */
   events: boolean;
   /** LAND 画面の表示（地図 or リスト） */
@@ -468,6 +479,12 @@ export interface ActiveProject {
   /** これまでに積み上げた仕事量 */
   work: number;
   startedAt: number;
+  /** 進め方（じっくり／ふつう／急ぐ） */
+  pace?: ProjectPace;
+  /** いまの工程 */
+  phase?: ProjectPhaseId;
+  /** 終わった工程の出来の良さ（0〜100）。工程の順に入る */
+  phaseScores?: number[];
 }
 
 /** 発売した製品（利用者がいるかぎり毎秒お金が入る） */
@@ -475,6 +492,8 @@ export interface BusinessProduct {
   id: number;
   projectId: string;
   name: string;
+  /** 作ったときの品質 0〜100（飽きられる速さに効く） */
+  quality?: number;
   /** いまの利用者数 */
   users: number;
   /** 発売したときの利用者数（最盛期の目安） */
@@ -527,6 +546,8 @@ export interface Division {
   rush?: number;
   /** 画面に出す短い状況（鉱区など） */
   note?: string;
+  /** これまでに完成させた案件の品質の平均（0〜100） */
+  avgQuality?: number;
 }
 
 export interface BusinessState {
@@ -548,6 +569,28 @@ export interface LotteryState {
   won: number;
   /** 前回の結果（表示用） */
   lastMessage: string;
+}
+
+/** トレーディングカード */
+export interface CardState {
+  /** 持っている枚数 */
+  owned: Record<string, number>;
+  /** カードごとの相場の倍率 */
+  price: Record<string, number>;
+  /** 相場ぜんたいの熱（はやり）0.5〜2.4 */
+  hype: number;
+  /** 次に相場が動くまでの秒数 */
+  nextDriftIn: number;
+  /** 開けたパックの数 */
+  packsOpened: number;
+  /** カードに使った額 */
+  spent: number;
+  /** カードで得た額 */
+  earned: number;
+  /** 図鑑の見返りを受け取った弾 */
+  claimed: Record<string, boolean>;
+  /** いちばん良かった当たり */
+  bestPull?: string;
 }
 
 /** 折れ線グラフ用の記録（一定の間隔で数字を積んでいく） */
@@ -596,6 +639,8 @@ export interface GameState {
   business: BusinessState;
   /** 宝くじ */
   lottery?: LotteryState;
+  /** トレーディングカード */
+  cards?: CardState;
   /** グラフ用の記録 */
   history?: HistoryState;
   eventLog: GameEvent[];
@@ -697,6 +742,20 @@ export interface Modifiers {
   awarenessGain: number;
   /** ブランド価値の上がりやすさ */
   brandGain: number;
+  /** 施設の建設費の倍率（建設会社の連携） */
+  buildCost: number;
+  /** 自社物件の賃料の倍率（不動産の連携） */
+  rentIncome: number;
+  /** 借金の利息の倍率（銀行の連携） */
+  interestRate: number;
+  /** 売買の手数料の倍率（銀行・証券・不動産の連携） */
+  tradeFee: number;
+  /** 災害・事故で失う額の倍率（保険・警備の連携） */
+  eventDamage: number;
+  /** カジノの取り分の倍率（警備の連携） */
+  casinoEdge: number;
+  /** 案件の着手金の倍率（自社で部品を作れるときの連携） */
+  projectCost: number;
 }
 
 /** 進行中のイベントから計算した係数（保存しない） */
@@ -797,4 +856,6 @@ export interface OfflineReport {
   capped: boolean;
   resourceDelta: Partial<Record<ResourceId, number>>;
   cashDelta: number;
+  /** 離れているあいだに倒産したか（見逃すと何が起きたか分からなくなる） */
+  bankrupted?: boolean;
 }

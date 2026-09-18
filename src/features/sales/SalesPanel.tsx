@@ -26,6 +26,8 @@ function priceLabel(price: number, reference: number): string {
 export function SalesPanel() {
   const { state, derived, engine } = useGame();
   const mode = state.settings.numberFormat;
+  // 「特需」「発注減」のイベント中は単価が変わる。表示にも同じ倍率を掛ける
+  const dealMult = derived.eventMods?.dealPrice ?? 1;
   const [message, setMessage] = useState('');
   const [shownClients, setShownClients] = useState(30);
   const setTab = useUiStore((s) => s.setTab);
@@ -91,7 +93,7 @@ export function SalesPanel() {
       {sales.offers.map((o) => {
         const c = getClient(state, o.clientId);
         const res = RESOURCE_MAP[o.resource];
-        const total = o.amountPer * o.unitPrice * o.deliveries;
+        const total = o.amountPer * o.unitPrice * o.deliveries * dealMult;
         return (
           <Card key={o.id}>
             <div className="card__head">
@@ -101,7 +103,7 @@ export function SalesPanel() {
                   {c?.name ?? o.clientId} — {res.name} {formatAmount(o.amountPer, mode)}個 × {o.deliveries}回
                 </div>
                 <div className="card__sub">
-                  単価 {formatMoney(o.unitPrice, mode)}（{priceLabel(o.unitPrice, referencePrice(state, o.resource))}）・納期 {formatDuration(o.intervalSec)}ごと
+                  単価 {formatMoney(o.unitPrice * dealMult, mode)}（{priceLabel(o.unitPrice * dealMult, referencePrice(state, o.resource))}）・納期 {formatDuration(o.intervalSec)}ごと
                 </div>
               </div>
               <Badge tone="profit">合計 {formatMoney(total, mode)}</Badge>
@@ -153,7 +155,7 @@ export function SalesPanel() {
                   {c?.name ?? d.clientId} — {res.name} {formatAmount(d.amountPer, mode)}個
                 </div>
                 <div className="card__sub">
-                  単価 {formatMoney(d.unitPrice, mode)}・残り {d.deliveriesLeft}回・在庫 {formatAmount(have, mode)}
+                  単価 {formatMoney(d.unitPrice * dealMult, mode)}・残り {d.deliveriesLeft}回・在庫 {formatAmount(have, mode)}
                 </div>
               </div>
               {d.missed > 0 && <Badge tone="warn">落とした {d.missed}回</Badge>}
@@ -176,7 +178,7 @@ export function SalesPanel() {
                     }
                   }}
                 >
-                  納品する（{formatMoney(d.amountPer * d.unitPrice, mode)}）
+                  納品する（{formatMoney(d.amountPer * d.unitPrice * dealMult, mode)}）
                 </Button>
                 <Button
                   size="sm"

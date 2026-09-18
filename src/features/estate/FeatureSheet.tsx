@@ -6,7 +6,7 @@ import { Stat } from '@/components/ui/Stat';
 import { FACILITY_MAP, isFacilityId } from '@/game/data/facilities';
 import { PROPERTY_KIND, PROPERTY_POPULATION, PROPERTY_TERRAIN } from '@/game/data/properties';
 import { TERRAINS } from '@/game/data/terrain';
-import { customBuyCost, customLandId, customPrice, customRentPerSec, customSellProceeds, getCustom, quoteFeature } from '@/game/engine/systems/customEstate';
+import { customBuyCost, customLandId, customPrice, customRentPerSec, customSellProceeds, getCustom, quoteFeature, quotePrice, quoteRentPerSec } from '@/game/engine/systems/customEstate';
 import { KIND_NEEDS, isClientKind, pitchCost, relationTier } from '@/game/data/clients';
 import { getClient, isSalesUnlocked, pitchCooldownLeft, wantedByKind } from '@/game/engine/systems/sales';
 import { estateFee } from '@/game/engine/systems/estate';
@@ -46,8 +46,9 @@ export function FeatureSheet() {
   const canBuy = !owned && state.company.cash >= cost;
   const landId = customLandId(feature.id);
   const builtHere = state.facilities.filter((f) => f.landId === landId && f.count > 0);
-  const price = owned ? customPrice(state, owned) : quote.basePrice;
-  const rent = owned ? customRentPerSec(state, owned) : (quote.basePrice * kind.yield) / 3600;
+  // 買う前と買った後で、同じ式で出す（有名な物件ほど値段は上がるが、賃料はそこまで増えない）
+  const price = owned ? customPrice(state, owned) : quotePrice(state, quote);
+  const rent = owned ? customRentPerSec(state, owned) : quoteRentPerSec(state, quote, feature.kind);
   const proceeds = owned ? customSellProceeds(state, owned) : 0;
   const floorArea = feature.areaSqm * Math.max(1, feature.levels);
   const land = getLand(state, landId);
@@ -182,7 +183,7 @@ export function FeatureSheet() {
                   <div className="list" style={{ marginBottom: 6 }}>
                     {depositList.map(([r, d]) => (
                       <div key={r} className="row" style={{ fontSize: 13 }}>
-                        <Icon name={RESOURCE_MAP[r as keyof typeof RESOURCE_MAP]?.icon ?? 'icon_ui_box'} size={22} />
+                        <Icon name={RESOURCE_MAP[r as keyof typeof RESOURCE_MAP]?.icon ?? 'icon_tool_toolbox'} size={22} />
                         <span className="row__grow">{RESOURCE_MAP[r as keyof typeof RESOURCE_MAP]?.name ?? r}</span>
                         <span className="num text-sub">
                           {land.survey >= 2 ? `残り ${formatAmount(d?.remaining ?? 0, mode)}` : '埋蔵あり'}
@@ -248,7 +249,7 @@ export function FeatureSheet() {
               売却する（{formatMoney(proceeds, mode)}）
             </Button>
             <p className="text-sub" style={{ fontSize: 12, margin: '6px 0 0' }}>
-              売却すると、ここに建てた施設も失われます。
+              売却すると、ここに建てた施設と、ここでやっている事業も失われます（お店の在庫は本社に戻ります）。
             </p>
           </>
         )}

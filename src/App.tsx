@@ -8,6 +8,7 @@ import { CraftPage } from '@/features/craft/CraftPage';
 import { DebugPanel } from '@/features/debug/DebugPanel';
 import { FactoryPage } from '@/features/factory/FactoryPage';
 import { HomePage } from '@/features/home/HomePage';
+import { TutorialCard } from '@/features/home/TutorialCard';
 import { OfflineReportModal } from '@/features/offline/OfflineReportModal';
 import { MapPage } from '@/features/map/MapPage';
 import { ResearchPage } from '@/features/research/ResearchPage';
@@ -21,6 +22,7 @@ import { useUiStore } from '@/stores/uiStore';
 import type { NavTab } from '@/types/ui';
 import { applyTheme, useResolvedTheme } from '@/utils/theme';
 import { setNumberDisplay } from '@/utils/format';
+import { useSceneMusic } from '@/hooks/useSceneMusic';
 
 const PAGES: Record<NavTab, () => ReactElement> = {
   home: HomePage,
@@ -36,6 +38,8 @@ export function App() {
   const { state, derived } = useGame();
   const theme = useResolvedTheme();
   useEffect(() => applyTheme(theme), [theme]);
+  // 画面に合わせて BGM を切り替える
+  useSceneMusic();
   // 通貨と単位の表記は、計算ではなく表示だけを切り替える
   useEffect(() => {
     setNumberDisplay({ currencyId: state.settings.currency ?? 'jpy', unitStyle: state.settings.unitStyle ?? 'ja' });
@@ -56,6 +60,8 @@ export function App() {
       <div className="app__body">
         <Header />
         <main className="app__main">
+          {/* 案内した先の画面でも、いま何をするのかが見えているようにする（ホームは大きいカードのほうを出す） */}
+          {tab !== 'home' && <TutorialCard compact />}
           <Page />
         </main>
       </div>

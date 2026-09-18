@@ -15,6 +15,22 @@ export function getMarketState(state: GameState, id: ResourceId): MarketResource
   return m;
 }
 
+/**
+ * 変動係数（modifier）が動ける幅。
+ * 荒い相場のもの（GPU・暗号資産）は上下に広く動かすので、
+ * 「相場が動くとき」「売ったとき」「買ったとき」で同じ幅を使わないと、
+ * 下限より安いときに売ると値段が跳ね上がる、といった抜け道ができる。
+ */
+export function modifierFloor(id: ResourceId): number {
+  const vol = RESOURCE_MAP[id]?.volatility ?? 1;
+  return CONFIG.market.minModifier / Math.sqrt(vol);
+}
+
+export function modifierCeil(id: ResourceId): number {
+  const vol = RESOURCE_MAP[id]?.volatility ?? 1;
+  return CONFIG.market.maxModifier * vol;
+}
+
 /** イベント（相場高騰・暴落）による価格倍率 */
 export function eventPriceMultiplier(state: GameState, id: ResourceId): number {
   let mult = 1;
@@ -92,10 +108,12 @@ export function runMarket(ctx: EngineContext, dt: number): void {
     updates++;
     for (const id of Object.keys(RESOURCE_MAP) as ResourceId[]) {
       const m = getMarketState(state, id);
-      const { minModifier, maxModifier, randomStep, meanReversion, historyLength } = CONFIG.market;
-      const noise = (rng() - 0.5) * 2 * randomStep;
-      let next = m.modifier + (1 - m.modifier) * meanReversion + noise;
-      next = Math.min(maxModifier, Math.max(minModifier, next));
+          const { randomStep, meanReversion, historyLength } = CONFIG.market;
+      // 荒い相場のもの（GPU・暗号資産）は、上下の振れ幅を大きくする
+      const vol = RESOURCE_MAP[id].volatility ?? 1;
+      const noise = (rng() - 0.5) * 2 * randomStep * vol;
+      let next = m.modifier + (1 - m.modifier) * (meanReversion / vol) + noise;
+      next = Math.min(modifierCeil(id), Math.max(modifierFloor(id), next));
       m.modifier = next;
       m.history.push(Math.round(RESOURCE_MAP[id].basePrice * next * 100) / 100);
       if (m.history.length > historyLength) m.history.splice(0, m.history.length - historyLength);
@@ -126,7 +144,70 @@ export function addMarketSupply(state: GameState, id: ResourceId, qty: number, w
   const effective = qty * weight;
   m.saturation += effective;
   const impact = Math.min(CONFIG.market.maxSellImpact, (effective / def.liquidity) * CONFIG.market.impactPerLiquidity);
-  m.modifier = Math.max(CONFIG.market.minModifier, m.modifier * (1 - impact));
+  m.modifier = Math.max(modifierFloor(id), m.modifier * (1 - impact));
+}
+
+/** 市場から買うときの上乗せ（仲介料）。売値より高く買うことになる */
+export const BUY_SPREAD = 1.25;
+
+/**
+ * いま1個いくらで買えるか。
+ *
+ * 売値に掛かる係数（研究や連携で上がる sellPrice）は買値にも同じだけ掛ける。
+ * 片側にだけ掛けると、「買ってすぐ売る」が儲かる抜け道になってしまう。
+ */
+export function buyPrice(state: GameState, id: ResourceId, sellPriceMult = 1): number {
+  return referencePrice(state, id) * BUY_SPREAD * sellPriceMult;
+}
+
+/**
+ * qty 個をまとめて買うときの合計。
+ * たくさん買うほど1個あたりは高くなる（安い在庫から順に無くなっていくのと同じ）。
+ * 売るときの積分と向きが反対になっていて、往復すると必ず手数料ぶん損をする。
+ */
+export function buyCost(state: GameState, id: ResourceId, qty: number, sellPriceMult = 1): number {
+  if (qty <= 0) return 0;
+  const unit = buyPrice(state, id, sellPriceMult);
+  const c = Math.max(1, demandCapacity(state, id));
+  return unit * (qty + (qty * qty) / (2 * c));
+}
+
+export interface BuyResult {
+  amount: number;
+  cost: number;
+  unitPrice: number;
+  reason?: string;
+}
+
+/**
+ * 市場から買う（転売のための仕入れ）。
+ * 売値より 25% 高く買うことになるので、そのまま売り返すと必ず損をする。
+ * 相場が上がってから売れば儲かる。たくさん買うと、そのぶん相場が上がる。
+ */
+export function buyResource(ctx: EngineContext, id: ResourceId, amount: number): BuyResult {
+  const { state } = ctx;
+  const def = RESOURCE_MAP[id];
+  const priceMult = ctx.derived.modifiers?.sellPrice ?? 1;
+  const unit = buyPrice(state, id, priceMult);
+  if (!def?.buyable) return { amount: 0, cost: 0, unitPrice: unit, reason: 'これは市場から買えません' };
+  const room = Math.max(0, ctx.derived.capacity - (state.inventory[id] ?? 0));
+  let qty = Math.floor(Math.min(amount, room));
+  if (qty <= 0) return { amount: 0, cost: 0, unitPrice: unit, reason: '倉庫に空きがありません' };
+  // 買える数は、まとめ買いで単価が上がるぶんも見て決める
+  while (qty > 0 && buyCost(state, id, qty, priceMult) > state.company.cash) {
+    qty = Math.min(qty - 1, Math.floor(qty * 0.9));
+  }
+  if (qty <= 0) return { amount: 0, cost: 0, unitPrice: unit, reason: '所持金が足りません' };
+  const cost = Math.ceil(buyCost(state, id, qty, priceMult));
+  state.company.cash = state.company.cash - cost;
+  state.company.totalSpent += cost;
+  state.inventory[id] = clean((state.inventory[id] ?? 0) + qty);
+  // 買い占めると相場が上がる（売るときの半分の効き。往復で儲からないようにするため）
+  const m = getMarketState(state, id);
+  const impact = Math.min(CONFIG.market.maxSellImpact, (qty / def.liquidity) * CONFIG.market.impactPerLiquidity) * 0.5;
+  m.modifier = Math.min(modifierCeil(id), m.modifier * (1 + impact));
+  ctx.emit('info', `${def.name}を${qty.toLocaleString('ja-JP')}個 仕入れました (-${cost.toLocaleString('ja-JP')}円)`);
+  return { amount: qty, cost, unitPrice: cost / qty };
 }
 
 export function sellResource(ctx: EngineContext, id: ResourceId, amount: number, options: { auto?: boolean } = {}): SellResult {
@@ -146,7 +227,7 @@ export function sellResource(ctx: EngineContext, id: ResourceId, amount: number,
   const m = getMarketState(state, id);
   m.saturation += qty;
   const impact = Math.min(CONFIG.market.maxSellImpact, (qty / def.liquidity) * CONFIG.market.impactPerLiquidity);
-  m.modifier = Math.max(CONFIG.market.minModifier, m.modifier * (1 - impact));
+  m.modifier = Math.max(modifierFloor(id), m.modifier * (1 - impact));
   if (!options.auto) {
     ctx.emit('info', `${def.name}を${qty.toLocaleString('ja-JP')}個売却 (+${Math.floor(revenue).toLocaleString('ja-JP')}円)`);
   }

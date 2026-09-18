@@ -1,6 +1,7 @@
 import { FACILITY_CATEGORIES } from '@/game/data/facilities';
 import { RESEARCH, type ResearchDef } from '@/game/data/research';
 import type { GameState, Modifiers } from '@/types/state';
+import { applySynergies } from './synergy';
 
 export function createBaseModifiers(): Modifiers {
   const production: Record<string, number> = {};
@@ -32,6 +33,13 @@ export function createBaseModifiers(): Modifiers {
     adCost: 1,
     awarenessGain: 1,
     brandGain: 1,
+    buildCost: 1,
+    rentIncome: 1,
+    interestRate: 1,
+    tradeFee: 1,
+    eventDamage: 1,
+    casinoEdge: 1,
+    projectCost: 1,
   };
 }
 
@@ -124,5 +132,7 @@ export function computeModifiers(state: GameState): Modifiers {
       }
     }
   }
+  // 事業どうしの連携（運送・広告代理・人材など、持っているだけで会社全体に効く）
+  applySynergies(state, m);
   return m;
 }

@@ -5,7 +5,7 @@
  * 画面には期待値をそのまま出していて、「増やす手段」ではなく「遊び」として置いている。
  * 本気で稼ぐなら、カジノを建てて開く側に回るほうが早い。
  */
-import { GAME_MAP, LOTTERY, expectedReturn, type GameId } from '@/game/data/gambling';
+import { GAME_MAP, LOTTERY, betOf, betReturn, expectedReturn, type GameId } from '@/game/data/gambling';
 import type { GameState, LotteryState } from '@/types/state';
 import type { EngineContext } from '../context';
 import { safe } from '@/utils/numbers';
@@ -18,6 +18,12 @@ export interface PlayResult {
   /** 返ってきた額 */
   payout: number;
   label: string;
+  /** どの賭け方だったか */
+  betId?: string;
+  /** 当たったかどうか（賭けた額より多く返ったか） */
+  won?: boolean;
+  /** 賭け金がそのまま返ってきたか（引き分け） */
+  push?: boolean;
 }
 
 /**
@@ -32,8 +38,8 @@ export function betSize(state: GameState, assets: number, gameId: GameId): numbe
   return Math.min(Math.max(def.baseBet, scaled), cap);
 }
 
-/** 遊ぶ。結果を返す */
-export function play(ctx: EngineContext, gameId: GameId): PlayResult {
+/** 遊ぶ。結果を返す。betId で賭け方を選ぶ（省略すると最初の賭け方） */
+export function play(ctx: EngineContext, gameId: GameId, betId?: string): PlayResult {
   const { state, derived, rng } = ctx;
   const def = GAME_MAP[gameId];
   if (!def) return { ok: false, reason: 'その遊びはありません', bet: 0, payout: 0, label: '' };
@@ -43,9 +49,10 @@ export function play(ctx: EngineContext, gameId: GameId): PlayResult {
 
   state.company.cash = safe(state.company.cash - bet);
   state.company.totalSpent = safe(state.company.totalSpent + bet);
+  const kind = betOf(def, betId);
   let r = rng();
-  let chosen = def.outcomes[def.outcomes.length - 1];
-  for (const o of def.outcomes) {
+  let chosen = kind.outcomes[kind.outcomes.length - 1];
+  for (const o of kind.outcomes) {
     r -= o.p;
     if (r <= 0) {
       chosen = o;
@@ -63,7 +70,7 @@ export function play(ctx: EngineContext, gameId: GameId): PlayResult {
   if (chosen.payout >= 50) {
     ctx.emit('success', `${def.name}で${chosen.label}！ +${payout.toLocaleString('ja-JP')}円`, { toast: true });
   }
-  return { ok: true, bet, payout, label: chosen.label };
+  return { ok: true, bet, payout, label: chosen.label, betId: kind.id, won: payout > bet, push: payout > 0 && payout <= bet };
 }
 
 // ---------- 宝くじ ----------
@@ -146,4 +153,4 @@ export function runLottery(ctx: EngineContext, dt: number): void {
   l.tickets = 0;
 }
 
-export { expectedReturn };
+export { expectedReturn, betReturn };

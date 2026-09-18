@@ -113,7 +113,8 @@
 }
 
 .btn--sm {
-  min-height: 40px;
+  /* 指で押すものは 44px 以上にする（この大きさが押しやすさの下限） */
+  min-height: var(--tap, 44px);
   padding: 0 10px;
   font-size: 13px;
 }
@@ -177,6 +178,12 @@
   height: 100%;
   object-fit: contain;
   image-rendering: auto;
+  /* 画像そのものを長押しの対象にしない（ボタン側の長押しだけを効かせる） */
+  pointer-events: none;
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 .icon--placeholder {
   background: var(--card-2);
@@ -204,9 +211,17 @@
   font-size: 16px;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  /*
+   * 桁の多い金額（単位を付けない設定のとき）が「4,996,926,...」と切れて読めなくなるので、
+   * 入りきらないときは字を詰めて折り返す。
+   */
+  overflow-wrap: anywhere;
+  line-height: 1.2;
+}
+/* 12桁を超えるような数字は、少しだけ小さくして1〜2行に収める */
+.stat__value--long {
+  font-size: 13.5px;
+  letter-spacing: -0.01em;
 }
 .stat__value--lg {
   font-size: 22px;
@@ -322,7 +337,8 @@
 }
 .segmented__item {
   flex: 1 0 auto;
-  min-height: 36px;
+  /* 指で押すものは 44px 以上にする */
+  min-height: var(--tap, 44px);
   padding: 0 12px;
   border-radius: 7px;
   font-size: 13px;
@@ -1810,36 +1826,52 @@ html[data-theme='dark'] .maplibregl-ctrl-attrib {
 }
 
 /* ---------- 図表 ---------- */
+/* 横の目盛線は引かない。両端の数字と、触れたときの表示で読む */
 .chart {
-  margin: 6px 0;
+  margin: 8px 0;
 }
 .chart__label {
   font-size: 12px;
-  opacity: 0.7;
-  margin-bottom: 4px;
+  opacity: 0.72;
+  margin-bottom: 5px;
+}
+.chart__plot {
+  position: relative;
 }
 .chart__svg {
   width: 100%;
   display: block;
+  touch-action: pan-y;
 }
-.chart__grid {
+.chart__cursor {
   stroke: currentColor;
-  opacity: 0.12;
+  opacity: 0.35;
   stroke-width: 1;
   vector-effect: non-scaling-stroke;
 }
-.chart__zero {
-  stroke: currentColor;
-  opacity: 0.3;
-  stroke-width: 1;
-  stroke-dasharray: 3 3;
+.chart__dot {
+  stroke: var(--card);
+  stroke-width: 2;
   vector-effect: non-scaling-stroke;
+}
+.chart__tip {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  background: var(--card-2);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-size: 11.5px;
+  white-space: nowrap;
+  pointer-events: none;
 }
 .chart__axis {
   display: flex;
   justify-content: space-between;
   font-size: 11px;
-  opacity: 0.6;
+  opacity: 0.62;
+  margin-top: 2px;
 }
 .chart__empty {
   font-size: 12px;
@@ -1850,35 +1882,42 @@ html[data-theme='dark'] .maplibregl-ctrl-attrib {
 .bars {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 6px;
 }
 .bars__row {
   display: grid;
-  grid-template-columns: minmax(64px, 30%) 1fr auto;
+  grid-template-columns: minmax(58px, 28%) 1fr auto;
   align-items: center;
   gap: 8px;
   font-size: 12px;
+  min-height: 20px;
 }
 .bars__name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  opacity: 0.85;
+  opacity: 0.88;
 }
 .bars__track {
-  height: 8px;
-  border-radius: 4px;
-  background: rgba(127, 127, 127, 0.18);
+  height: 10px;
+  border-radius: 5px;
+  background: rgba(127, 127, 127, 0.16);
   overflow: hidden;
 }
 .bars__fill {
   display: block;
   height: 100%;
-  border-radius: 4px;
+  border-radius: 5px;
 }
 .bars__value {
   font-size: 11.5px;
-  opacity: 0.85;
+  opacity: 0.9;
+  white-space: nowrap;
+}
+.bars__note {
+  font-size: 10.5px;
+  opacity: 0.6;
+  margin-left: 4px;
 }
 
 .donut {
@@ -1889,7 +1928,7 @@ html[data-theme='dark'] .maplibregl-ctrl-attrib {
 }
 .donut__track {
   fill: none;
-  stroke: rgba(127, 127, 127, 0.18);
+  stroke: rgba(127, 127, 127, 0.16);
   stroke-width: 14;
 }
 .donut__seg {
@@ -1897,6 +1936,11 @@ html[data-theme='dark'] .maplibregl-ctrl-attrib {
   stroke-width: 14;
   transform: rotate(-90deg);
   transform-origin: 50% 50%;
+  transition: stroke-width 0.12s ease;
+  cursor: default;
+}
+.donut__seg--on {
+  stroke-width: 18;
 }
 .donut__legend {
   list-style: none;
@@ -1904,15 +1948,18 @@ html[data-theme='dark'] .maplibregl-ctrl-attrib {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
   font-size: 12px;
   flex: 1;
-  min-width: 140px;
+  min-width: 150px;
 }
 .donut__legend li {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+.donut__legend li.is-on {
+  font-weight: 600;
 }
 .donut__dot {
   width: 9px;
@@ -1925,7 +1972,41 @@ html[data-theme='dark'] .maplibregl-ctrl-attrib {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  opacity: 0.85;
+  opacity: 0.88;
+}
+.donut__pct {
+  opacity: 0.6;
+  font-size: 11px;
+  min-width: 30px;
+  text-align: right;
+}
+
+.statusbar {
+  display: flex;
+  gap: 2px;
+  height: 14px;
+  border-radius: 7px;
+  overflow: hidden;
+  background: rgba(127, 127, 127, 0.16);
+}
+.statusbar__seg {
+  display: block;
+  min-width: 3px;
+}
+.statusbar__legend {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 11.5px;
+}
+.statusbar__legend li {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  opacity: 0.88;
 }
 
 /* ---------- 本社を地図から選ぶ ---------- */
@@ -1981,6 +2062,77 @@ html[data-theme='dark'] .maplibregl-ctrl-attrib {
   background: var(--surface-2, rgba(255, 255, 255, 0.04));
 }
 
+/* ホーム以外の画面に出す、1行の道案内。押すとその画面へ移る */
+.tutobar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  margin-bottom: 10px;
+  padding: 7px 10px;
+  min-height: var(--tap, 44px);
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--research) 45%, transparent);
+  background: var(--research-bg);
+  color: var(--text);
+  cursor: pointer;
+}
+.tutobar__step {
+  flex: none;
+  font-size: 10.5px;
+  font-weight: 800;
+  color: var(--research);
+  letter-spacing: 0.02em;
+}
+.tutobar__body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.tutobar__title {
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.tutobar__where {
+  font-size: 11px;
+  color: var(--text-sub);
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tutobar__go {
+  flex: none;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--research);
+}
+/* 「どこを押すか」を、画面に出ているボタンの名前そのままで出す */
+.tutorial__where {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.tutorial__where-label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: var(--research-bg);
+  color: var(--research);
+}
+.tutorial__where-path {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+}
 .tutorial__why {
   font-size: 12px;
   opacity: 0.8;
@@ -1999,4 +2151,837 @@ html[data-theme='dark'] .maplibregl-ctrl-attrib {
   cursor: pointer;
   text-decoration: underline;
   padding: 0;
+}
+
+/* ---------- 事業どうしの連携 ---------- */
+.synergy__why {
+  margin-top: 6px;
+  display: grid;
+  gap: 3px;
+}
+.synergy__whyrow {
+  display: flex;
+  gap: 8px;
+  font-size: 11.5px;
+  align-items: baseline;
+}
+.synergy__whykey {
+  min-width: 84px;
+  color: var(--text-sub);
+}
+.synergy__row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card-2);
+}
+.synergy__row--locked {
+  opacity: 0.62;
+}
+.synergy__name {
+  font-weight: 700;
+  font-size: 13px;
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+}
+.synergy__effects {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+.synergy__chip {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  color: var(--text-sub);
+  white-space: nowrap;
+}
+.synergy__note {
+  font-size: 11.5px;
+  margin-top: 4px;
+  line-height: 1.35;
+}
+.synergy__more {
+  margin-top: 8px;
+  width: 100%;
+  min-height: var(--tap, 44px);
+  border-radius: 10px;
+  border: 1px solid var(--border-strong);
+  color: var(--text-sub);
+  font-size: 12.5px;
+  background: transparent;
+}
+.synergy__self {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--card-2);
+}
+.synergy__selfhead {
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+/* ---------- 案件の工程と品質 ---------- */
+.phase__steps {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  margin-top: 6px;
+}
+.phase__step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 2px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--card-2);
+}
+.phase__step--done {
+  border-color: var(--profit);
+}
+.phase__step--now {
+  border-color: var(--accent);
+  background: var(--card);
+}
+.phase__step--todo {
+  opacity: 0.5;
+}
+.phase__stepname {
+  font-size: 11px;
+  color: var(--text-sub);
+}
+.phase__stepval {
+  font-size: 12px;
+  font-weight: 700;
+}
+.phase__quality {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  font-size: 12px;
+  margin-top: 6px;
+}
+.phase__forecast {
+  font-size: 11.5px;
+  margin-top: 6px;
+  line-height: 1.4;
+}
+.phase__pace {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0 4px;
+}
+.phase__pace > :last-child {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* ---------- 賭け事のミニゲーム ---------- */
+.slot__result {
+  text-align: center;
+  font-size: 13px;
+  font-weight: 700;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 8px;
+  line-height: 1.35;
+}
+
+/* スロット */
+.slot__window {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  padding: 8px;
+  border-radius: 12px;
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+}
+.slot__reel {
+  position: relative;
+  height: 192px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--card-2);
+  border: 1px solid var(--border);
+  padding: 0;
+}
+.slot__reel--spin {
+  border-color: var(--accent);
+}
+.slot__reel:disabled {
+  cursor: default;
+}
+.slot__strip {
+  display: flex;
+  flex-direction: column;
+  will-change: transform;
+}
+.slot__cell {
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+.slot__cell--line {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.slot__stop {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 4px;
+  font-size: 11px;
+  color: var(--accent);
+  font-weight: 700;
+}
+.slot__line {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: 50%;
+  height: 2px;
+  background: var(--accent);
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+/* ルーレット */
+.roul__wheel {
+  position: relative;
+  max-width: 280px;
+  margin: 0 auto 26px;
+}
+.roul__wheel svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+/* 落ちた数字。真ん中は金具の場所なので、盤の下ふちに置く */
+.roul__ball {
+  position: absolute;
+  left: 50%;
+  top: auto;
+  bottom: -8%;
+  transform: translate(-50%, 0);
+  min-width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 18px;
+  background: var(--card);
+  border: 2px solid var(--border-strong);
+  color: var(--text);
+}
+.roul__ball--red {
+  border-color: var(--loss);
+  color: var(--loss);
+}
+.roul__ball--black {
+  border-color: var(--text-dim);
+}
+.roul__ball--green {
+  border-color: var(--profit);
+  color: var(--profit);
+}
+.roul__picker {
+  margin: 10px 0;
+}
+.roul__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(38px, 1fr));
+  gap: 3px;
+}
+.roul__num {
+  min-height: 34px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--text-dim);
+}
+.roul__num--red {
+  background: var(--loss);
+}
+.roul__num--green {
+  background: var(--profit);
+}
+.roul__num--on {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* バカラ */
+.bacc__row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 8px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--card-2);
+  margin-bottom: 6px;
+}
+.bacc__row--win {
+  border-color: var(--profit);
+}
+.bacc__side {
+  display: flex;
+  flex-direction: column;
+  min-width: 78px;
+}
+.bacc__label {
+  font-size: 11.5px;
+  color: var(--text-sub);
+}
+.bacc__total {
+  font-size: 22px;
+  font-weight: 800;
+}
+.bacc__cards {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.bacc__card {
+  width: 38px;
+  height: 54px;
+  border-radius: 5px;
+  border: 1px solid var(--border-strong);
+  background: var(--card);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  line-height: 1.05;
+}
+.bacc__card--red {
+  color: var(--loss);
+}
+.bacc__rank {
+  font-size: 15px;
+}
+.bacc__suit {
+  font-size: 13px;
+}
+.bacc__back {
+  width: 100%;
+  height: 100%;
+  border-radius: 4px;
+  background: repeating-linear-gradient(45deg, var(--card-2), var(--card-2) 4px, var(--border) 4px, var(--border) 8px);
+}
+
+/* パチンコ */
+.pach__board {
+  max-width: 300px;
+  margin: 0 auto;
+}
+.pach__board svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.pach__handle {
+  margin: 10px 0;
+  display: grid;
+  gap: 4px;
+}
+.pach__handlelabel {
+  font-size: 12px;
+  color: var(--text-sub);
+}
+.pach__range {
+  width: 100%;
+  min-height: var(--tap, 44px);
+  accent-color: var(--accent);
+}
+
+/* ---------- トレーディングカード ---------- */
+/* 絵は横長（168×118）。カードは「上の帯・絵・名前」の3段でできている */
+.tcard {
+  border-radius: 8px;
+  border: 1.5px solid var(--rar, var(--border-strong));
+  background: var(--card-2);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+.tcard--n {
+  --rar: var(--rar-n);
+}
+.tcard--r {
+  --rar: var(--rar-r);
+}
+.tcard--sr {
+  --rar: var(--rar-sr);
+}
+.tcard--ssr {
+  --rar: var(--rar-ssr);
+}
+.tcard--ar {
+  --rar: var(--rar-ar);
+}
+.tcard--sar {
+  --rar: var(--rar-sar);
+}
+.tcard--ur {
+  --rar: var(--rar-ur);
+}
+.tcard--lr {
+  --rar: var(--rar-lr);
+}
+/* 上ほど強く光らせる。レア度は文字でも出しているので、色だけの情報にはしていない */
+.tcard--sr,
+.tcard--ssr {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--rar) 32%, transparent);
+}
+.tcard--ar,
+.tcard--sar {
+  box-shadow: 0 0 9px color-mix(in srgb, var(--rar) 40%, transparent);
+}
+.tcard--ur {
+  box-shadow: 0 0 12px color-mix(in srgb, var(--rar) 50%, transparent);
+}
+.tcard--lr {
+  border-color: transparent;
+  box-shadow:
+    0 0 0 1.5px var(--rar-lr),
+    0 0 16px color-mix(in srgb, var(--rar-lr) 55%, transparent);
+}
+.tcard--sm {
+  width: 62px;
+}
+.tcard--md {
+  width: 84px;
+}
+.tcard--lg {
+  width: 116px;
+}
+.tcard--faded {
+  opacity: 0.4;
+  filter: grayscale(1);
+  box-shadow: none;
+}
+.tcard__top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 4px 2px;
+  font-size: 10px;
+  line-height: 1;
+}
+.tcard__rarity {
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  font-size: 10px;
+  color: var(--rar, var(--text-dim));
+}
+.tcard__count {
+  color: var(--text-sub);
+  font-size: 10px;
+}
+.tcard__art {
+  display: block;
+  line-height: 0;
+  background: var(--bg);
+}
+.tcard__art img {
+  display: block;
+  width: 100%;
+  height: auto;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  pointer-events: none;
+}
+.tcard__name {
+  font-size: 9.5px;
+  text-align: center;
+  line-height: 1.15;
+  padding: 3px 3px 4px;
+  color: var(--text-sub);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.tcard--lg .tcard__name {
+  font-size: 11px;
+}
+/* カードの外（一覧の行など）でもレア度の色が出せるように、単体で使える印 */
+.tcard__rarity--n {
+  --rar: var(--rar-n);
+}
+.tcard__rarity--r {
+  --rar: var(--rar-r);
+}
+.tcard__rarity--sr {
+  --rar: var(--rar-sr);
+}
+.tcard__rarity--ssr {
+  --rar: var(--rar-ssr);
+}
+.tcard__rarity--ar {
+  --rar: var(--rar-ar);
+}
+.tcard__rarity--sar {
+  --rar: var(--rar-sar);
+}
+.tcard__rarity--ur {
+  --rar: var(--rar-ur);
+}
+.tcard__rarity--lr {
+  --rar: var(--rar-lr);
+}
+.tcards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 8px;
+}
+.packer__tray {
+  min-height: 132px;
+  border-radius: 12px;
+  border: 1px dashed var(--border-strong);
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+  margin-bottom: 8px;
+}
+.packer__tray--open {
+  border-style: solid;
+}
+.packer__closed {
+  text-align: center;
+  padding: 0 12px;
+  line-height: 1.4;
+}
+.packer__cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  align-items: center;
+}
+.packer__slot {
+  animation: cardin 0.26s ease-out;
+}
+@keyframes cardin {
+  from {
+    transform: translateY(10px) scale(0.85);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+.packer__rest {
+  font-size: 12px;
+  color: var(--text-sub);
+  align-self: center;
+}
+.packer__summary {
+  text-align: center;
+  font-size: 12px;
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+.packpick {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  text-align: left;
+  padding: 8px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--card-2);
+  width: 100%;
+}
+.packpick--on {
+  border-color: var(--accent);
+  background: var(--card);
+}
+.packpick__name {
+  font-weight: 700;
+  font-size: 13px;
+}
+.packpick__rates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+.packpick__rate {
+  font-size: 10px;
+  padding: 0 5px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  color: var(--text-sub);
+}
+/* SR 以上はレア度の色をそのまま出す（N と R は地味なままにしておく） */
+.packpick__rate--sr,
+.packpick__rate--ssr,
+.packpick__rate--ar,
+.packpick__rate--sar,
+.packpick__rate--ur,
+.packpick__rate--lr {
+  color: var(--rar);
+  border-color: color-mix(in srgb, var(--rar) 70%, transparent);
+}
+.packpick__rate--sr {
+  --rar: var(--rar-sr);
+}
+.packpick__rate--ssr {
+  --rar: var(--rar-ssr);
+}
+.packpick__rate--ar {
+  --rar: var(--rar-ar);
+}
+.packpick__rate--sar {
+  --rar: var(--rar-sar);
+}
+.packpick__rate--ur {
+  --rar: var(--rar-ur);
+}
+.packpick__rate--lr {
+  --rar: var(--rar-lr);
+}
+.cardrow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 6px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--card-2);
+}
+.cardrow__name {
+  font-weight: 700;
+  font-size: 12.5px;
+}
+.cardrow__prices {
+  font-size: 11px;
+  color: var(--text-sub);
+  margin-top: 2px;
+}
+.cardrow__btns {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: none;
+}
+/* 100種あるので、レア度で絞れるようにしてある */
+.cardfilter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.cardfilter__btn {
+  min-height: 30px;
+  padding: 0 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--card-2);
+  color: var(--text-sub);
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.cardfilter__btn--on {
+  color: var(--rar, var(--text));
+  border-color: color-mix(in srgb, var(--rar, var(--accent)) 75%, transparent);
+  background: color-mix(in srgb, var(--rar, var(--accent)) 16%, var(--card-2));
+}
+.cardfilter__more {
+  margin-top: 8px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-sub);
+}
+
+/* ---------- 長い一覧の描画を軽くする ---------- */
+/*
+ * 画面の外にある行は、ブラウザに「まだ描かなくていい」と伝える。
+ * 施設や資源のように数十枚並ぶところで、字の組版と描画をまるごと省ける。
+ * contain-intrinsic-size で高さの目安を渡しておくと、スクロールバーが飛ばない。
+ */
+.grid--2 > .card,
+.list > .card,
+.facility-list > * {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 180px;
+}
+/* 中身が動くもの（図表・ミニゲーム・地図・シート）は対象から外す */
+.sheet .card,
+.chart,
+.slot,
+.roul,
+.bacc,
+.pach,
+.leaflet-container,
+.tree {
+  content-visibility: visible;
+}
+
+/* ボタンの中に出す小さな合計額 */
+.btn__sub {
+  display: block;
+  font-size: 10px;
+  font-weight: 500;
+  opacity: 0.8;
+  line-height: 1.1;
+  margin-top: 1px;
+}
+
+/* ---------- 台の絵を使ったミニゲーム ---------- */
+.pach__board {
+  position: relative;
+  max-width: 320px;
+  margin: 0 auto;
+}
+.pach__art {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.pach__layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.slot__cabinet {
+  position: relative;
+  max-width: 340px;
+  margin: 0 auto 4px;
+}
+.slot__art {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+/* リールの窓。台の絵の中の位置に合わせてある（古い枠の見た目は打ち消す） */
+.slot__cabinet .slot__window {
+  position: absolute;
+  left: 0;
+  right: 0;
+  /* 絵の中で窓が占める縦の範囲 */
+  top: 30.5%;
+  height: 33%;
+  --cell: calc(100% / 3);
+  display: block;
+  padding: 0;
+  gap: 0;
+  background: none;
+  border: none;
+  border-radius: 0;
+}
+.slot__cabinet .slot__reel {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 4px;
+  background: #f4efe2;
+  border: none;
+  padding: 0;
+}
+.slot__cabinet .slot__cell {
+  height: var(--cell);
+}
+.slot__cabinet .slot__cell--line {
+  background: color-mix(in srgb, #ffcf3f 22%, transparent);
+}
+.slot__cabinet .slot__stop {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 1px;
+  font-size: 9.5px;
+  color: #b4472c;
+  font-weight: 800;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+.slot__cabinet .slot__line {
+  position: absolute;
+  left: 2%;
+  right: 2%;
+  top: 50%;
+  height: 2px;
+  background: #e0473a;
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+/* 金の外枠。数字の盤より少し大きくして、まわりに縁として見せる */
+.roul__rim {
+  position: absolute;
+  left: -7%;
+  top: -7%;
+  width: 114%;
+  height: 114%;
+  object-fit: contain;
+  transform-origin: center;
+  will-change: transform;
+  pointer-events: none;
+  z-index: 0;
+}
+/* 真ん中の金具。盤と一緒に回る */
+.roul__hub {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 30%;
+  height: auto;
+  transform-origin: center;
+  will-change: transform;
+  pointer-events: none;
+  z-index: 2;
+}
+.roul__wheel svg {
+  position: relative;
+  z-index: 1;
+}
+.roul__ball {
+  z-index: 3;
+}
+
+/* トランプの絵札（J・Q・K）は絵を使う */
+.bacc__card--open .bacc__face {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 4px;
+  display: block;
 }

@@ -29,8 +29,11 @@ export interface AchievementPopup {
 interface UiStore {
   tab: NavTab;
   setTab: (tab: NavTab) => void;
-  resourceSubTab: 'inventory' | 'market';
-  setResourceSubTab: (t: 'inventory' | 'market') => void;
+  /** いま開いているミニゲーム（BGM の切り替えにも使う） */
+  openGameId: string | null;
+  setOpenGameId: (id: string | null) => void;
+  resourceSubTab: 'inventory' | 'market' | 'trade';
+  setResourceSubTab: (t: 'inventory' | 'market' | 'trade') => void;
   craftCategory: CraftCategoryFilter;
   setCraftCategory: (c: CraftCategoryFilter) => void;
   selectedResource: ResourceId | null;
@@ -82,6 +85,8 @@ let toastSeq = 1;
 export const useUiStore = create<UiStore>((set) => ({
   tab: 'home',
   setTab: (tab) => set({ tab }),
+  openGameId: null,
+  setOpenGameId: (openGameId) => set({ openGameId }),
   resourceSubTab: 'inventory',
   setResourceSubTab: (resourceSubTab) => set({ resourceSubTab }),
   craftCategory: 'all',

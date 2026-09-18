@@ -1,10 +1,11 @@
+import { memo } from 'react';
 interface SparklineProps {
   values: number[];
   tone?: 'accent' | 'profit' | 'loss';
 }
 
 /** 価格推移などの小さな折れ線。横の目盛線は入れない */
-export function Sparkline({ values, tone = 'accent' }: SparklineProps) {
+function SparklineBase({ values, tone = 'accent' }: SparklineProps) {
   const w = 200;
   const h = 48;
   if (values.length < 2) return <svg className="spark" viewBox={`0 0 ${w} ${h}`} />;
@@ -19,3 +20,9 @@ export function Sparkline({ values, tone = 'accent' }: SparklineProps) {
     </svg>
   );
 }
+
+/**
+ * 同じ内容なら描き直さない。
+ * 一覧にたくさん並ぶ部品なので、毎回の画面更新でここまで作り直さないようにしている。
+ */
+export const Sparkline = memo(SparklineBase);

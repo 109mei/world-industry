@@ -7,8 +7,23 @@ import { NAV_ITEMS } from '@/types/ui';
 import { bumpGame, useGame } from '@/stores/gameStore';
 import { useUiStore } from '@/stores/uiStore';
 
-/** 最初の道案内。いまやること・なぜやるのか・そこへ行くボタン */
-export function TutorialCard() {
+/** ホームの中のタブの名前（案内のボタンに出す） */
+const HOME_SUB_LABEL: Record<string, string> = {
+  home: 'ホーム',
+  resources: '資源',
+  sales: '取引',
+  business: '事業',
+  company: '会社',
+};
+
+/**
+ * 最初の道案内。いまやること・なぜやるのか・そこへ行くボタン。
+ *
+ * compact を付けると、1行の細い帯になる。
+ * 「クラフトの画面で作ります」と案内した先で案内そのものが消えてしまわないように、
+ * ホーム以外の画面ではこの帯を出している。
+ */
+export function TutorialCard({ compact = false }: { compact?: boolean } = {}) {
   const { state, engine } = useGame();
   const setTab = useUiStore((s) => s.setTab);
   const setHomeSubTab = useUiStore((s) => s.setHomeSubTab);
@@ -19,8 +34,30 @@ export function TutorialCard() {
   if (!step) return null;
   const progress = step.progress?.(state);
   const navName = NAV_ITEMS.find((n) => n.id === step.tab)?.labelJa ?? step.tab;
+  // ホームの中のどのタブへ行くかまで出す（「ホームにいるのにホームへ行く」を避ける）
+  const subName = step.homeSub ? HOME_SUB_LABEL[step.homeSub] : null;
+  const goLabel = tab !== step.tab ? `${navName}へ行く` : subName ? `「${subName}」へ` : `${navName}へ行く`;
   const here = tab === step.tab && (!step.homeSub || step.homeSub === homeSub);
   const done = state.tutorial.step;
+  const goThere = () => {
+    if (step.homeSub) setHomeSubTab(step.homeSub);
+    setTab(step.tab);
+  };
+
+  if (compact) {
+    return (
+      <button type="button" className="tutobar" onClick={goThere}>
+        <span className="tutobar__step num">
+          {done + 1}/{TUTORIAL_STEPS.length}
+        </span>
+        <span className="tutobar__body">
+          <span className="tutobar__title">{step.title}</span>
+          {step.where && <span className="tutobar__where">{step.where}</span>}
+        </span>
+        {!here && <span className="tutobar__go">{goLabel} ›</span>}
+      </button>
+    );
+  }
 
   return (
     <Card className="tutorial">
@@ -44,6 +81,12 @@ export function TutorialCard() {
         {step.title}
       </div>
       <p className="tutorial__text">{step.text}</p>
+      {step.where && (
+        <div className="tutorial__where">
+          <span className="tutorial__where-label">押す場所</span>
+          <span className="tutorial__where-path">{step.where}</span>
+        </div>
+      )}
       {step.why && (
         <p className="tutorial__why">
           <Icon name="icon_ui_star" size={16} /> {step.why}
@@ -59,15 +102,8 @@ export function TutorialCard() {
       )}
       {!here && (
         <div className="card__actions">
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => {
-              if (step.homeSub) setHomeSubTab(step.homeSub);
-              setTab(step.tab);
-            }}
-          >
-            {navName}へ行く ›
+          <Button variant="primary" size="sm" onClick={goThere}>
+            {goLabel} ›
           </Button>
         </div>
       )}

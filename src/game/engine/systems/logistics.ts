@@ -67,13 +67,22 @@ export function runLogistics(ctx: EngineContext, dt: number): { cost: number } {
     const modes = transportModes(ctx, land);
     rt.transportCapacity = modes.reduce((a, m) => a + m.capacity, 0);
     const prevNoRoute = rt.noRoute;
-    rt.noRoute = modes.length === 0 && Object.values(land.stock).some((v) => (v ?? 0) > 0);
-    if (rt.noRoute && !prevNoRoute) ctx.emit('warn', `${land.name}に輸送手段がありません。トラックなどを配備すると本社へ運ばれます`, { toast: true });
+    const rates = localRates(ctx, land);
+    // 「運び出すものがある」だけでなく「運び込まないと動かない」ときも輸送手段が要る。
+    // 片方しか見ていないと、材料待ちで止まった工場に警告もヒントも出ないまま放置される
+    const hasStock = Object.values(land.stock).some((v) => (v ?? 0) > 0);
+    const needsImport = (Object.entries(rates.use) as [ResourceId, number][]).some(
+      ([rid, r]) => (r ?? 0) - (rates.make[rid] ?? 0) > 1e-9,
+    );
+    rt.noRoute = modes.length === 0 && (hasStock || needsImport);
+    if (rt.noRoute && !prevNoRoute) {
+      ctx.emit('warn', `${land.name}に輸送手段がありません。トラックなどを配備すると、本社との間で資源が運ばれます`, { toast: true });
+    }
     derived.lands[land.id] = rt;
     if (modes.length === 0) continue;
 
     const remaining = modes.map((m) => m.capacity * dt); // 今回運べる重さ（t）
-    const { use, make } = localRates(ctx, land);
+    const { use, make } = rates;
     let landCost = 0;
 
     // 運ぶ量（t）を輸送手段に割り当て、実際に運べた重さと費用を返す

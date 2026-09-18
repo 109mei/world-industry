@@ -13,6 +13,7 @@ import { bumpGame, useGame } from '@/stores/gameStore';
 import { formatDuration, formatNumber } from '@/utils/format';
 import { sfx } from '@/utils/sfx';
 import { NODE_H, NODE_W, buildTreeLayout } from './treeLayout';
+import { FACILITY_CATEGORY_LABEL, type FacilityCategory } from '@/game/data/facilities';
 
 type Filter = 'all' | ResearchBranch;
 
@@ -196,7 +197,9 @@ function effectText(e: ResearchDef['effects'][number]): string {
   const pct = (m: number) => `${m >= 1 ? '+' : '-'}${Math.round(Math.abs(m - 1) * 100)}%`;
   switch (e.type) {
     case 'production':
-      return e.category === 'all' ? `すべての施設の生産 ${pct(e.mult)}` : `${e.category} の施設の生産 ${pct(e.mult)}`;
+      return e.category === 'all'
+        ? `すべての施設の生産 ${pct(e.mult)}`
+        : `${FACILITY_CATEGORY_LABEL[e.category as FacilityCategory] ?? e.category}の施設の生産 ${pct(e.mult)}`;
     case 'powerGeneration':
       return `発電量 ${pct(e.mult)}`;
     case 'renewableGeneration':

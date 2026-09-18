@@ -5,20 +5,27 @@ import { Card } from '@/components/ui/Card';
 import { Icon } from '@/components/ui/Icon';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { Stat } from '@/components/ui/Stat';
-import { GAMES, LOTTERY, expectedReturn } from '@/game/data/gambling';
+import { GAMES, LOTTERY, expectedReturn, type GameId } from '@/game/data/gambling';
 import { betSize, lotteryState, winChance } from '@/game/engine/systems/gambling';
 import { bumpGame, useGame } from '@/stores/gameStore';
 import { useUiStore } from '@/stores/uiStore';
 import { formatAmount, formatDuration, formatMoney, formatNumber, formatPercent } from '@/utils/format';
 import { sfx } from '@/utils/sfx';
+import { GameSheet } from './games/GameSheet';
 
 /** 賭け事。自分で遊ぶ側。研究「遊技場の許可」で解放する */
 export function GamblingPanel() {
   const { state, derived, engine } = useGame();
   const mode = state.settings.numberFormat;
   const setTab = useUiStore((s) => s.setTab);
-  const [log, setLog] = useState<string[]>([]);
   const [message, setMessage] = useState('');
+  const [openGame, setOpenGameLocal] = useState<GameId | null>(null);
+  const setOpenGameId = useUiStore((s) => s.setOpenGameId);
+  // BGM の切り替えに使うので、開いているゲームをストアにも持たせる
+  const setOpenGame = (id: GameId | null) => {
+    setOpenGameLocal(id);
+    setOpenGameId(id);
+  };
   const unlocked = state.research.completed.gaming_license === true;
   const l = lotteryState(state);
   const bet = state.stats.gambleBet ?? 0;
@@ -43,8 +50,6 @@ export function GamblingPanel() {
     );
   }
 
-  const push = (line: string) => setLog((prev) => [line, ...prev].slice(0, 8));
-
   return (
     <div className="list">
       <Card>
@@ -55,7 +60,8 @@ export function GamblingPanel() {
           <Stat label="宝くじの賞金" value={formatMoney(l.jackpot, mode)} tone="research" />
         </div>
         <p className="text-sub" style={{ fontSize: 12, marginTop: 6 }}>
-          どの遊びも胴元が少し有利で、長く遊べば必ず減っていきます（下に期待値を出しています）。
+          どれも実際に手を動かして遊べます（リールを自分で止める・玉が落ちるのを見る・札をめくる）。
+          ただしどの遊びも胴元が少し有利で、長く遊べば必ず減っていきます（下に期待値を出しています）。
           本気で稼ぐなら、カジノを建てて<strong>開く側</strong>に回るほうがずっと早いです。
         </p>
       </Card>
@@ -78,10 +84,7 @@ export function GamblingPanel() {
               </div>
               <div className="card__body">
                 <div className="text-sub" style={{ fontSize: 12, marginBottom: 6 }}>
-                  {g.outcomes
-                    .filter((o) => o.payout > 0)
-                    .map((o) => `${o.label} ×${o.payout}（${(o.p * 100).toFixed(1)}%）`)
-                    .join(' / ')}
+                  {g.bets.length > 1 ? `賭け方 ${g.bets.map((x) => x.name).join('・')}` : g.bets[0].note}
                 </div>
                 <Button
                   size="sm"
@@ -89,37 +92,18 @@ export function GamblingPanel() {
                   variant={canPlay ? 'primary' : 'secondary'}
                   disabled={!canPlay}
                   onClick={() => {
-                    const r = engine.playGame(g.id);
-                    if (!r.ok) {
-                      setMessage(r.reason ?? '');
-                    } else {
-                      setMessage('');
-                      push(`${g.name}: ${r.label} ${r.payout > 0 ? `+${formatMoney(r.payout - r.bet, mode)}` : `-${formatMoney(r.bet, mode)}`}`);
-                      sfx(r.payout > r.bet ? 'sell' : 'tap');
-                    }
-                    bumpGame();
+                    setMessage('');
+                    setOpenGame(g.id);
+                    sfx('tap');
                   }}
                 >
-                  {formatMoney(b, mode)} 賭ける
+                  {formatMoney(b, mode)} で遊ぶ ›
                 </Button>
               </div>
             </Card>
           );
         })}
       </div>
-
-      {log.length > 0 && (
-        <Card flat>
-          <div className="field__label">さっきの結果</div>
-          <div className="list" style={{ gap: 2 }}>
-            {log.map((line, i) => (
-              <div key={i} className="num" style={{ fontSize: 12, opacity: 1 - i * 0.1 }}>
-                {line}
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
 
       <div className="section-title">宝くじ</div>
       <Card>
@@ -178,6 +162,8 @@ export function GamblingPanel() {
           <div className="card__body text-sub">{message}</div>
         </Card>
       )}
+
+      <GameSheet key={openGame ?? "none"} gameId={openGame} onClose={() => setOpenGame(null)} />
     </div>
   );
 }

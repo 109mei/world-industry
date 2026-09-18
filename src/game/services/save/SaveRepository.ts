@@ -9,6 +9,8 @@ export interface SaveRepository {
   /** 補助キー（バックアップなど）の読み書き */
   getItem(key: string): Promise<string | null>;
   setItem(key: string, data: string): Promise<void>;
+  /** 補助キーごと消す（古い保存先の破棄に使う） */
+  removeItem(key: string): Promise<void>;
 }
 
 export class LocalStorageSaveRepository implements SaveRepository {
@@ -35,6 +37,13 @@ export class LocalStorageSaveRepository implements SaveRepository {
   async setItem(key: string, data: string): Promise<void> {
     localStorage.setItem(key, data);
   }
+  async removeItem(key: string): Promise<void> {
+    try {
+      localStorage.removeItem(key);
+    } catch {
+      /* 消せなくても進める */
+    }
+  }
 }
 
 /** テストやフォールバック用のメモリ保存 */
@@ -55,5 +64,8 @@ export class MemorySaveRepository implements SaveRepository {
   }
   async setItem(key: string, data: string): Promise<void> {
     this.items.set(key, data);
+  }
+  async removeItem(key: string): Promise<void> {
+    this.items.delete(key);
   }
 }

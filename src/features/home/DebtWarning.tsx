@@ -33,7 +33,8 @@ export function DebtWarning() {
       <div className="card__body">
         <ProgressBar ratio={Math.max(byTime, byDebt)} tone="loss" size="lg" label="倒産までの進み具合" />
         <p className="text-sub" style={{ fontSize: 12, margin: '6px 0' }}>
-          立て直す方法: 資源を売る／要らない施設や物件を売る／人手を減らす（人件費は {formatMoney(derived.wageCost, mode)}/秒）。
+          立て直す方法: <strong>資源を売る</strong>／<strong>土地や物件を売る</strong>（その土地の施設と事業もなくなり、人件費が減ります）／
+          <strong>事業の従業員を減らす</strong>（いまの人件費は {formatMoney(derived.wageCost, mode)}/秒）。
           倒産しても永続ポイントと実績は残りますが、施設・土地・研究はすべて失われます。
         </p>
         <div className="btn-row">
@@ -47,8 +48,17 @@ export function DebtWarning() {
           >
             資源を売りに行く ›
           </Button>
-          <Button size="sm" onClick={() => setTab('factory')}>
-            施設を見直す ›
+          <Button size="sm" onClick={() => setTab('map')}>
+            土地・物件を売りに行く ›
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => {
+              setHomeSubTab('business');
+              setTab('home');
+            }}
+          >
+            事業の人数を見直す ›
           </Button>
         </div>
       </div>

@@ -28,6 +28,8 @@ body {
   overflow-x: hidden;
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior-y: none;
+  /* 長押しで端末の「画像を保存」メニューが出ないようにする */
+  -webkit-touch-callout: none;
 }
 
 #root {
@@ -47,6 +49,10 @@ button {
   border: none;
   background: none;
   padding: 0;
+  /* 長押し中に文字が選択されたりメニューが出たりしないように */
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 button:disabled {
@@ -70,6 +76,11 @@ ul {
 img {
   display: block;
   max-width: 100%;
+  /* 長押し・ドラッグでの保存メニューを出さない */
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 a {

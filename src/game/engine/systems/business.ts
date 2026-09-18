@@ -15,12 +15,26 @@ import { RESOURCE_MAP, type ResourceId } from '@/game/data/resources';
 import { getCustom } from './customEstate';
 import { landCustomId } from './customEstate';
 import { getLand, landPopulation } from '../land';
-import { addMarketSupply, referencePrice } from './market';
+import { addMarketSupply, referencePrice, sellRevenue } from './market';
 import { isUnlocked } from './unlocks';
 import { addResource, clean } from '../inventory';
 import { safe, safePositive } from '@/utils/numbers';
-import type { ActiveProject, BusinessState, Division, GameState } from '@/types/state';
+import type { ActiveProject, BusinessState, Division, GameState, Modifiers } from '@/types/state';
 import type { EngineContext } from '../context';
+import { casinoEdgeMult, projectCostMult } from './synergy';
+import {
+  PACE_MAP,
+  PHASE_MAP,
+  PHASE_ORDER,
+  crewSize,
+  qualityBrandMult,
+  qualityDecayMult,
+  qualityLabel,
+  qualityRewardMult,
+  qualityUsersMult,
+  type ProjectPace,
+  type ProjectPhaseId,
+} from '@/game/data/projectPhases';
 
 export function businessState(state: GameState): BusinessState {
   if (!state.business) state.business = { divisions: [], nextId: 1 };
@@ -114,10 +128,16 @@ function adEffect(div: Division): { cap: number; perSec: number; costPerSec: num
   return { cap, perSec, costPerSec };
 }
 
-/** 事業の人件費（円/秒） */
-export function divisionWage(_state: GameState, div: Division): number {
+/**
+ * 事業の人件費（円/秒）。
+ *
+ * wageMult を渡すと、研究や連携で安くなったぶんを入れた「実際に払う額」になる。
+ * 省略した素の値は wagePerSec → runWages のほうで倍率が掛かるので、
+ * 集計（businessWageTotal）では省略したまま使う。画面と利益の計算では必ず渡す。
+ */
+export function divisionWage(_state: GameState, div: Division, wageMult = 1): number {
   const def = BUSINESS_MAP[div.kind];
-  return div.staff * def.wagePerStaff;
+  return div.staff * def.wagePerStaff * wageMult;
 }
 
 /** すべての事業の人件費の合計（円/秒） */
@@ -204,10 +224,11 @@ export function averageBet(_state: GameState, div: Division): number {
   return base;
 }
 
-/** カジノの取り分（ハウスエッジの平均） */
-export function houseEdge(): number {
+/** カジノの取り分（ハウスエッジの平均）。自社の警備会社があると、消える分が減って取り分が増える */
+export function houseEdge(state?: GameState): number {
   const avg = GAMES.reduce((a, g) => a + expectedReturn(g), 0) / GAMES.length;
-  return Math.max(0.01, 1 - avg);
+  const base = Math.max(0.01, 1 - avg);
+  return state ? base * casinoEdgeMult(state) : base;
 }
 
 /**
@@ -292,7 +313,7 @@ function runShop(ctx: EngineContext, div: Division, dt: number): number {
   // カジノは品物ではなく「賭け」で稼ぐ
   if (div.kind === 'casino') {
     const handle = customers * averageBet(state, div);
-    const revenue = handle * houseEdge();
+    const revenue = handle * houseEdge(state);
     if (revenue > 0) {
       state.company.cash = safe(state.company.cash + revenue);
       state.company.totalEarned = safe(state.company.totalEarned + revenue);
@@ -346,7 +367,9 @@ function runShop(ctx: EngineContext, div: Division, dt: number): number {
     div.sold = safe((div.sold ?? 0) + sold);
     // 売れた数のぶんだけ、口コミで少しずつ知られていく
     // sold はすでに dt を掛けた数なので、1秒あたりに直してから伸ばす（でないとオフライン中だけ速くなる）
-    const gain = Math.min(0.05, (sold / Math.max(1e-9, dt)) * 0.0006) * (ctx.derived.modifiers?.awarenessGain ?? 1);
+    // 口コミ。広告を打っていないときの減り（0.0015/秒）を、よく売れている店なら上回れるようにしてある
+    // （上回れないと、口コミだけでは知名度が一度も上がらない）
+    const gain = Math.min(0.05, (sold / Math.max(1e-9, dt)) * 0.002) * (ctx.derived.modifiers?.awarenessGain ?? 1);
     div.awareness = Math.min(100, div.awareness + gain * dt);
   }
   // 売り切れていたぶんは機会損失
@@ -423,6 +446,17 @@ export function digPerSec(state: GameState, div: Division, mult = 1): number {
 }
 
 /** 鉱区を1 tick 進める。掘り出したものを本社の在庫に入れる */
+/**
+ * 掘る力の配分。価値の高いものほど出にくいが、掘る力は無駄にしない（足して1になる）。
+ * 表示用の計算（divisionBreakdown）からも同じ式を使う。
+ */
+export function mineShares(count: number): number[] {
+  if (count <= 0) return [];
+  // 1種類しか無いときは全部そこへ（0.55 のままだと掘る力の45%が消えていた）
+  if (count === 1) return [1];
+  return Array.from({ length: count }, (_, i) => (i === 0 ? 0.55 : 0.45 / (count - 1)));
+}
+
 function runMine(ctx: EngineContext, div: Division, dt: number): number {
   const { state, derived, rng } = ctx;
   const land = getLand(state, div.landId);
@@ -449,7 +483,7 @@ function runMine(ctx: EngineContext, div: Division, dt: number): number {
   if (total <= 0) return 0;
   // 価値の高いものほど出にくい。上から順に少しずつ
   // 価値の高いものほど出にくいが、掘る力は無駄にしない（配分を足して1にする）
-  const shares = deposits.map((_, i) => (i === 0 ? 0.55 : 0.45 / Math.max(1, deposits.length - 1)));
+  const shares = mineShares(deposits.length);
   let got = 0;
   let value = 0;
   let full = false;
@@ -482,6 +516,98 @@ export function devPerSec(_state: GameState, div: Division, devMult = 1): number
   return safePositive(free * def.outputPerStaff * (1 + div.brand / 200) * devMult);
 }
 
+
+// ---------- 工程と品質 ----------
+
+/** その案件に必要な仕事量（進め方で変わる） */
+export function projectWork(def: ProjectDef, pace: ProjectPace = 'normal'): number {
+  return def.work * PACE_MAP[pace].workMult;
+}
+
+/** いまの工程（積み上げた仕事量から決まる） */
+export function currentPhase(def: ProjectDef, active: ActiveProject): ProjectPhaseId {
+  const total = projectWork(def, active.pace ?? 'normal');
+  const ratio = total > 0 ? active.work / total : 1;
+  let acc = 0;
+  for (const id of PHASE_ORDER) {
+    acc += PHASE_MAP[id].share;
+    if (ratio < acc - 1e-9) return id;
+  }
+  return PHASE_ORDER[PHASE_ORDER.length - 1];
+}
+
+/** その工程のなかでの進み具合 0〜1 */
+export function phaseProgress(def: ProjectDef, active: ActiveProject): number {
+  const total = projectWork(def, active.pace ?? 'normal');
+  const ratio = total > 0 ? active.work / total : 1;
+  let start = 0;
+  for (const id of PHASE_ORDER) {
+    const share = PHASE_MAP[id].share;
+    if (ratio < start + share - 1e-9) return Math.max(0, Math.min(1, (ratio - start) / share));
+    start += share;
+  }
+  return 1;
+}
+
+/**
+ * 工程ひとつの出来の良さ 0〜100。
+ * 人手が足りているか、腕（ブランド）があるか、急いでいないか、で決まる。
+ */
+export function phaseScore(state: GameState, div: Division, def: ProjectDef, phaseId: ProjectPhaseId, pace: ProjectPace): number {
+  const phase = PHASE_MAP[phaseId];
+  const want = crewSize(def.work);
+  // 運用で塞がっている人は数えない
+  const busy = div.products.reduce((a, p) => a + (PROJECT_MAP[p.projectId]?.product?.upkeepStaff ?? 0), 0);
+  const free = Math.max(0, div.staff - busy);
+  const ratio = Math.min(2.2, free / Math.max(1, want));
+  let q = 50;
+  q += (ratio - 1) * 20 * phase.weight.staff;
+  q += (div.brand / 100) * 30 * phase.weight.brand - 8;
+  q += PACE_MAP[pace].quality;
+  // 材料を自社でまかなえていると、粗がなくなる
+  if (def.inputs) {
+    const ids = Object.keys(def.inputs) as ResourceId[];
+    const self = ids.filter((id) => (state.inventory[id] ?? 0) > (def.inputs?.[id] ?? 0) * 2).length;
+    q += ids.length > 0 ? (self / ids.length) * 6 : 0;
+  }
+  return Math.max(0, Math.min(100, q));
+}
+
+/** 終わった工程から、その案件の品質を出す（まだなら見込み） */
+export function projectQuality(state: GameState, div: Division, def: ProjectDef, active: ActiveProject): number {
+  const pace = active.pace ?? 'normal';
+  const scores = active.phaseScores ?? [];
+  let sum = 0;
+  let weight = 0;
+  PHASE_ORDER.forEach((id, i) => {
+    const share = PHASE_MAP[id].share;
+    const s = scores[i] ?? phaseScore(state, div, def, id, pace);
+    sum += s * share;
+    weight += share;
+  });
+  return weight > 0 ? sum / weight : 50;
+}
+
+/** 工程が変わったかどうかを見て、変わっていたらその工程の出来を記録する */
+function advancePhases(ctx: EngineContext, div: Division, def: ProjectDef, active: ActiveProject): void {
+  const pace = active.pace ?? 'normal';
+  const total = projectWork(def, pace);
+  const ratio = total > 0 ? active.work / total : 1;
+  if (!active.phaseScores) active.phaseScores = [];
+  let acc = 0;
+  PHASE_ORDER.forEach((id, i) => {
+    acc += PHASE_MAP[id].share;
+    if (ratio >= acc - 1e-9 && active.phaseScores!.length <= i) {
+      const s = phaseScore(ctx.state, div, def, id, pace);
+      active.phaseScores!.push(s);
+      if (i < PHASE_ORDER.length - 1) {
+        ctx.emit('info', `${div.name}「${def.name}」の${PHASE_MAP[id].name}が終わりました（出来 ${Math.round(s)}点・${qualityLabel(s)}）`);
+      }
+    }
+  });
+  active.phase = currentPhase(def, active);
+}
+
 /** 製品の利用者数の目標（知名度とブランドで決まる） */
 function targetUsers(div: Division, def: ProjectDef): number {
   const p = def.product;
@@ -490,7 +616,7 @@ function targetUsers(div: Division, def: ProjectDef): number {
 }
 
 /** 案件を始める */
-export function startProject(ctx: EngineContext, div: Division, projectId: string): { ok: boolean; reason?: string } {
+export function startProject(ctx: EngineContext, div: Division, projectId: string, pace: ProjectPace = 'normal'): { ok: boolean; reason?: string } {
   const { state } = ctx;
   const def = PROJECT_MAP[projectId];
   if (!def) return { ok: false, reason: 'その案件はありません' };
@@ -498,7 +624,10 @@ export function startProject(ctx: EngineContext, div: Division, projectId: strin
   if (!isProjectAvailable(state, def)) return { ok: false, reason: '研究がまだ終わっていません' };
   if (div.projects.some((p) => p.projectId === projectId)) return { ok: false, reason: 'すでに進めています' };
   if (div.projects.length >= 3) return { ok: false, reason: '同時に進められるのは3件までです' };
-  if (state.company.cash + 1e-9 < def.startCost) return { ok: false, reason: '着手金が足りません' };
+  // 自社で部品を作れる事業（家電・食品・自動車など）があると着手金が安くなる
+  const costMult = (ctx.derived.modifiers?.projectCost ?? projectCostMult(state)) * PACE_MAP[pace].costMult;
+  const startCost = Math.ceil(def.startCost * costMult);
+  if (state.company.cash + 1e-9 < startCost) return { ok: false, reason: '着手金が足りません' };
   if (def.inputs) {
     for (const [id, n] of Object.entries(def.inputs) as [ResourceId, number][]) {
       if ((state.inventory[id] ?? 0) + 1e-9 < n) return { ok: false, reason: `材料が足りません（${RESOURCE_MAP[id].name} ${n}個）` };
@@ -507,12 +636,12 @@ export function startProject(ctx: EngineContext, div: Division, projectId: strin
       state.inventory[id] = clean((state.inventory[id] ?? 0) - n);
     }
   }
-  if (def.startCost > 0) {
-    state.company.cash = safe(state.company.cash - def.startCost);
-    state.company.totalSpent = safe(state.company.totalSpent + def.startCost);
+  if (startCost > 0) {
+    state.company.cash = safe(state.company.cash - startCost);
+    state.company.totalSpent = safe(state.company.totalSpent + startCost);
   }
-  div.projects.push({ projectId, work: 0, startedAt: ctx.now() });
-  ctx.emit('info', `${div.name}で「${def.name}」を始めました`);
+  div.projects.push({ projectId, work: 0, startedAt: ctx.now(), pace, phase: PHASE_ORDER[0], phaseScores: [] });
+  ctx.emit('info', `${div.name}で「${def.name}」を始めました（${PACE_MAP[pace].name}・まずは${PHASE_MAP[PHASE_ORDER[0]].name}から）`);
   return { ok: true };
 }
 
@@ -530,18 +659,25 @@ function completeProject(ctx: EngineContext, div: Division, active: ActiveProjec
   const { state } = ctx;
   const def = PROJECT_MAP[active.projectId];
   if (!def) return 0;
-  if (def.reward > 0) {
-    state.company.cash = safe(state.company.cash + def.reward);
-    state.company.totalEarned = safe(state.company.totalEarned + def.reward);
-    div.totalEarned = safe(div.totalEarned + def.reward);
+  // 出来の良さ。工程ごとの点をまとめたもの
+  const quality = projectQuality(state, div, def, active);
+  const reward = Math.round(def.reward * qualityRewardMult(quality));
+  if (reward > 0) {
+    state.company.cash = safe(state.company.cash + reward);
+    state.company.totalEarned = safe(state.company.totalEarned + reward);
+    div.totalEarned = safe(div.totalEarned + reward);
   }
-  div.brand = Math.min(100, div.brand + def.brand * (ctx.derived.modifiers?.brandGain ?? 1));
-  div.awareness = Math.min(100, div.awareness + def.awareness * (ctx.derived.modifiers?.awarenessGain ?? 1));
+  // 品質は評判にそのまま出る。悪いと評判を落とす
+  const q = qualityBrandMult(quality);
+  div.brand = Math.max(0, Math.min(100, div.brand + def.brand * q * (ctx.derived.modifiers?.brandGain ?? 1)));
+  div.awareness = Math.max(0, Math.min(100, div.awareness + def.awareness * Math.max(0.2, q) * (ctx.derived.modifiers?.awarenessGain ?? 1)));
   if (def.research_points > 0) {
-    state.research.points = safe(state.research.points + def.research_points);
-    state.research.totalPoints = safe(state.research.totalPoints + def.research_points);
+    const rp = Math.round(def.research_points * (0.7 + quality / 100 * 0.6));
+    state.research.points = safe(state.research.points + rp);
+    state.research.totalPoints = safe(state.research.totalPoints + rp);
   }
   div.completed += 1;
+  div.avgQuality = ((div.avgQuality ?? quality) * (div.completed - 1) + quality) / div.completed;
   // 運営（アップデート）は、出している製品の利用者を呼び戻す
   if (def.id === 'game_live' || def.id === 'app_recommend') {
     for (const p of div.products) {
@@ -549,15 +685,19 @@ function completeProject(ctx: EngineContext, div: Division, active: ActiveProjec
       if (d?.product) p.users = Math.min(targetUsers(div, d) * 1.2, p.users * 1.8 + d.product.baseUsers * 0.2);
     }
   }
+  const grade = `${Math.round(quality)}点・${qualityLabel(quality)}`;
   if (def.product) {
-    const users = targetUsers(div, def);
+    const users = targetUsers(div, def) * qualityUsersMult(quality);
     const bs = businessState(state);
-    div.products.push({ id: bs.nextId++, projectId: def.id, name: def.name, users, peakUsers: users, releasedAt: ctx.now() });
-    ctx.emit('success', `${div.name}が「${def.name}」を発売しました（利用者 ${Math.round(users).toLocaleString('ja-JP')}人）`, { toast: true });
+    div.products.push({ id: bs.nextId++, projectId: def.id, name: def.name, users, peakUsers: users, releasedAt: ctx.now(), quality });
+    ctx.emit('success', `${div.name}が「${def.name}」を発売しました（${grade}・利用者 ${Math.round(users).toLocaleString('ja-JP')}人）`, { toast: true });
   } else {
-    ctx.emit('success', `${div.name}が「${def.name}」を完了しました${def.reward > 0 ? ` (+${def.reward.toLocaleString('ja-JP')}円)` : ''}`, { toast: true });
+    ctx.emit('success', `${div.name}が「${def.name}」を完了しました（${grade}）${reward > 0 ? ` +${reward.toLocaleString('ja-JP')}円` : ''}`, { toast: true });
   }
-  return def.reward;
+  if (quality < 35) {
+    ctx.emit('warn', `${div.name}「${def.name}」に不具合が見つかりました。評判が落ちています（人手か時間が足りていません）`, { toast: true });
+  }
+  return reward;
 }
 
 /** 会社（案件をこなす事業）を1 tick 進める。収入を返す */
@@ -571,7 +711,9 @@ function runStudio(ctx: EngineContext, div: Division, dt: number): number {
       const def = PROJECT_MAP[active.projectId];
       if (!def) continue;
       active.work += share;
-      if (active.work >= def.work) {
+      // 工程が進んだら、その工程の出来を記録する
+      advancePhases(ctx, div, def, active);
+      if (active.work >= projectWork(def, active.pace ?? 'normal')) {
         div.projects = div.projects.filter((p) => p !== active);
         rewards += completeProject(ctx, div, active);
       }
@@ -593,7 +735,8 @@ function runStudio(ctx: EngineContext, div: Division, dt: number): number {
     // 飽きられて減っていく。知名度とブランドが高いと減りが遅い
     // 知名度とブランドが高いと離れにくい。運用の人手が足りないと早く離れる
     const neglect = upkeepRatio >= 1 ? 1 : 1 + (1 - upkeepRatio) * 1.5;
-    const decay = def.product.decayPerHour * (1 - Math.min(0.6, div.awareness / 250 + div.brand / 250)) * neglect;
+    // 出来のいい製品ほど長く使われる
+    const decay = def.product.decayPerHour * qualityDecayMult(p.quality ?? 60) * (1 - Math.min(0.6, div.awareness / 250 + div.brand / 250)) * neglect;
     p.users = safePositive(p.users * Math.pow(1 - decay, dt / 3600));
     if (p.users < 10) {
       div.products = div.products.filter((x) => x.id !== p.id);
@@ -651,12 +794,48 @@ export function closeDivision(ctx: EngineContext, id: number): boolean {
   const { state } = ctx;
   const div = getDivision(state, id);
   if (!div) return false;
+  // 在庫は本社へ戻す。倉庫に入りきらないぶんは、消さずに市場へ売る
+  let soldValue = 0;
   for (const [rid, n] of Object.entries(div.stock) as [ResourceId, number][]) {
-    if (n > 0) returnFromShop(ctx, div, rid, n);
+    if (!n || n <= 0) continue;
+    returnFromShop(ctx, div, rid, n);
+    const left = Math.floor((div.stock[rid] ?? 0) + 1e-9);
+    if (left > 0) {
+      // 本社が満杯。捨てずに現金にする
+      const revenue = Math.floor(sellRevenue(state, rid, left) * (ctx.derived.modifiers?.sellPrice ?? 1) * 100) / 100;
+      state.company.cash = safe(state.company.cash + revenue);
+      state.company.totalEarned = safe(state.company.totalEarned + revenue);
+      addMarketSupply(state, rid, left);
+      soldValue += revenue;
+      div.stock[rid] = clean((div.stock[rid] ?? 0) - left);
+    }
   }
   businessState(state).divisions = divisions(state).filter((d) => d.id !== id);
-  ctx.emit('info', `「${div.name}」をたたみました`);
+  if (soldValue > 0) {
+    ctx.emit('info', `「${div.name}」をたたみました。本社の倉庫に入りきらない在庫は売りました (+${Math.round(soldValue).toLocaleString('ja-JP')}円)`);
+  } else {
+    ctx.emit('info', `「${div.name}」をたたみました（在庫は本社に戻しました）`);
+  }
   return true;
+}
+
+/**
+ * その土地でやっている事業をたたむ（土地や物件を売ったときに呼ぶ）。
+ * 置いていくと、土地が無いのに製品収入が続いたり、
+ * 理由も出ないまま人件費だけ払い続けることになる。
+ * 店の在庫は本社に戻る。たたんだ数を返す。
+ */
+export function closeDivisionsOnLand(ctx: EngineContext, landId: string): number {
+  let closed = 0;
+  for (const d of [...divisions(ctx.state)]) {
+    if (d.landId !== landId) continue;
+    if (closeDivision(ctx, d.id)) closed++;
+  }
+  // 駐車場として使っていた場所も外す
+  for (const d of divisions(ctx.state)) {
+    if (d.parkingLands.includes(landId)) d.parkingLands = d.parkingLands.filter((x) => x !== landId);
+  }
+  return closed;
 }
 
 /** 人を雇う・減らす */
@@ -745,7 +924,9 @@ export function runBusiness(ctx: EngineContext, dt: number): { income: number; c
       for (const e of expired) ctx.emit('info', `${div.name}の「${AD_MAP[e.adId]?.name ?? e.adId}」の契約が終わりました`);
     }
     // 広告を出していないと、知名度は少しずつ下がる
-    if (ad.perSec <= 0) div.awareness = Math.max(0, div.awareness - 0.004 * dt);
+    // 広告を出していないと、知名度は少しずつ下がる。
+    // ただし、よく売れている店なら口コミ（runShop）だけで上回れる程度にしてある
+    if (ad.perSec <= 0) div.awareness = Math.max(0, div.awareness - 0.0015 * dt);
 
     const style = BUSINESS_MAP[div.kind].style;
     if (style === 'shop') {
@@ -763,35 +944,71 @@ export function runBusiness(ctx: EngineContext, dt: number): { income: number; c
   return { income, costs: adCost };
 }
 
-/** 表示用: 事業の1秒あたりの利益（売上 − 人件費 − 広告費） */
-export function divisionProfitPerSec(state: GameState, div: Division): number {
+/**
+ * 表示用: 事業の1秒あたりの内訳。
+ *
+ * ここは runShop / runStudio / runMine と同じ式にしてある。
+ * 片方だけに研究や連携の倍率が入っていると、画面の数字と実際に入る額がずれるため。
+ */
+export function divisionBreakdown(
+  state: GameState,
+  div: Division,
+  mods?: Partial<Modifiers>,
+  capacity?: number,
+): { revenue: number; wage: number; ad: number; profit: number } {
   const def = BUSINESS_MAP[div.kind];
   const ad = adEffect(div);
+  const shopMult = mods?.shopSales ?? 1;
+  const productMult = mods?.productRevenue ?? 1;
+  const devMult = mods?.devSpeed ?? 1;
+  const wage = divisionWage(state, div, mods?.wage ?? 1);
+  const adCost = ad.costPerSec * (mods?.adCost ?? 1);
   let revenue = 0;
   if (def.style === 'mine') {
-    // 掘り出したものの値打ちを収入として見る
-    for (const d of claimDeposits(state, div).slice(0, 1)) {
-      revenue += digPerSec(state, div) * 0.55 * (RESOURCE_MAP[d.id]?.basePrice ?? 1);
+    // 掘り出したものの値打ちを収入として見る（runMine と同じ配分で全部の鉱脈を数える）
+    const deps = claimDeposits(state, div);
+    const shares = mineShares(deps.length);
+    const per = digPerSec(state, div, devMult);
+    const room = capacity ?? Infinity;
+    for (let i = 0; i < deps.length; i++) {
+      // 倉庫が満杯なら持ち帰れないので、そのぶんは数えない
+      const left = Math.max(0, room - (state.inventory[deps[i].id] ?? 0));
+      const take = Math.min(per * shares[i], left);
+      revenue += take * (RESOURCE_MAP[deps[i].id]?.basePrice ?? 1);
     }
   } else if (def.style === 'shop') {
     const m = shopModel(div.kind);
     const customers = customersPerSec(state, div);
     if (div.kind === 'casino') {
-      revenue = customers * averageBet(state, div) * houseEdge();
+      revenue = customers * averageBet(state, div) * houseEdge(state);
     } else {
       const goods = (def.goods ?? []).filter((g) => (div.stock[g] ?? 0) > 0);
       const browse = Math.max(0, m.browseRate * (1 - div.brand / 220));
       const want = customers * (1 - browse) * m.itemsPerCustomer;
-      const per = goods.length > 0 ? want / goods.length : 0;
-      for (const g of goods) revenue += Math.min(div.stock[g] ?? 0, per) * retailPrice(state, div, g);
+      // 求められているものほど多く売れる（runShop と同じ重み付け）
+      const weights = goods.map((g) => localDemand(state, div.landId, g));
+      const weightSum = weights.reduce((a, b) => a + b, 0) || 1;
+      for (let gi = 0; gi < goods.length; gi++) {
+        const g = goods[gi];
+        const per = (want * weights[gi]) / weightSum;
+        revenue += Math.min(div.stock[g] ?? 0, per) * retailPrice(state, div, g, shopMult);
+      }
     }
   } else {
+    // 運用の人手が足りないと、そのぶんしか回せない（runStudio と同じ）
+    const needStaff = div.products.reduce((a, p) => a + (PROJECT_MAP[p.projectId]?.product?.upkeepStaff ?? 0), 0);
+    const upkeepRatio = needStaff > 0 ? Math.min(1, div.staff / needStaff) : 1;
     for (const p of div.products) {
       const d = PROJECT_MAP[p.projectId];
-      if (d?.product) revenue += p.users * d.product.revenuePerUser;
+      if (d?.product) revenue += p.users * d.product.revenuePerUser * productMult * upkeepRatio;
     }
   }
-  return revenue - divisionWage(state, div) - ad.costPerSec;
+  return { revenue, wage, ad: adCost, profit: revenue - wage - adCost };
+}
+
+/** 表示用: 事業の1秒あたりの利益（売上 − 人件費 − 広告費） */
+export function divisionProfitPerSec(state: GameState, div: Division, mods?: Partial<Modifiers>, capacity?: number): number {
+  return divisionBreakdown(state, div, mods, capacity).profit;
 }
 
 /** 表示用: 事業を建てられる自分の土地（買った物件） */

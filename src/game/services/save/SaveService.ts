@@ -10,11 +10,44 @@ export interface SaveFile {
   state: GameState;
 }
 
-export const SAVE_KEY = 'world-industry.save.v1';
+/**
+ * セーブの保存先。
+ *
+ * カードを100種に総入れ替えしたときに、それまでのセーブを引き継がないと決めたので、
+ * 保存先そのものを v2 に変えてある。v1 のデータは purgeLegacySaves() で消す。
+ * 次に「全部やり直し」をするときも、ここを v3 にして LEGACY_SAVE_KEYS に v2 を足すだけでよい。
+ */
+export const SAVE_KEY = 'world-industry.save.v2';
 /** 直前のセーブ（自動バックアップ） */
-export const SAVE_BACKUP_KEY = 'world-industry.save.backup';
+export const SAVE_BACKUP_KEY = 'world-industry.save.v2.backup';
 /** 読み込めなかったセーブの退避先（上書きしないで残す） */
-export const SAVE_BROKEN_KEY = 'world-industry.save.broken';
+export const SAVE_BROKEN_KEY = 'world-industry.save.v2.broken';
+
+/** もう読まない、古い保存先。開いたときに消す */
+export const LEGACY_SAVE_KEYS = [
+  'world-industry.save.v1',
+  'world-industry.save.backup',
+  'world-industry.save.broken',
+] as const;
+
+/**
+ * 古い保存先を消す。消したものがあれば true。
+ * 「読まずに消す」ので、古い形式の変換で引っかかって開けなくなることがない。
+ */
+export async function purgeLegacySaves(repo: SaveRepository): Promise<boolean> {
+  let found = false;
+  for (const key of LEGACY_SAVE_KEYS) {
+    try {
+      const v = await repo.getItem(key);
+      if (v === null || v === '') continue;
+      found = true;
+      await repo.removeItem(key);
+    } catch {
+      /* 読めない保存先は放っておく */
+    }
+  }
+  return found;
+}
 /** バックアップを取り直す間隔（ミリ秒） */
 const BACKUP_INTERVAL_MS = 60_000;
 
@@ -67,6 +100,16 @@ export interface LoadResult {
   fromBackup?: boolean;
 }
 
+/** その文字列が、いまのコードで読み戻せるセーブかどうか */
+function readable(json: string): boolean {
+  try {
+    deserializeState(json);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export class SaveService {
   /** 読み込みに失敗したセーブを退避したか（そのセッションで新規状態の保存を控える判断に使う） */
   lastLoadError: string | null = null;
@@ -88,6 +131,9 @@ export class SaveService {
         this.lastLoadError = message;
         // 壊れたセーブは消さずに退避する
         await this.repo.setItem(SAVE_BROKEN_KEY, json).catch(() => {});
+        // 本体が読めないので、次の保存でこれをバックアップへ写してはいけない
+        // （いま復元に使ったバックアップを、読めないデータで潰してしまう）
+        this.mainBroken = true;
       }
     }
     const backup = await this.repo.getItem(SAVE_BACKUP_KEY);
@@ -109,6 +155,12 @@ export class SaveService {
 
   /** 直前にバックアップを取った時刻（毎回取ると重いので間隔をあける） */
   private lastBackupAt = 0;
+  /**
+   * 本体のセーブが読めなかったか。
+   * 読めないデータをバックアップへ写さないための印。
+   * 正常なセーブを1回書けたら下ろす。
+   */
+  private mainBroken = false;
 
   async save(state: GameState, now = Date.now()): Promise<void> {
     const played = hasProgress(state);
@@ -122,15 +174,18 @@ export class SaveService {
     }
     state.meta.lastSaveTime = now;
     const json = serializeState(state, now);
-    // 直前のセーブをバックアップへ。毎回だと保存2回ぶんの時間がかかるので、1分に1回にする
-    if (played && now - this.lastBackupAt >= BACKUP_INTERVAL_MS) {
+    // 直前のセーブをバックアップへ。毎回だと保存2回ぶんの時間がかかるので、1分に1回にする。
+    // 本体が読めなかった回は写さない（復元に使ったバックアップを壊してしまうため）
+    if (played && !this.mainBroken && now - this.lastBackupAt >= BACKUP_INTERVAL_MS) {
       const current = await this.repo.load();
-      if (current && current !== json) {
+      if (current && current !== json && readable(current)) {
         this.lastBackupAt = now;
         await this.repo.setItem(SAVE_BACKUP_KEY, current).catch(() => {});
       }
     }
     await this.repo.save(json);
+    // ここまで来たら本体は正しい形で書けている
+    this.mainBroken = false;
   }
 
   /** リセット時など、バックアップも含めて消す */

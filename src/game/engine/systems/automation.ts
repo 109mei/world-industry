@@ -18,6 +18,7 @@ import { canBuildOn, getLand } from '../land';
 import { pitchCost } from '@/game/data/clients';
 import { clientList, deliverDeal, pitchToClient, pitchCooldownLeft, salesState, wantedByKind } from './sales';
 import { levelOf } from '@/game/data/prestigeTree';
+import { buildCostMult } from './synergy';
 
 export const AUTOMATION_KEYS: readonly AutomationKey[] = ['gather', 'craft', 'deliver', 'pitch', 'survey', 'build'];
 
@@ -97,6 +98,15 @@ export function toggleAutoGather(state: GameState, actionId: GatherActionId): vo
   a.gathers = next.length === all.length && all.every((id) => next.includes(id)) ? [] : next;
 }
 
+/**
+ * 1 tick でこなせる自動採集の回数。
+ * 追いつき計算の1回ぶん（最大 60 秒）× 段階の上限（5）＝ 300 を上回るようにしてある。
+ * ここが足りないと、追いつきのたびに段階ぶんの採集が黙って消える。
+ */
+const MAX_GATHER_PER_TICK = 360;
+/** 1 tick でこなせる自動クラフトの回数（追いつき1回ぶん 60 回を上回るようにしてある） */
+const MAX_CRAFT_PER_TICK = 120;
+
 function timer(a: AutomationState, key: AutomationKey, dt: number): number {
   const next = (a.timers[key] ?? 0) + dt;
   a.timers[key] = next;
@@ -108,16 +118,28 @@ function timer(a: AutomationState, key: AutomationKey, dt: number): number {
  * 追いつき計算（dt=10秒）では何回ぶんも溜まるので、間隔の倍数でまとめて引かないと
  * 時計が増え続け、次に開いたときに一気に動いてしまう。
  */
-function resetTimer(a: AutomationState, key: AutomationKey, spent: number): void {
-  a.timers[key] = Math.max(0, (a.timers[key] ?? 0) - spent);
+function resetTimer(a: AutomationState, key: AutomationKey, spent: number, maxBacklog = Infinity): void {
+  // 溜めておける量に上限を置く。置かないと、こなせない量が延々と積もって
+  // 次に開いた瞬間に一気に動いてしまう
+  a.timers[key] = Math.min(maxBacklog, Math.max(0, (a.timers[key] ?? 0) - spent));
 }
 
-/** interval ごとに1回だけ動かすもの用。溜まったぶんは切り捨てる */
-function consumeInterval(a: AutomationState, key: AutomationKey, interval: number): boolean {
+/**
+ * interval ごとに1回動かすもの用。溜まっている回数を返す。
+ *
+ * 追いつき計算では dt が 60 秒になるので、「1 tick に1回だけ」にすると
+ * 段階を上げても頻度が上がらない（dt=60 のとき 60 秒間隔なら常に1回）。
+ * 溜まったぶんをまとめて返して、呼び出し側でその回数だけ動かす。
+ * 1 tick で走らせすぎないよう上限を付ける。
+ */
+function consumeInterval(a: AutomationState, key: AutomationKey, interval: number, maxTimes = 20): number {
   const t = a.timers[key] ?? 0;
-  if (t < interval) return false;
+  if (t < interval) return 0;
+  const times = Math.min(maxTimes, Math.floor(t / interval));
+  // 余りだけ残す（こなせなかったぶんは持ち越さない）。
+  // ここを引き算にすると、動くものが無いときに時計が延々と積もってしまう
   a.timers[key] = t % interval;
-  return true;
+  return times;
 }
 
 /** 自動採集: 1秒あたり段階ぶんの手作業をこなす */
@@ -128,14 +150,26 @@ function runAutoGather(ctx: EngineContext, dt: number): void {
   const t = timer(a, 'gather', dt * level);
   const times = Math.floor(t);
   if (times <= 0) return;
-  resetTimer(a, 'gather', times);
   const actions = autoGatherActions(state);
-  if (actions.length === 0) return;
-  for (let i = 0; i < Math.min(times, 60); i++) {
-    const id = actions[(state.stats.taps + i) % actions.length];
+  if (actions.length === 0) {
+    // 採集するものが無いときは時計を伸ばし続けない
+    resetTimer(a, 'gather', times);
+    return;
+  }
+  // 1 tick でこなせる回数には上限がある。こなせなかったぶんは時計に残して次の tick に持ち越す
+  // （全部引いてしまうと、追いつき計算のたびに段階ぶんが黙って消える）
+  const run = Math.min(times, MAX_GATHER_PER_TICK);
+  resetTimer(a, 'gather', run, MAX_GATHER_PER_TICK);
+  // 並び順の起点はループの前に1回だけ読む。
+  // gather() が中で taps を増やすので、ループの中で読むと添字が2つずつ飛び、
+  // 対象が偶数個のときに半分の資源がまったく採れなくなる。
+  const base = state.stats.taps;
+  for (let i = 0; i < run; i++) {
+    const id = actions[(base + i) % actions.length];
     // 倉庫が満杯のときは警告を出さずに飛ばす
-    const res = GATHER_MAP[id].resource;
-    if ((state.inventory[res] ?? 0) >= derived.capacity - 1e-9) continue;
+    const def = GATHER_MAP[id];
+    if (!def) continue;
+    if ((state.inventory[def.resource] ?? 0) >= derived.capacity - 1e-9) continue;
     gather(ctx, id);
   }
 }
@@ -147,12 +181,18 @@ function runAutoCraft(ctx: EngineContext, dt: number): void {
   const t = timer(a, 'craft', dt);
   const times = Math.floor(t);
   if (times <= 0) return;
-  resetTimer(a, 'craft', times);
   const slots = a.recipes.slice(0, autoCraftSlots(state));
+  if (slots.length === 0) {
+    resetTimer(a, 'craft', times);
+    return;
+  }
+  // 1 tick で回せる回数には上限がある。残りは時計に置いて次の tick に持ち越す
+  const run = Math.min(times, MAX_CRAFT_PER_TICK);
+  resetTimer(a, 'craft', run, MAX_CRAFT_PER_TICK);
   for (const id of slots) {
     const def = RECIPE_MAP[id];
     if (!def) continue;
-    const possible = Math.min(craftableTimes(state, id), Math.min(times, 50));
+    const possible = Math.min(craftableTimes(state, id), run);
     if (possible <= 0) continue;
     // 倉庫が満杯なら警告を出さずに飛ばす
     let room = possible;
@@ -183,7 +223,7 @@ function runAutoPitch(ctx: EngineContext, dt: number): void {
   const { state, derived } = ctx;
   const a = automationState(state);
   timer(a, 'pitch', dt);
-  if (!consumeInterval(a, 'pitch', 10)) return;
+  if (consumeInterval(a, 'pitch', 10, 4) <= 0) return;
   const cost = pitchCost(derived.assets);
   // 所持金を使い切らないよう、10回ぶんの余裕があるときだけ
   if (state.company.cash < cost * 10) return;
@@ -203,7 +243,7 @@ function runAutoSurvey(ctx: EngineContext, dt: number): void {
   const { state, derived } = ctx;
   const a = automationState(state);
   timer(a, 'survey', dt);
-  if (!consumeInterval(a, 'survey', 5)) return;
+  if (consumeInterval(a, 'survey', 5, 4) <= 0) return;
   for (const land of state.lands) {
     if (land.id === 'hq' || land.surveyProgress) continue;
     if (land.survey >= SURVEY_LEVEL_TO_BUILD) continue;
@@ -219,7 +259,15 @@ function runAutoBuild(ctx: EngineContext, dt: number): void {
   const a = automationState(state);
   const level = automationLevel(state, 'build');
   timer(a, 'build', dt * level);
-  if (!consumeInterval(a, 'build', 60)) return;
+  // 溜まっている回数ぶん増設する（追いつき計算でも段階どおりのペースになる）
+  const rounds = consumeInterval(a, 'build', 60, 10);
+  if (rounds <= 0) return;
+  for (let r = 0; r < rounds; r++) if (!buildOnce(ctx)) break;
+}
+
+/** いちばん安いものを1台だけ増やす。増やせたら true */
+function buildOnce(ctx: EngineContext): boolean {
+  const { state } = ctx;
   let best: { typeId: FacilityId; landId: string; cost: number } | null = null;
   for (const inst of state.facilities) {
     if (inst.count <= 0 || !inst.enabled) continue;
@@ -228,12 +276,13 @@ function runAutoBuild(ctx: EngineContext, dt: number): void {
     const land = getLand(state, inst.landId);
     if (!land || !canBuildOn(def, land).ok) continue;
     if (def.maxCount !== undefined && facilityCount(state, inst.typeId as FacilityId, inst.landId) >= def.maxCount) continue;
-    const cost = facilityCost(def, facilityCount(state, inst.typeId as FacilityId, inst.landId));
+    const cost = Math.ceil(facilityCost(def, facilityCount(state, inst.typeId as FacilityId, inst.landId)) * buildCostMult(state));
     // 所持金の 10% までに収まるものだけ（使い切らせない）
     if (cost > state.company.cash * 0.1) continue;
     if (!best || cost < best.cost) best = { typeId: inst.typeId as FacilityId, landId: inst.landId, cost };
   }
-  if (best) buyFacility(ctx, best.typeId, 1, best.landId);
+  if (!best) return false;
+  return buyFacility(ctx, best.typeId, 1, best.landId) > 0;
 }
 
 /** 毎 tick。買っていて ON のものだけ動く */

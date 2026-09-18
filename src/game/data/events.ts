@@ -59,12 +59,18 @@ export interface EventDef {
   disaster?: boolean;
   /** 影響を受ける輸送手段 */
   transport?: TransportKind[];
+  /** 対象をこの資源に限る（指定しなければ持っている資源のどれか） */
+  targets?: string[];
   description: string;
 }
 
 export const EVENTS = [
   { id: 'boom', kind: 'boom', name: '相場高騰', icon: 'icon_ui_profit', duration: 150, weight: 5, magnitude: 1.8, description: '{target}の価格が1.8倍に。売り時。' },
   { id: 'crash', kind: 'crash', name: '相場暴落', icon: 'icon_ui_loss', duration: 150, weight: 4, magnitude: 0.5, description: '{target}の価格が半分に。しばらく売らずに貯めるのも手。' },
+  { id: 'gpu_shortage', kind: 'boom', name: 'GPU品薄', icon: 'icon_part_gpu', duration: 240, weight: 3, magnitude: 2.6, targets: ['gpu'], description: 'GPUが手に入らなくなり、値段が2.6倍に。持っていれば転売の好機。' },
+  { id: 'gpu_glut', kind: 'crash', name: 'GPUだぶつき', icon: 'icon_part_gpu', duration: 200, weight: 2, magnitude: 0.45, targets: ['gpu'], description: '在庫があふれてGPUの値段が半分以下に。仕入れ時。' },
+  { id: 'crypto_bubble', kind: 'boom', name: '暗号資産バブル', icon: 'icon_product_crypto', duration: 210, weight: 3, magnitude: 3.2, targets: ['crypto'], description: '暗号資産が3.2倍に跳ね上がる。掘った分を売るなら今。' },
+  { id: 'crypto_burst', kind: 'crash', name: '暗号資産の暴落', icon: 'icon_product_crypto', duration: 210, weight: 3, magnitude: 0.3, targets: ['crypto'], description: '暗号資産が3割の値段に。マイニングは電気代が出なくなる。' },
   { id: 'demand', kind: 'demand', name: '需要急増', icon: 'icon_ui_chart_trend', duration: 180, weight: 4, magnitude: 3, description: '{target}の需要が急増。値崩れせずに大量に売れる。' },
   { id: 'quake', kind: 'quake', name: '地震', icon: 'icon_ui_warning', duration: 120, weight: 3, magnitude: 0.5, disaster: true, transport: ['road', 'rail'], description: '{target}で地震。生産と陸路・鉄道の輸送が半減。貨物機は影響を受けない。' },
   { id: 'storm', kind: 'storm', name: '嵐', icon: 'icon_weather_storm', duration: 90, weight: 3, magnitude: 0.2, disaster: true, transport: ['sea', 'air'], description: '嵐で船と飛行機が止まる。海路・空路の輸送が 20% に。' },
@@ -88,8 +94,8 @@ export const EVENTS = [
   // ---- 景気・相場 ----
   { id: 'expansion', kind: 'market_wave', name: '好景気', icon: 'icon_ui_chart_trend', duration: 300, weight: 3, magnitude: 1.25, description: '景気が良くなり、すべての資源が25%高く売れる。' },
   { id: 'recession', kind: 'market_wave', name: '不況', icon: 'icon_ui_loss', duration: 300, weight: 3, magnitude: 0.8, description: '不況で買い手が減り、すべての資源の売値が80%に。' },
-  { id: 'fuel_spike', kind: 'fuel', name: '燃料高騰', icon: 'icon_resource_fuel', duration: 210, weight: 3, magnitude: 1.8, description: '燃料が高騰。輸送費が1.8倍になった。' },
-  { id: 'fuel_drop', kind: 'fuel', name: '燃料安', icon: 'icon_resource_fuel', duration: 210, weight: 2, magnitude: 0.6, description: '燃料が値下がり。輸送費が60%に下がった。' },
+  { id: 'fuel_spike', kind: 'fuel', name: '燃料高騰', icon: 'icon_material_fuel', duration: 210, weight: 3, magnitude: 1.8, description: '燃料が高騰。輸送費が1.8倍になった。' },
+  { id: 'fuel_drop', kind: 'fuel', name: '燃料安', icon: 'icon_material_fuel', duration: 210, weight: 2, magnitude: 0.6, description: '燃料が値下がり。輸送費が60%に下がった。' },
 
   // ---- 取引・研究 ----
   { id: 'order_rush', kind: 'order_rush', name: '特需', icon: 'icon_office_contract', duration: 240, weight: 3, magnitude: 1.5, description: '急な引き合いが続き、契約の納品単価が1.5倍に。' },

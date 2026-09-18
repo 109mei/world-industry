@@ -18,6 +18,10 @@ export interface ResourceDef {
   liquidity: number;
   /** 最初から資源一覧に表示するか */
   initialDiscovered?: boolean;
+  /** 相場の荒さ（1 が普通。大きいほど上下に大きく動く） */
+  volatility?: number;
+  /** 市場から買えるか（転売できるもの） */
+  buyable?: boolean;
   description: string;
 }
 
@@ -81,6 +85,9 @@ export const RESOURCES = [
   { id: 'silver', name: '銀', nameEn: 'Silver', category: 'material', basePrice: 1_100, weight: 0.02, icon: 'icon_material_aluminum', sellable: true, liquidity: 90, description: '銀鉱石を精錬した貴金属。装飾にも電子部品にも使う。' },
   { id: 'gem', name: '宝石', nameEn: 'Gem', category: 'product', basePrice: 9_000, weight: 0.001, icon: 'icon_resource_gem', sellable: true, liquidity: 20, description: '原石を磨いたもの。宝石店に並べるとブランド価値がそのまま値段になる。' },
   { id: 'leather', name: '革', nameEn: 'Leather', category: 'material', basePrice: 180, weight: 0.02, icon: 'icon_material_leather', sellable: true, liquidity: 300, description: '布と化学薬品からなめして作る。鞄や靴、家具に使う。' },
+  // ---- 転売できるもの（相場が荒く、市場から買える） ----
+  { id: 'gpu', name: 'GPU', nameEn: 'GPU', category: 'part', basePrice: 60_000, weight: 0.002, icon: 'icon_part_gpu', sellable: true, buyable: true, volatility: 2.2, liquidity: 30, description: '画像も計算もこなす高性能な部品。マイニングの流行り廃りで値段が跳ね、品薄になると転売で儲かる。' },
+  { id: 'crypto', name: '暗号資産', nameEn: 'Crypto', category: 'product', basePrice: 18_000, weight: 0, icon: 'icon_product_crypto', sellable: true, buyable: true, volatility: 3.4, liquidity: 60, description: 'マイニング装置が掘り出す通貨。値動きがとても荒く、上がったところで売れれば大きい。' },
 ] as const satisfies readonly ResourceDef[];
 
 export type ResourceId = (typeof RESOURCES)[number]['id'];
@@ -90,6 +97,9 @@ export const RESOURCE_MAP: Record<ResourceId, ResourceDef> = Object.fromEntries(
 ) as Record<ResourceId, ResourceDef>;
 
 export const RESOURCE_IDS = RESOURCES.map((r) => r.id) as ResourceId[];
+
+/** 市場から買えるもの（転売できるもの） */
+export const BUYABLE_RESOURCES: ResourceId[] = RESOURCES.filter((r) => (r as ResourceDef).buyable).map((r) => r.id as ResourceId);
 
 export function getResource(id: ResourceId): ResourceDef {
   return RESOURCE_MAP[id];

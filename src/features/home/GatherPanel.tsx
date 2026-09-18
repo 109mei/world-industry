@@ -20,7 +20,7 @@ let popSeq = 1;
 function GatherButton({ id, pops, addPop }: { id: GatherActionId; pops: Pop[]; addPop: (id: GatherActionId, text: string, x: number) => void }) {
   const { state, engine, derived } = useGame();
   const g = GATHER_ACTIONS.find((a) => a.id === id)!;
-  const p = previewGather(state, id);
+  const p = previewGather(state, id, derived.modifiers.gatherAmount);
   const res = RESOURCE_MAP[g.resource];
   const full = (state.inventory[g.resource] ?? 0) >= derived.capacity - 1e-9;
   const tool = p.toolId ? TOOL_MAP[p.toolId] : null;

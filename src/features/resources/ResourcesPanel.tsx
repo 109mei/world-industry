@@ -8,7 +8,9 @@ import { useUiStore } from '@/stores/uiStore';
 import { formatAmount } from '@/utils/format';
 import { EventBanner } from '@/features/home/EventBanner';
 import { MarketPanel } from './MarketPanel';
+import { TradePanel } from './TradePanel';
 import { ResourceCard } from './ResourceCard';
+import { ResourceOverview } from './ResourceOverview';
 
 /** 資源の在庫と市場（ホームの「資源」タブの中身） */
 export function ResourcesPanel() {
@@ -31,6 +33,7 @@ export function ResourcesPanel() {
         items={[
           { id: 'inventory', label: '在庫' },
           { id: 'market', label: '市場' },
+          { id: 'trade', label: '転売' },
         ]}
         value={sub}
         onChange={setSub}
@@ -39,6 +42,8 @@ export function ResourcesPanel() {
       {sub === 'market' && <EventBanner compact />}
       {sub === 'inventory' ? (
         <>
+          <ResourceOverview ids={ids} />
+          <div className="section-title">ひとつずつ見る</div>
           <div className="grid grid--2">
             {ids.map((id) => (
               <ResourceCard key={id} id={id} onOpen={openResource} />
@@ -76,6 +81,8 @@ export function ResourcesPanel() {
             )}
           </Card>
         </>
+      ) : sub === 'trade' ? (
+        <TradePanel />
       ) : (
         <MarketPanel />
       )}

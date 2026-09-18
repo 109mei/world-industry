@@ -1,3 +1,4 @@
+import { memo } from 'react';
 interface ProgressBarProps {
   ratio: number;
   tone?: 'accent' | 'profit' | 'warn' | 'loss' | 'research' | 'auto';
@@ -6,7 +7,7 @@ interface ProgressBarProps {
 }
 
 /** 0〜1 のゲージ。tone=auto なら満杯に近づくほど警告色になる */
-export function ProgressBar({ ratio, tone = 'accent', size = 'md', label }: ProgressBarProps) {
+function ProgressBarBase({ ratio, tone = 'accent', size = 'md', label }: ProgressBarProps) {
   const r = Math.max(0, Math.min(1, Number.isFinite(ratio) ? ratio : 0));
   let t = tone;
   if (tone === 'auto') t = r >= 0.999 ? 'loss' : r >= 0.85 ? 'warn' : 'accent';
@@ -17,3 +18,9 @@ export function ProgressBar({ ratio, tone = 'accent', size = 'md', label }: Prog
     </div>
   );
 }
+
+/**
+ * 同じ内容なら描き直さない。
+ * 一覧にたくさん並ぶ部品なので、毎回の画面更新でここまで作り直さないようにしている。
+ */
+export const ProgressBar = memo(ProgressBarBase);

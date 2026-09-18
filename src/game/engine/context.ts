@@ -6,6 +6,11 @@ export interface EmitOptions {
   toast?: boolean;
   achievementId?: string;
   eventId?: string;
+  /**
+   * まとめて進めているあいだでも必ず知らせる。
+   * 倒産のように「見逃すと何が起きたのか分からなくなる」ものだけに使う。
+   */
+  force?: boolean;
 }
 
 export interface EventSink {

@@ -29,7 +29,7 @@ import { placeLabel } from './hq';
 import type { OsmFeature } from '@/game/services/osm/overpass';
 import { computeEventMods, runEvents, triggerEvent } from './systems/events';
 import { runLogistics } from './systems/logistics';
-import { runAutoSell, runMarket, sellResource } from './systems/market';
+import { buyResource, runAutoSell, runMarket, sellResource } from './systems/market';
 import { AUTOMATION_KEYS, AUTOMATION_UPGRADE_ID, runAutomation, setAutomation, toggleAutoGather, toggleAutoRecipe } from './systems/automation';
 import { computeModifiers } from './systems/modifiers';
 import { runPower } from './systems/power';
@@ -42,6 +42,8 @@ import { runRivals } from './systems/rivals';
 import { acquireCompany, buyShares, computeStocks, dissolveCompany, expandCompany, runStocks, sellShares, setCompanyPolicy } from './systems/stocks';
 import { runSurveys } from './systems/survey';
 import { runUnlocks } from './systems/unlocks';
+import type { ProjectPace } from '@/game/data/projectPhases';
+import { buyCard, claimSeries, openPack, runCards, sellCard } from './systems/cards';
 
 export type EngineListener = (event: GameEvent, options: { toast: boolean }) => void;
 
@@ -63,8 +65,14 @@ export class GameEngine {
   private rng: Rng;
   private nowFn: () => number;
   private listeners = new Set<EngineListener>();
-  /** 稼働中は false。オフライン計算中などにトーストを抑える */
+  /** 稼働中は false。まとめて進めているあいだ、途中のトーストを抑える */
   private silent = false;
+  /**
+   * 本当に「離れていたぶん」を計算しているか。
+   * 少し処理が遅れただけの tick と、何時間ぶんかのオフライン計算を区別する。
+   * ここを silent と同じにすると、わずかな遅れのたびにイベントが消えてしまう。
+   */
+  private offlineMode = false;
   private ctx: EngineContext;
 
   constructor(options: GameEngineOptions = {}) {
@@ -78,7 +86,7 @@ export class GameEngine {
       rng: this.rng,
       now: this.nowFn,
       emit: (type, message, opts) => this.emit(type, message, opts),
-      offline: () => this.silent,
+      offline: () => this.offlineMode,
     };
     this.refreshDerived();
     // 初期解放（always 条件）を反映
@@ -104,7 +112,7 @@ export class GameEngine {
     if (this.state.eventLog.length > CONFIG.eventLogLength) {
       this.state.eventLog.splice(0, this.state.eventLog.length - CONFIG.eventLogLength);
     }
-    if (!this.silent) {
+    if (!this.silent || opts.force) {
       for (const l of this.listeners) l(ev, { toast });
     }
     return ev;
@@ -130,7 +138,8 @@ export class GameEngine {
 
   /** dt 秒ぶんシミュレーションを進める（dt は maxStepSeconds 以下を想定） */
   tick(dt: number): void {
-    if (dt <= 0) return;
+    // NaN <= 0 は false なので、ここで弾かないと状態がまるごと NaN に汚れる
+    if (!Number.isFinite(dt) || dt <= 0) return;
     const { state } = this;
     this.refreshCapacities();
     this.derived.consumption = {};
@@ -144,6 +153,7 @@ export class GameEngine {
     runSales(this.ctx, dt);
     const business = runBusiness(this.ctx, dt);
     runLottery(this.ctx, dt);
+    runCards(this.ctx, dt);
     runAutomation(this.ctx, dt);
     runInfluence(this.ctx, dt);
     const sold = runAutoSell(this.ctx);
@@ -183,7 +193,8 @@ export class GameEngine {
     this.ctx.derived = this.derived;
     this.refreshDerived();
     runUnlocks(this.ctx);
-    this.emit('warn', `資金が尽きて倒産しました。会社を畳んで、もう一度やり直します（永続ポイント ${next.prestige.points}pt と実績は残っています）`, { toast: true });
+    // 倒産は、まとめて進めているあいだでも必ず知らせる（気づかないうちに会社が消えるのを防ぐ）
+    this.emit('warn', `資金が尽きて倒産しました。会社を畳んで、もう一度やり直します（永続ポイント ${next.prestige.points}pt と実績は残っています）`, { toast: true, force: true });
   }
 
   /**
@@ -234,7 +245,20 @@ export class GameEngine {
     }
   }
 
+  /** 離れていたぶんをまとめて進める（イベントの抽選は止める） */
+  private advanceOffline(seconds: number): void {
+    this.silent = true;
+    this.offlineMode = true;
+    try {
+      this.advance(seconds);
+    } finally {
+      this.silent = false;
+      this.offlineMode = false;
+    }
+  }
+
   advance(seconds: number): void {
+    if (!Number.isFinite(seconds) || seconds <= 0) return;
     let remaining = seconds;
     let guard = 0;
     while (remaining > 1e-9 && guard++ < 1_000_000) {
@@ -249,15 +273,12 @@ export class GameEngine {
 
   /** オフライン進行を適用して報告を返す。maxSeconds を超える分は切り捨てる */
   applyOffline(elapsedSeconds: number, maxSeconds = this.state.settings.maxOfflineSeconds + (this.derived.modifiers?.offlineBonusSec ?? 0)): OfflineReport {
-    const simulated = Math.max(0, Math.min(elapsedSeconds, maxSeconds));
+    const safeMax = Number.isFinite(maxSeconds) ? maxSeconds : 0;
+    const simulated = Number.isFinite(elapsedSeconds) ? Math.max(0, Math.min(elapsedSeconds, safeMax)) : 0;
     const before = { ...this.state.inventory };
     const cashBefore = this.state.company.cash;
-    this.silent = true;
-    try {
-      this.advance(simulated);
-    } finally {
-      this.silent = false;
-    }
+    const bankrupciesBeforeRef = this.state.stats.bankruptcies ?? 0;
+    this.advanceOffline(simulated);
     const resourceDelta: Partial<Record<ResourceId, number>> = {};
     const keys = new Set([...Object.keys(before), ...Object.keys(this.state.inventory)]) as Set<ResourceId>;
     for (const k of keys) {
@@ -270,6 +291,7 @@ export class GameEngine {
       capped: elapsedSeconds > maxSeconds,
       resourceDelta,
       cashDelta: clean(this.state.company.cash - cashBefore),
+      bankrupted: (this.state.stats.bankruptcies ?? 0) > bankrupciesBeforeRef,
     };
   }
 
@@ -577,10 +599,10 @@ export class GameEngine {
   }
 
   /** 案件を始める */
-  startProject(id: number, projectId: string): { ok: boolean; reason?: string } {
+  startProject(id: number, projectId: string, pace: ProjectPace = 'normal'): { ok: boolean; reason?: string } {
     const div = getDivision(this.state, id);
     if (!div) return { ok: false, reason: 'その事業はありません' };
-    const r = startProject(this.ctx, div, projectId);
+    const r = startProject(this.ctx, div, projectId, pace);
     if (r.ok) this.refreshDerived();
     return r;
   }
@@ -624,9 +646,44 @@ export class GameEngine {
 
   // ---------- 賭け事 ----------
   /** スロットなどで遊ぶ */
-  playGame(gameId: Parameters<typeof play>[1]): PlayResult {
-    const r = play(this.ctx, gameId);
+  playGame(gameId: Parameters<typeof play>[1], betId?: string): PlayResult {
+    const r = play(this.ctx, gameId, betId);
     if (r.ok) this.refreshDerived();
+    return r;
+  }
+
+  /** パックを開ける */
+  openPack(packId: string, count = 1) {
+    const r = openPack(this.ctx, packId, count);
+    if (r.ok) this.refreshDerived();
+    return r;
+  }
+
+  /** カードを売る */
+  sellCard(cardId: string, count: number) {
+    const r = sellCard(this.ctx, cardId, count);
+    if (r.ok) this.refreshDerived();
+    return r;
+  }
+
+  /** カードを買う */
+  buyCard(cardId: string, count: number) {
+    const r = buyCard(this.ctx, cardId, count);
+    if (r.ok) this.refreshDerived();
+    return r;
+  }
+
+  /** 図鑑がそろった見返りを受け取る */
+  claimCardSeries(seriesId: string) {
+    const r = claimSeries(this.ctx, seriesId);
+    if (r.ok) this.refreshDerived();
+    return r;
+  }
+
+  /** 市場から資源を買う（転売の仕入れ） */
+  buyResource(resourceId: ResourceId, amount: number) {
+    const r = buyResource(this.ctx, resourceId, amount);
+    if (r.amount > 0) this.refreshDerived();
     return r;
   }
 
@@ -714,7 +771,8 @@ export class GameEngine {
     this.ctx.derived = this.derived;
     this.refreshDerived();
     runUnlocks(this.ctx);
-    this.emit('success', `会社を売却して再出発しました。永続ボーナス ${prevPoints} → ${next.prestige.points} ポイント（生産 ×${(1 + CONFIG.prestige.productionPerPoint * next.prestige.points).toFixed(2)}）`, { toast: true });
+    const gained = next.prestige.points - prevPoints;
+    this.emit('success', `会社を売却して再出発しました。永続ポイント +${gained}（合計 ${next.prestige.points}pt）。「会社」の再出発から、強化を買えます`, { toast: true });
     return true;
   }
 

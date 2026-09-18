@@ -3,7 +3,7 @@ import { GameEngine } from '@/game/engine/GameEngine';
 import { playSfx, type SfxName } from '@/game/services/audio/sfx';
 import { GameLoop } from '@/game/services/GameLoop';
 import { LocalStorageSaveRepository, MemorySaveRepository, type SaveRepository } from '@/game/services/save/SaveRepository';
-import { SAVE_KEY, SaveService, hasProgress, savedHasProgress, serializeState } from '@/game/services/save/SaveService';
+import { SAVE_KEY, SaveService, hasProgress, purgeLegacySaves, savedHasProgress, serializeState } from '@/game/services/save/SaveService';
 import { bumpGame, refreshGame, setChangeHook, useGameStore } from '@/stores/gameStore';
 import { useUiStore } from '@/stores/uiStore';
 import type { GameState, OfflineReport } from '@/types/state';
@@ -65,7 +65,14 @@ function wireEngine(engine: GameEngine): void {
 
 export async function createRuntime(): Promise<GameRuntime> {
   if (runtime) return runtime;
-  const saveService = new SaveService(createRepository());
+  const repo = createRepository();
+  // 古い保存先は読まずに消す（カード100種の入れ替えに合わせて、ここで一度作り直している）
+  try {
+    await purgeLegacySaves(repo);
+  } catch {
+    /* 消せなくても進める */
+  }
+  const saveService = new SaveService(repo);
 
   let loaded: GameState | null = null;
   let loadError: string | undefined;
@@ -117,6 +124,13 @@ export async function createRuntime(): Promise<GameRuntime> {
   };
 
   /** タブを閉じる・再読み込みするときは、その場で書き込む（待ちを挟まない） */
+  /**
+   * 裏に回した時刻。裏にいるあいだはループを止めているので、
+   * その時刻より先へ「保存した時刻」を進めてはいけない
+   * （進めると、裏にいた時間が「もう計算済み」になって次回起動時に消える）。
+   */
+  let hiddenAt = 0;
+
   const saveNowSync = () => {
     if (saveTimer !== null) {
       clearTimeout(saveTimer);
@@ -126,7 +140,9 @@ export async function createRuntime(): Promise<GameRuntime> {
       engine.refreshDerived();
       // 進行中のセーブを初期状態で上書きしない
       if (!hasProgress(engine.state) && savedHasProgress(localStorage.getItem(SAVE_KEY))) return;
-      const now = Date.now();
+      // 裏に回って止まっているあいだは、止めた時刻で保存する。
+      // そうしておくと、次に開いたときに「止まっていたぶん」がオフライン進行として計算される。
+      const now = hiddenAt > 0 ? hiddenAt : Date.now();
       engine.state.meta.lastSaveTime = now;
       localStorage.setItem(SAVE_KEY, serializeState(engine.state, now));
     } catch {
@@ -185,9 +201,29 @@ export async function createRuntime(): Promise<GameRuntime> {
 
   loop.start();
 
-  // タブを閉じる／裏に回る／再読み込みするときは、その場で書き込む
+  // タブを閉じる／裏に回る／再読み込みするときは、その場で書き込む。
+  // 裏に回っているあいだはループを止める（電池と発熱のため）。
+  // 戻ってきたときは、止まっていたぶんをまとめて進める仕組みがすでにあるので、進み方は変わらない。
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') saveNowSync();
+    if (document.visibilityState === 'hidden') {
+      // 先に「止めた時刻」を決めてから保存する（保存はその時刻で書かれる）
+      hiddenAt = Date.now();
+      loop.stop();
+      saveNowSync();
+      return;
+    }
+    if (loop.isRunning()) return;
+    // 裏に回っていたあいだのぶんを、まとめて進めてから再開する
+    const elapsed = hiddenAt > 0 ? (Date.now() - hiddenAt) / 1000 : 0;
+    hiddenAt = 0;
+    if (elapsed >= CONFIG.offlineThresholdSeconds) {
+      const report = engine.applyOffline(elapsed);
+      if (report.simulatedSeconds > 0) useUiStore.getState().setOfflineReport(report);
+    } else if (elapsed > 0) {
+      engine.advanceQuiet(elapsed);
+    }
+    loop.start();
+    bumpGame();
   });
   window.addEventListener('pagehide', saveNowSync);
   window.addEventListener('beforeunload', saveNowSync);

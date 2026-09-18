@@ -3,19 +3,20 @@ import { RESOURCE_MAP, type ResourceId } from '@/game/data/resources';
 import type { DerivedState, GameState, LandState } from '@/types/state';
 import { facilityCount } from '../actions/facility';
 import { canBuildOn, landPopulation, surveyMultiplier, terrainMultiplier } from '../land';
-import { currentPrice, demandFactor } from '../systems/market';
+import { currentPrice } from '../systems/market';
 import { isUnlocked } from '../systems/unlocks';
 
 /**
  * 資源1個の価値（円）。売れないものは基準価格で評価。
- * 売れるものは「もう1個多く売り続けたときの値段」（需要の飽和ぶんを二重に掛けた限界価格）。
- * 売り続けると飽和量が 生産量 × 回復時間 で釣り合い、価格 = 基準 ÷ (1 + 飽和量 ÷ 需要容量) になるので、
- * 追加1個の売上は 基準 × 需要係数² に近づく
+ * 売れるものは、いまの売値（需要の飽和ぶんを引いた値段）。
+ *
+ * currentPrice にはすでに需要係数が入っているので、ここで重ねて掛けてはいけない
+ * （掛けると、たくさん売った直後だけ画面ごとに違う額が出る）。
  */
 export function resourceValue(state: GameState, id: ResourceId): number {
   const def = RESOURCE_MAP[id];
   if (!def) return 0;
-  return def.sellable ? currentPrice(state, id) * demandFactor(state, id) : def.basePrice;
+  return def.sellable ? currentPrice(state, id) : def.basePrice;
 }
 
 /**

@@ -63,6 +63,7 @@ export const RECIPES = [
   { id: 'smelt_gold', name: '金を精錬', category: 'materials', icon: 'icon_office_coins', inputs: { gold_ore: 3, coal: 2 }, outputs: { gold: 1 }, unlock: { type: 'obtained', resource: 'gold_ore', min: 1 }, description: '金鉱石3と石炭2から金1を作る。' },
   { id: 'smelt_silver', name: '銀を精錬', category: 'materials', icon: 'icon_material_aluminum', inputs: { silver_ore: 3, coal: 2 }, outputs: { silver: 1 }, unlock: { type: 'obtained', resource: 'silver_ore', min: 1 }, description: '銀鉱石3と石炭2から銀1を作る。' },
   { id: 'cut_gem', name: '原石を磨く', category: 'products', icon: 'icon_resource_gem', inputs: { rough_gem: 4, water: 5 }, outputs: { gem: 1 }, unlock: { type: 'obtained', resource: 'rough_gem', min: 1 }, description: '原石4を磨いて宝石1にする。値段が跳ね上がる。' },
+  { id: 'make_gpu', name: 'GPUを作る', category: 'parts', icon: 'icon_part_gpu', inputs: { semiconductor: 2, electronics: 6, plastic: 3, wire: 4 }, outputs: { gpu: 1 }, unlock: { type: 'research', research: 'gpu_fab' }, hiddenUntilUnlocked: true, description: '半導体2・電子部品6・プラスチック3・電線4からGPU1。品薄のときは作るそばから売れる。' },
   { id: 'make_leather', name: '革をなめす', category: 'materials', icon: 'icon_material_leather', inputs: { cloth: 3, chemical: 2 }, outputs: { leather: 2 }, unlock: { type: 'research', research: 'tanning' }, description: '布と化学薬品から革を作る。鞄や家具に使う。' },
 ] as const satisfies readonly RecipeDef[];
 

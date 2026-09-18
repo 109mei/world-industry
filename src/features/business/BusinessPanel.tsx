@@ -14,6 +14,8 @@ import { formatMoney, formatMoneyRate, formatNumber } from '@/utils/format';
 import { sfx } from '@/utils/sfx';
 import { DivisionSheet } from './DivisionSheet';
 import { GamblingPanel } from './GamblingPanel';
+import { CardPanel } from '@/features/cards/CardPanel';
+import { SynergyCard } from './SynergyCard';
 
 const SECTORS: BusinessSector[] = ['retail', 'mining', 'industry', 'info', 'logistics', 'finance'];
 
@@ -30,7 +32,7 @@ export function BusinessPanel() {
   const mine = divisions(state);
   const places = availablePlaces(state);
   const unlockedCount = BUSINESSES.filter((b) => isBusinessUnlocked(state, b.id)).length;
-  const totalProfit = mine.reduce((a, d) => a + divisionProfitPerSec(state, d), 0);
+  const totalProfit = mine.reduce((a, d) => a + divisionProfitPerSec(state, d, derived.modifiers, derived.capacity), 0);
 
   return (
     <div className="list">
@@ -38,7 +40,7 @@ export function BusinessPanel() {
         <div className="stat-grid stat-grid--4">
           <Stat label="事業の数" value={`${mine.length}件`} extra={`始められる業種 ${unlockedCount} / ${BUSINESSES.length}`} />
           <Stat label="事業の利益 /秒" value={formatMoneyRate(totalProfit, mode)} tone={totalProfit >= 0 ? 'profit' : 'loss'} />
-          <Stat label="事業の人件費 /秒" value={formatMoneyRate(-mine.reduce((a, d) => a + divisionWage(state, d), 0), mode)} tone="loss" />
+          <Stat label="事業の人件費 /秒" value={formatMoneyRate(-mine.reduce((a, d) => a + divisionWage(state, d, derived.modifiers.wage), 0), mode)} tone="loss" />
           <Stat label="広告費 /秒" value={formatMoneyRate(-derived.adCost, mode)} tone={derived.adCost > 0 ? 'loss' : 'default'} />
         </div>
         <p className="text-sub" style={{ fontSize: 12, marginTop: 6 }}>
@@ -46,11 +48,13 @@ export function BusinessPanel() {
         </p>
       </Card>
 
+      <SynergyCard />
+
       {mine.length > 0 && <div className="section-title">やっている事業</div>}
       <div className="grid grid--2">
         {mine.map((d) => {
           const def = BUSINESS_MAP[d.kind];
-          const profit = divisionProfitPerSec(state, d);
+          const profit = divisionProfitPerSec(state, d, derived.modifiers, derived.capacity);
           const shop = def.style === 'shop';
           const mine = def.style === 'mine';
           return (
@@ -70,7 +74,7 @@ export function BusinessPanel() {
                 <div style={{ height: 6 }} />
                 <ProgressBar ratio={d.brand / 100} tone="profit" label={`ブランド ${Math.round(d.brand)}（${brandLabel(d.brand)}）`} />
                 <div className="stat-grid" style={{ marginTop: 8 }}>
-                  <Stat label="従業員" value={`${formatNumber(d.staff, mode)}人`} extra={formatMoneyRate(-divisionWage(state, d), mode)} />
+                  <Stat label="従業員" value={`${formatNumber(d.staff, mode)}人`} extra={formatMoneyRate(-divisionWage(state, d, derived.modifiers.wage), mode)} />
                   {shop ? (
                     <Stat label="来客 /秒" value={`${customersPerSec(state, d).toFixed(1)}人`} extra={`駐車 ${parkingSpaces(state, d)}台`} />
                   ) : mine ? (
@@ -204,6 +208,13 @@ export function BusinessPanel() {
         <>
           <div className="section-title">賭け事</div>
           <GamblingPanel />
+        </>
+      )}
+
+      {state.research.completed.card_market && (
+        <>
+          <div className="section-title">トレーディングカード</div>
+          <CardPanel />
         </>
       )}
 

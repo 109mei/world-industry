@@ -281,6 +281,16 @@ export const FACILITIES = [
     description: '半導体0.1＋機械部品0.5＋鋼鉄1＋電子部品0.3 → 産業ロボット0.05（20秒に1台）。電力 20MW。', baseCost: 30_000_000, costGrowth: 1.2, employees: 100, powerUse: 20,
     production: { inputs: { semiconductor: 0.1, machine_parts: 0.5, steel: 1, electronics: 0.3 }, outputs: { robot: 0.05 } }, unlock: { type: 'research', research: 'robotics' }, hiddenUntilUnlocked: true,
   },
+  {
+    id: 'gpu_factory', name: 'GPU工場', nameEn: 'GPU Factory', category: 'MANUFACTURING', icon: 'icon_facility_gpu_factory', site: 'any',
+    description: '半導体0.4＋電子部品1.2＋プラスチック0.6＋電線0.8 → GPU0.2（5秒に1枚）。電力 18MW。', baseCost: 24_000_000, costGrowth: 1.2, employees: 70, powerUse: 18,
+    production: { inputs: { semiconductor: 0.4, electronics: 1.2, plastic: 0.6, wire: 0.8 }, outputs: { gpu: 0.2 } }, unlock: { type: 'research', research: 'gpu_fab' }, hiddenUntilUnlocked: true,
+  },
+  {
+    id: 'mining_rig', name: 'マイニング装置', nameEn: 'Mining Rig', category: 'MANUFACTURING', icon: 'icon_facility_mining_rig', site: 'any',
+    description: 'GPU0.0006 → 暗号資産0.011（GPUは熱で焼けて減っていく）。電力 0.9MW。相場が上がっているときだけ儲かる。', baseCost: 900_000, costGrowth: 1.08, employees: 1, powerUse: 0.9,
+    production: { inputs: { gpu: 0.0006 }, outputs: { crypto: 0.011 } }, unlock: { type: 'research', research: 'crypto_mining' }, hiddenUntilUnlocked: true,
+  },
   // ---- 倉庫 ----
   {
     id: 'small_warehouse', name: '小型倉庫', nameEn: 'Small Warehouse', category: 'STORAGE', icon: 'icon_commercial_warehouse', site: 'hq',

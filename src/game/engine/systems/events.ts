@@ -9,6 +9,7 @@ import type { EngineContext } from '../context';
 import { getLand, ownedLands } from '../land';
 import { isEstateUnlocked, shiftCityPrice } from './estate';
 import { getMarketState } from './market';
+import { eventDamageMult } from './synergy';
 
 export function createEmptyEventMods(): EventModifiers {
   return { landProduction: {}, transport: {}, power: 1, commercial: 1, stock: 1, transportCost: 1, marketPrice: 1, researchRate: 1, dealPrice: 1, production: 1 };
@@ -32,7 +33,10 @@ function pickTarget(ctx: EngineContext, def: EventDef): { ok: boolean; target: s
     case 'boom':
     case 'crash':
     case 'demand': {
-      const targets = marketTargets(state).filter((id) => !state.events.active.some((e) => e.target === id));
+      const only = def.targets;
+      const targets = marketTargets(state)
+        .filter((id) => !only || only.includes(id))
+        .filter((id) => !state.events.active.some((e) => e.target === id));
       if (targets.length === 0) return { ok: false, target: null };
       return { ok: true, target: choose(targets) };
     }
@@ -117,7 +121,8 @@ function applyInstant(ctx: EngineContext, def: EventDef, target: string | null):
   if (def.kind === 'tax') {
     // 収入の magnitude 秒ぶん（最低 2万円）。所持金の3割を超えないようにする
     const raw = Math.max(20_000, Math.round(Math.max(0, derived.incomePerSec) * def.magnitude));
-    const amount = Math.min(raw, Math.max(0, Math.floor(state.company.cash * 0.3)));
+    const softened = Math.round(raw * eventDamageMult(state));
+    const amount = Math.min(softened, Math.max(0, Math.floor(state.company.cash * 0.3)));
     state.company.cash -= amount;
     state.company.totalSpent += amount;
     return `${describe(def, target, state)} -${amount.toLocaleString('ja-JP')}円`;
@@ -196,9 +201,16 @@ export function runEvents(ctx: EngineContext, dt: number): void {
   if (!state.settings.events) return;
   ev.nextIn -= dt;
   if (ev.nextIn <= 0) {
-    const { minIntervalSeconds, maxIntervalSeconds } = CONFIG.events;
-    ev.nextIn = minIntervalSeconds + rng() * (maxIntervalSeconds - minIntervalSeconds);
-    if (!ctx.offline()) triggerEvent(ctx);
+    if (ctx.offline()) {
+      // 離れているあいだはイベントを起こさない。
+      // ただし次の時計を引き直すと、そのぶんのイベントが「延期」ではなく「消滅」してしまうので、
+      // 少しだけ先に置いて、戻ってきたときに起こす
+      ev.nextIn = 5;
+    } else {
+      const { minIntervalSeconds, maxIntervalSeconds } = CONFIG.events;
+      ev.nextIn = minIntervalSeconds + rng() * (maxIntervalSeconds - minIntervalSeconds);
+      triggerEvent(ctx);
+    }
   }
   ctx.derived.eventMods = computeEventMods(state);
 }
@@ -206,21 +218,27 @@ export function runEvents(ctx: EngineContext, dt: number): void {
 /** 進行中のイベントから係数を計算する */
 export function computeEventMods(state: GameState): EventModifiers {
   const mods = createEmptyEventMods();
+  // 保険・警備があると、悪いイベントの効きが弱まる
+  const soften = eventDamageMult(state);
+  /** 1 より小さい（＝損をする）倍率をやわらげる */
+  const easeDown = (m: number) => (m < 1 ? 1 - (1 - m) * soften : m);
+  /** 1 より大きい（＝費用が増える）倍率をやわらげる */
+  const easeUp = (m: number) => (m > 1 ? 1 + (m - 1) * soften : m);
   for (const a of state.events?.active ?? []) {
     if (!isEventDefId(a.defId)) continue;
     const def = EVENT_MAP[a.defId];
     switch (def.kind) {
       case 'quake':
         if (a.target) {
-          mods.landProduction[a.target] = (mods.landProduction[a.target] ?? 1) * a.magnitude;
-          for (const k of def.transport ?? []) mods.transport[`${a.target}:${k}`] = (mods.transport[`${a.target}:${k}`] ?? 1) * a.magnitude;
+          mods.landProduction[a.target] = (mods.landProduction[a.target] ?? 1) * easeDown(a.magnitude);
+          for (const k of def.transport ?? []) mods.transport[`${a.target}:${k}`] = (mods.transport[`${a.target}:${k}`] ?? 1) * easeDown(a.magnitude);
         }
         break;
       case 'storm':
-        for (const k of def.transport ?? []) mods.transport[k] = (mods.transport[k] ?? 1) * a.magnitude;
+        for (const k of def.transport ?? []) mods.transport[k] = (mods.transport[k] ?? 1) * easeDown(a.magnitude);
         break;
       case 'heatwave':
-        mods.power *= a.magnitude;
+        mods.power *= easeDown(a.magnitude);
         break;
       case 'festival':
         mods.commercial *= a.magnitude;
@@ -230,13 +248,14 @@ export function computeEventMods(state: GameState): EventModifiers {
         mods.stock *= a.magnitude;
         break;
       case 'fuel':
-        mods.transportCost *= a.magnitude;
+        mods.transportCost *= easeUp(a.magnitude);
         break;
       case 'market_wave':
         mods.marketPrice *= a.magnitude;
         break;
       case 'order_rush':
-        mods.dealPrice *= a.magnitude;
+        // 1 より小さい（発注が減る）ときは、保険・警備でやわらげる
+        mods.dealPrice *= easeDown(a.magnitude);
         break;
       case 'slowdown':
         mods.production *= a.magnitude;

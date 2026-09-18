@@ -51,7 +51,8 @@ export function CompanyPanel() {
               <Stat label="累計売上" value={formatMoney(state.company.totalEarned, mode)} tone="profit" />
               <Stat label="累計支出" value={formatMoney(state.company.totalSpent, mode)} tone="loss" />
               <Stat label="純利益（累計）" value={formatMoney(state.company.totalEarned - state.company.totalSpent, mode)} tone={state.company.totalEarned - state.company.totalSpent >= 0 ? 'profit' : 'loss'} />
-              <Stat label="土地" value={`${state.lands.length}か所`} extra={`${new Set(state.lands.map((l) => l.country)).size}か国`} />
+              {/* ホームや地図と数え方を揃える（本社は「土地」に数えない） */}
+              <Stat label="土地" value={`${Math.max(0, state.lands.length - 1)}か所`} extra={`${new Set(state.lands.filter((l) => l.id !== 'hq').map((l) => l.country)).size}か国`} />
               <Stat label="施設" value={formatNumber(facilityCount, mode)} />
               <Stat label="従業員" value={`${formatNumber(derived.employees, mode)}人`} />
               <Stat label="発電能力" value={formatMW(derived.power.capacity)} tone="power" extra={`需要 ${formatMW(derived.power.demand)}`} />

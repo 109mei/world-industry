@@ -12,6 +12,7 @@ import { useUiStore } from '@/stores/uiStore';
 import { formatAmount, formatMoney, formatNumber } from '@/utils/format';
 import { sfx } from '@/utils/sfx';
 import { FacilityCard } from './FacilityCard';
+import { FactoryOverview } from './FactoryOverview';
 import { PowerSummary } from './PowerSummary';
 
 type Filter = 'all' | FacilityCategory;
@@ -41,7 +42,8 @@ export function FactoryPage() {
   const categories = Array.from(new Set(visible.map((d) => d.category)));
   const q = query.trim().toLowerCase();
   const matches = (d: FacilityDef) => !q || d.name.toLowerCase().includes(q) || d.nameEn.toLowerCase().includes(q) || d.description.toLowerCase().includes(q) || FACILITY_CATEGORY_LABEL[d.category].includes(q);
-  const buildableNow = (d: FacilityDef) => isUnlocked(state, 'facility', d.id) && canBuildOn(d, land).ok && state.company.cash >= facilityCost(d, facilityCount(state, d.id as FacilityId, landId));
+  const buildMult = derived.modifiers.buildCost ?? 1;
+  const buildableNow = (d: FacilityDef) => isUnlocked(state, 'facility', d.id) && canBuildOn(d, land).ok && state.company.cash >= facilityCost(d, facilityCount(state, d.id as FacilityId, landId)) * buildMult;
   const rank = (d: FacilityDef) => {
     const owned = facilityCount(state, d.id as FacilityId, landId) > 0;
     const unlocked = isUnlocked(state, 'facility', d.id);
@@ -65,7 +67,7 @@ export function FactoryPage() {
   // 「全部 +1」の費用
   const plusOneCost = onLand.filter((f) => f.count > 0).reduce((a, f) => {
     const def = defs.find((d) => d.id === f.typeId);
-    return a + (def ? facilityCost(def, f.count) : 0);
+    return a + (def ? facilityCost(def, f.count) * buildMult : 0);
   }, 0);
   const plusOne = () => {
     if (engine.buyAllOnLand(landId) > 0) sfx('buy');
@@ -98,7 +100,9 @@ export function FactoryPage() {
           </div>
         )}
       </Card>
+      <FactoryOverview landId={landId} />
       <PowerSummary />
+      <div className="section-title">建てる・増やす</div>
       <Segmented
         items={[{ id: 'all' as Filter, label: 'すべて' }, ...categories.map((c) => ({ id: c as Filter, label: FACILITY_CATEGORY_LABEL[c] }))]}
         value={filter}

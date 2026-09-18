@@ -12,7 +12,9 @@ function gameMetaPlugin() {
       return html
         .replaceAll('%GAME_TITLE%', GAME_META.title)
         .replaceAll('%GAME_DESCRIPTION%', GAME_META.description)
-        .replaceAll('%THEME_COLOR%', GAME_META.themeColor);
+        .replaceAll('%THEME_COLOR%', GAME_META.themeColor)
+        .replaceAll('%SITE_URL%', GAME_META.siteUrl)
+        .replaceAll('%GAME_TAGLINE%', GAME_META.tagline);
     },
   };
 }

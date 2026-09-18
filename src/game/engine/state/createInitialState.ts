@@ -115,6 +115,9 @@ export function createInitialState(now = Date.now()): GameState {
       showTutorial: true,
       sound: true,
       volume: 0.6,
+      // BGM は既定では鳴らさない（設定から「曲を流す」で入れられる）
+      music: false,
+      musicVolume: 0.45,
       events: true,
       landView: 'map',
       factoryOnlyBuildable: false,

@@ -14,6 +14,8 @@ import type { OsmFeature } from '@/game/services/osm/overpass';
 import type { CustomProperty, GameState, LandState } from '@/types/state';
 import type { EngineContext } from '../context';
 import { creditRankDef } from './contracts';
+import { closeDivisionsOnLand } from './business';
+import { dropFacilityInvestment } from '../actions/facility';
 
 /** 用途ごとの「土地の値段の掛け率」（更地や農地は安く、街中の商業地はそのまま） */
 export const LAND_FACTOR: Record<PropertyKind, number> = {
@@ -209,6 +211,23 @@ export function customRentPerSec(state: GameState, cp: CustomProperty): number {
   return (rentable * kind.yield) / 3600;
 }
 
+/**
+ * まだ買っていない建物の「買ったら入る賃料」（円/秒）。
+ * 所有後と同じ式で出す。ここを基準価格そのままで出すと、
+ * 有名な物件ほど表示が実際の何倍にもなってしまう。
+ */
+export function quoteRentPerSec(state: GameState, quote: CustomQuote, kindId: PropertyKind): number {
+  const kind = PROPERTY_KIND[kindId];
+  if (!kind) return 0;
+  const rentable = quotePrice(state, quote) / Math.max(1, quote.prominence.mult);
+  return (rentable * kind.yield) / 3600;
+}
+
+/** まだ買っていない建物の評価額（都市の地価倍率こみ） */
+export function quotePrice(state: GameState, quote: CustomQuote): number {
+  return Math.round(quote.basePrice * multiplierOf(state, quote.cityId));
+}
+
 export function customEstateValue(state: GameState): number {
   let v = 0;
   for (const cp of customProperties(state)) v += customPrice(state, cp);
@@ -240,7 +259,8 @@ export function customLandId(osmId: string): string {
   return `osm:${osmId}`;
 }
 
-export function landCustomId(landId: string): string | null {
+export function landCustomId(landId: string | undefined | null): string | null {
+  if (typeof landId !== 'string') return null;
   return landId.startsWith('osm:') ? landId.slice(4) : null;
 }
 
@@ -334,6 +354,10 @@ export function sellCustomProperty(ctx: EngineContext, id: string): number {
   const proceeds = customSellProceeds(state, cp);
   delete state.estate.custom![id];
   const landId = customLandId(id);
+  // 先に事業をたたむ（在庫が本社に戻るので、売る前にやる）
+  closeDivisionsOnLand(ctx, landId);
+  // 施設ぶんの投資額も帳簿から外す（総資産に幽霊が残らないように）
+  dropFacilityInvestment(state, landId);
   state.lands = state.lands.filter((l) => l.id !== landId);
   state.facilities = state.facilities.filter((f) => f.landId !== landId);
   state.company.cash += proceeds;

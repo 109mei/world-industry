@@ -100,14 +100,15 @@ export function runSolvency(ctx: EngineContext, dt: number): { bankrupt: boolean
     state.company.debtSeconds = 0;
     return { bankrupt: false };
   }
-  // 借金には利息が付く
-  const interest = -state.company.cash * DEBT_INTEREST_PER_HOUR * (dt / 3600);
+  // 借金には利息が付く（自社の銀行があると利息が軽くなる）
+  const rate = DEBT_INTEREST_PER_HOUR * (derived.modifiers?.interestRate ?? 1);
+  const interest = -state.company.cash * rate * (dt / 3600);
   state.company.cash = safe(state.company.cash - interest);
   const before = state.company.debtSeconds ?? 0;
   state.company.debtSeconds = before + dt;
   // 初めて赤字になったとき、そして半分を過ぎたときに知らせる
   if (before <= 0) {
-    ctx.emit('warn', `資金がマイナスになりました。${Math.round(GRACE_SECONDS / 60)}分以内に立て直さないと倒産します（施設を売るか、資源を売って現金を作りましょう）`, { toast: true });
+    ctx.emit('warn', `資金がマイナスになりました。${Math.round(GRACE_SECONDS / 60)}分以内に立て直さないと倒産します（資源を売る、土地や物件を売る、事業の従業員を減らす）`, { toast: true });
   } else if (before < GRACE_SECONDS / 2 && state.company.debtSeconds >= GRACE_SECONDS / 2) {
     ctx.emit('warn', '赤字が続いています。このままだと倒産します', { toast: true });
   }

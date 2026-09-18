@@ -10,13 +10,17 @@ import { Stat } from '@/components/ui/Stat';
 import { ADS, AD_MAP, type AdDef, BUSINESS_MAP, SQM_PER_PARKING, awarenessLabel, brandLabel } from '@/game/data/business';
 import { PROJECT_MAP, projectsOf } from '@/game/data/projects';
 import { RESOURCE_MAP, type ResourceId } from '@/game/data/resources';
-import { claimDeposits, customersPerSec, competition, devPerSec, digPerSec, localDemand, shopCapacity, shopModel, shopStockCapacity, staffRatio, topDemand, variety, divisionProfitPerSec, divisionWage, footfall, getDivision, isProjectAvailable, parkingSpaces, retailPrice } from '@/game/engine/systems/business';
+import { claimDeposits, customersPerSec, competition, devPerSec, digPerSec, localDemand, shopCapacity, shopModel, shopStockCapacity, staffRatio, topDemand, variety, divisionBreakdown, footfall, getDivision, isProjectAvailable, parkingSpaces, retailPrice } from '@/game/engine/systems/business';
 import { getCustom, landCustomId } from '@/game/engine/systems/customEstate';
 import { referencePrice } from '@/game/engine/systems/market';
 import { bumpGame, useGame } from '@/stores/gameStore';
 import { useUiStore } from '@/stores/uiStore';
 import { formatAmount, formatDuration, formatMoney, formatMoneyRate, formatNumber, formatPercent } from '@/utils/format';
 import { sfx } from '@/utils/sfx';
+import { divisionSynergy } from '@/game/engine/systems/synergy';
+import { PACES, PACE_MAP, PHASE_MAP, PROJECT_PHASES, crewSize, qualityLabel, qualityRewardMult, type ProjectPace } from '@/game/data/projectPhases';
+import { currentPhase, phaseProgress, projectQuality, projectWork } from '@/game/engine/systems/business';
+import type { ProjectDef } from '@/game/data/projects';
 
 type Tab = 'overview' | 'work' | 'ads' | 'supply';
 
@@ -29,6 +33,7 @@ export function DivisionSheet() {
   const [tab, setTab] = useState<Tab>('overview');
   const [message, setMessage] = useState('');
   const [confirmClose, setConfirmClose] = useState(false);
+  const [pace, setPace] = useState<ProjectPace>('normal');
   if (id === null) return null;
   const div = getDivision(state, id);
   if (!div) return null;
@@ -41,8 +46,11 @@ export function DivisionSheet() {
     setMessage('');
   };
   const land = state.lands.find((l) => l.id === div.landId);
-  const profit = divisionProfitPerSec(state, div);
+  const parts = divisionBreakdown(state, div, derived.modifiers, derived.capacity);
+  const profit = parts.profit;
   const stockCap = shopStockCapacity(state, div);
+  /** まだ始めていない案件の、いまの人数と腕でのおよその出来 */
+  const forecast = (d: ProjectDef) => projectQuality(state, div, d, { projectId: d.id, work: 0, startedAt: 0, pace, phaseScores: [] });
 
   return (
     <Sheet open onClose={close} title={div.name} icon={<Icon name={def.icon} size={32} fallback={def.name.slice(0, 2)} />}>
@@ -73,8 +81,26 @@ export function DivisionSheet() {
 
       {tab === 'overview' && (
         <div className="sheet__section">
+          {(() => {
+            const syn = divisionSynergy(div);
+            if (!syn) return null;
+            return (
+              <div className="synergy__self">
+                <div className="synergy__selfhead">この事業が、会社ぜんたいに効いていること</div>
+                <div className="synergy__effects">
+                  {syn.lines.map((l) => (
+                    <span key={l.label} className="synergy__chip">
+                      {l.label} {l.text}
+                    </span>
+                  ))}
+                </div>
+                <div className="synergy__note text-sub">{syn.note}</div>
+                <div className="synergy__note text-dim">人を増やして知名度とブランドが育つほど、この効きも強くなります。</div>
+              </div>
+            );
+          })()}
           <div className="stat-grid">
-            <Stat label="従業員" value={`${formatNumber(div.staff, mode)}人`} extra={`人件費 ${formatMoneyRate(-divisionWage(state, div), mode)}`} />
+            <Stat label="従業員" value={`${formatNumber(div.staff, mode)}人`} extra={`人件費 ${formatMoneyRate(-parts.wage, mode)}`} />
             <Stat label="通算の売上" value={formatMoney(div.totalEarned, mode)} extra={`完了 ${div.completed}件`} />
             <Stat label="この場所の人通り" value={footfall(state, div.landId).toFixed(1)} extra={`競合の影響 ×${competition(state, div).toFixed(2)}`} />
             {shop ? (
@@ -89,8 +115,9 @@ export function DivisionSheet() {
           <BarChart
             label="いまの収支（円/秒）"
             data={[
-              { label: '売上', value: profit + divisionWage(state, div), tone: 'profit' },
-              { label: '人件費', value: divisionWage(state, div), tone: 'loss' },
+              { label: '売上', value: parts.revenue, tone: 'profit' },
+              { label: '人件費', value: parts.wage, tone: 'loss' },
+              ...(parts.ad > 0 ? [{ label: '広告費', value: parts.ad, tone: 'loss' as const }] : []),
             ]}
             format={(v) => formatMoney(v, mode)}
           />
@@ -274,7 +301,7 @@ export function DivisionSheet() {
         <div className="sheet__section">
           <div className="stat-grid">
             <Stat label="通算で掘った量" value={formatAmount(div.dug ?? 0, mode)} />
-            <Stat label="働いている人" value={`${formatNumber(div.staff, mode)}人`} extra={formatMoneyRate(-divisionWage(state, div), mode)} />
+            <Stat label="働いている人" value={`${formatNumber(div.staff, mode)}人`} extra={formatMoneyRate(-parts.wage, mode)} />
           </div>
           <p className="text-sub" style={{ fontSize: 12, marginTop: 6 }}>
             掘り出したものは本社の倉庫に入ります。金は精錬、宝石の原石は研磨すると、値段が一段と上がります。
@@ -290,16 +317,49 @@ export function DivisionSheet() {
             const d = PROJECT_MAP[p.projectId];
             if (!d) return null;
             const power = devPerSec(state, div, derived.modifiers.devSpeed) / Math.max(1, div.projects.length);
-            const left = Math.max(0, d.work - p.work);
+            const total = projectWork(d, p.pace ?? 'normal');
+            const left = Math.max(0, total - p.work);
+            const now = currentPhase(d, p);
+            const q = projectQuality(state, div, d, p);
+            const done = p.phaseScores ?? [];
             return (
-              <div key={p.projectId} style={{ marginBottom: 10 }}>
+              <div key={p.projectId} className="phase" style={{ marginBottom: 10 }}>
                 <div className="row row--between" style={{ fontSize: 13 }}>
-                  <span>{d.name}</span>
+                  <span>
+                    {d.name}
+                    <span className="text-dim" style={{ fontSize: 11, marginLeft: 6 }}>
+                      {PACE_MAP[p.pace ?? 'normal'].name}
+                    </span>
+                  </span>
                   <span className="text-sub num" style={{ fontSize: 11 }}>
                     {power > 0 ? `あと ${formatDuration(left / power)}` : '人がいません'}
                   </span>
                 </div>
-                <ProgressBar ratio={p.work / d.work} tone="research" />
+                <ProgressBar ratio={p.work / total} tone="research" />
+                <div className="phase__steps">
+                  {PROJECT_PHASES.map((ph, i) => {
+                    const state2 = done[i] !== undefined ? 'done' : ph.id === now ? 'now' : 'todo';
+                    return (
+                      <div key={ph.id} className={`phase__step phase__step--${state2}`}>
+                        <Icon name={ph.icon} size={20} fallback={ph.name.slice(0, 1)} />
+                        <span className="phase__stepname">{ph.name}</span>
+                        <span className="phase__stepval num">
+                          {done[i] !== undefined ? `${Math.round(done[i])}点` : ph.id === now ? `${Math.round(phaseProgress(d, p) * 100)}%` : '—'}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="phase__quality">
+                  <span className="text-sub">いまのままなら</span>
+                  <strong className={q >= 55 ? 'text-profit' : q >= 40 ? 'text-warn' : 'text-loss'}>
+                    {Math.round(q)}点・{qualityLabel(q)}
+                  </strong>
+                  <span className="text-dim">報酬 ×{qualityRewardMult(q).toFixed(2)}</span>
+                </div>
+                <div className="text-dim" style={{ fontSize: 11, marginTop: 2 }}>
+                  {PHASE_MAP[now].note}
+                </div>
                 <Button
                   size="sm"
                   variant="danger"
@@ -317,6 +377,21 @@ export function DivisionSheet() {
 
           <div className="field__label" style={{ marginTop: 8 }}>
             受けられる案件（同時に3件まで）
+          </div>
+          <div className="phase__pace">
+            <span className="text-sub" style={{ fontSize: 12 }}>
+              進め方
+            </span>
+            <Segmented
+              ariaLabel="案件の進め方"
+              items={PACES.map((x) => ({ id: x.id, label: x.name }))}
+              value={pace}
+              onChange={(v) => setPace(v as ProjectPace)}
+            />
+          </div>
+          <div className="text-dim" style={{ fontSize: 11, marginBottom: 6 }}>
+            {PACE_MAP[pace].note}（仕事量 ×{PACE_MAP[pace].workMult}・出来 {PACE_MAP[pace].quality >= 0 ? '+' : ''}
+            {PACE_MAP[pace].quality}点）
           </div>
           <div className="list" style={{ gap: 8 }}>
             {projectsOf(div.kind).map((d) => {
@@ -336,8 +411,8 @@ export function DivisionSheet() {
                     </div>
                   </div>
                   <div className="stat-grid" style={{ marginTop: 6 }}>
-                    <Stat label="着手金" value={d.startCost > 0 ? formatMoney(d.startCost, mode) : 'なし'} />
-                    <Stat label="仕事量" value={formatNumber(d.work, mode)} />
+                    <Stat label="着手金" value={d.startCost > 0 ? formatMoney(Math.ceil(d.startCost * derived.modifiers.projectCost * PACE_MAP[pace].costMult), mode) : 'なし'} />
+                    <Stat label="仕事量" value={formatNumber(Math.round(projectWork(d, pace)), mode)} extra={`人手の目安 ${crewSize(d.work)}人`} />
                     <Stat label="報酬" value={d.reward > 0 ? formatMoney(d.reward, mode) : '—'} tone="profit" />
                     <Stat label="研究" value={`+${formatNumber(d.research_points, mode)} RP`} tone="research" />
                   </div>
@@ -351,6 +426,14 @@ export function DivisionSheet() {
                       発売すると利用者から毎秒お金が入ります（運用に {d.product.upkeepStaff}人）。
                     </div>
                   )}
+                  <div className="phase__forecast text-sub">
+                    設計 → 試作 → 量産 の3工程で進みます。いまの人数と腕なら
+                    <strong className={forecast(d) >= 55 ? ' text-profit' : forecast(d) >= 40 ? ' text-warn' : ' text-loss'}>
+                      {' '}
+                      {Math.round(forecast(d))}点・{qualityLabel(forecast(d))}
+                    </strong>
+                    の見込み（報酬 ×{qualityRewardMult(forecast(d)).toFixed(2)}）
+                  </div>
                   <Button
                     size="sm"
                     block
@@ -358,7 +441,7 @@ export function DivisionSheet() {
                     disabled={!available || running}
                     style={{ marginTop: 6 }}
                     onClick={() => {
-                      const r = engine.startProject(div.id, d.id);
+                      const r = engine.startProject(div.id, d.id, pace);
                       setMessage(r.reason ?? '');
                       if (r.ok) sfx('buy');
                       bumpGame();

@@ -1,4 +1,5 @@
 import type { DerivedState, GameState } from '@/types/state';
+import { RESEARCH } from './research';
 
 export interface AchievementDef {
   id: string;
@@ -57,7 +58,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'battery_maker', name: '電池工場', description: 'バッテリーを100個作る。', icon: 'icon_material_battery', check: (s) => (s.stats.totalProduced['battery'] ?? 0) >= 100 },
   { id: 'feed_the_city', name: '食を支える', description: '加工食品を1,000個作る。', icon: 'icon_food_bread', check: (s) => (s.stats.totalProduced['food'] ?? 0) >= 1000 },
   { id: 'material_master', name: '素材マスター', description: '20種類以上の資源を手に入れる。', icon: 'icon_tool_toolbox', check: (s) => Object.keys(s.stats.totalObtained).length >= 20 },
-  { id: 'kingmaker', name: '業界を動かす', description: '自分の事業が、ある会社の株価を1割以上動かす。', icon: 'icon_ui_chart', check: (s) => Object.values(s.sales?.clients ?? {}).some((c) => c.deliveries >= 20) },
+  { id: 'kingmaker', name: '常連をつかむ', description: 'ひとつの取引先に20回納品する。', icon: 'icon_ui_chart', check: (s) => Object.values(s.sales?.clients ?? {}).some((c) => c.deliveries >= 20) },
   // ---- v1.2: 事業・お店・研究・賭け事・番付 ----
   { id: 'first_business', name: '自分の看板', description: '自分の事業を1つ始める。', icon: 'icon_commercial_shop', check: (s) => (s.business?.divisions.length ?? 0) >= 1 },
   { id: 'shopkeeper', name: '店主', description: 'お店で1,000点を売る。', icon: 'icon_commercial_supermarket', check: (s) => (s.business?.divisions ?? []).reduce((a, d) => a + (d.sold ?? 0), 0) >= 1000 },
@@ -81,7 +82,9 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   // 掘る
   { id: 'gold_finder', name: '金を掘り当てる', description: '金鉱石を初めて手に入れる。', icon: 'icon_office_coins', check: (s) => (s.stats.totalObtained['gold_ore'] ?? 0) >= 1 },
   { id: 'gold_rush', name: 'ゴールドラッシュ', description: '鉱区で大鉱脈を掘り当てる。', icon: 'icon_machine_drilling_rig', check: (s) => (s.business?.divisions ?? []).some((d) => (d.rush ?? 0) > 0 || (d.dug ?? 0) >= 50_000) },
-  { id: 'gem_cutter', name: '宝石職人', description: '宝石を10個磨き上げる。', icon: 'icon_resource_gem', check: (s) => (s.stats.totalProduced['gem'] ?? 0) >= 10 },
+  // 宝石は施設では作れず、クラフト（原石を磨く）だけで手に入る。
+  // クラフトは totalProduced に積まれないので、作った回数で判定する
+  { id: 'gem_cutter', name: '宝石職人', description: '宝石を10個磨き上げる。', icon: 'icon_resource_gem', check: (s) => (s.stats.crafted?.['cut_gem'] ?? 0) >= 10 },
   { id: 'bullion', name: '金庫の中身', description: '金を1,000個ためる。', icon: 'icon_office_coins', check: (s) => (s.inventory['gold'] ?? 0) >= 1000 },
   { id: 'oil_strike', name: '油田を当てる', description: '原油を10,000個手に入れる。', icon: 'icon_resource_crude_oil', check: (s) => (s.stats.totalObtained['crude_oil'] ?? 0) >= 10_000 },
   // 賭け事
@@ -93,7 +96,8 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   // 研究
   { id: 'researcher_10', name: '研究者', description: '研究を10件終える。', icon: 'icon_ui_research', check: (s) => Object.keys(s.research.completed).length >= 10 },
   { id: 'researcher_40', name: '技術の会社', description: '研究を40件終える。', icon: 'icon_commercial_rnd_center', check: (s) => Object.keys(s.research.completed).length >= 40 },
-  { id: 'researcher_all', name: '研究を極める', description: '研究をすべて終える。', icon: 'icon_ui_trophy', check: (s) => Object.keys(s.research.completed).length >= 94 },
+  // 件数を直書きすると研究を足したときにずれるので、データから全部そろったかを見る
+  { id: 'researcher_all', name: '研究を極める', description: '研究をすべて終える。', icon: 'icon_ui_trophy', check: (s) => RESEARCH.every((r) => s.research.completed[r.id] === true) },
   { id: 'ai_age', name: '人工知能の時代', description: '「人工知能」を研究する。', icon: 'icon_part_robot_arm', check: (s) => s.research.completed['ai'] === true },
   { id: 'fusion_age', name: '核融合', description: '「核融合」を研究する。', icon: 'icon_power_nuclear', check: (s) => s.research.completed['fusion'] === true },
   // お金と番付

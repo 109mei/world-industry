@@ -10,6 +10,7 @@ import { useGame } from '@/stores/gameStore';
 import { useUiStore } from '@/stores/uiStore';
 import { formatMoney, formatMoneyRate, formatNumber } from '@/utils/format';
 import { CompanySheet } from '@/features/estate/CompanySheet';
+import { MapOverview } from './MapOverview';
 import { OwnedPlaces } from './OwnedPlaces';
 import { PropertySheet } from '@/features/estate/PropertySheet';
 import { FeatureSheet } from '@/features/estate/FeatureSheet';
@@ -125,7 +126,13 @@ export function MapPage() {
           </p>
         </>
       )}
-      {sub === 'owned' && <OwnedPlaces />}
+      {sub === 'owned' && (
+        <>
+          <MapOverview />
+          <div className="section-title">ひとつずつ見る</div>
+          <OwnedPlaces />
+        </>
+      )}
       {sub === 'stocks' && estateUnlocked && <StockList />}
       <p className="text-dim" style={{ fontSize: 12 }}>
         建物の形と位置は OpenStreetMap（ODbL）のデータ、名前はそれをもじった架空のものです。価格は実勢を参考にしたゲーム用の値で、会社はすべて架空です。

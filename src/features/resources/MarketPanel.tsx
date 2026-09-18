@@ -17,7 +17,9 @@ export function MarketPanel() {
   return (
     <Card>
       <p className="text-sub" style={{ fontSize: 12, marginBottom: 8 }}>
-        価格は基準価格の 0.70〜1.40 倍で変動します（{Math.round(state.market.nextUpdateIn)}秒後に更新）。売るほど需要が飽和して価格が下がり、時間で回復します。相場高騰などのイベント中は価格が大きく変わります。
+        価格はふだん基準価格の 0.70〜1.40 倍で変動します（{Math.round(state.market.nextUpdateIn)}秒後に更新）。
+        <strong>GPU と暗号資産は値動きが荒く</strong>、これよりずっと広く（おおよそ 0.4〜4.8 倍まで）動きます。
+        売るほど需要が飽和して価格が下がり、時間で回復します。相場高騰などのイベント中は価格が大きく変わります。
       </p>
       <div className="table-wrap">
         <table className="table">

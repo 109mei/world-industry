@@ -150,6 +150,40 @@ export function SettingsPanel() {
       </div>
 
       <div className="field">
+        <span className="field__label">BGM</span>
+        <label className="switch">
+          <input
+            type="checkbox"
+            checked={state.settings.music !== false}
+            onChange={(e) => update({ music: e.target.checked })}
+          />
+          曲を流す
+        </label>
+        <div className="row" style={{ marginTop: 6 }}>
+          <span className="text-sub" style={{ fontSize: 12, minWidth: 40 }}>
+            音量
+          </span>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            value={Math.round((state.settings.musicVolume ?? 0.45) * 100)}
+            aria-label="BGMの音量"
+            disabled={state.settings.music === false}
+            onChange={(e) => update({ musicVolume: Number(e.target.value) / 100 })}
+            style={{ flex: 1 }}
+          />
+          <span className="num text-sub" style={{ fontSize: 12, minWidth: 36, textAlign: 'right' }}>
+            {Math.round((state.settings.musicVolume ?? 0.45) * 100)}%
+          </span>
+        </div>
+        <div className="text-dim" style={{ fontSize: 11.5, marginTop: 4, lineHeight: 1.5 }}>
+          画面に合わせて曲が変わります。いまはカジノ（賭け事）の曲が入っています。
+          ブラウザの決まりで、最初に画面を1回さわるまでは鳴りません。
+        </div>
+      </div>
+
+      <div className="field">
         <span className="field__label">ランダムイベント</span>
         <div className="text-sub" style={{ fontSize: 12 }}>
           相場の急変・災害・好景気などは常に起こります（止められません）。イベントに備えるのも経営のうちです。

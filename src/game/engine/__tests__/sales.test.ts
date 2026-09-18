@@ -231,22 +231,28 @@ describe('欲しがるもの', () => {
   });
 });
 
-describe('セーブの移行 v7 → v8', () => {
-  it('古い注文は片付き、営業の器ができる', async () => {
+/**
+ * 版をまたぐ移行処理はもう持っていない（保存先ごと作り直したため）。
+ * 代わりに「項目が欠けていても開ける」ことだけを見張る。
+ */
+describe('項目が欠けたセーブでも開ける', () => {
+  it('足りない項目は初期値で埋まり、落ちない', async () => {
     const { migrateSave } = await import('../state/migrations');
     const { GAME_META } = await import('@/game/data/meta');
-    const v7 = {
-      saveVersion: 7,
-      company: { cash: 500 },
-      lands: [],
-      contracts: { active: [{ id: 1, client: 'x', resource: 'stone', amount: 5, delivered: 0, reward: 100, credit: 5, remaining: 10, total: 20 }], nextIn: 10, nextId: 2, credit: 250 },
-    };
-    const s = migrateSave(v7);
+    const thin = { saveVersion: GAME_META.saveVersion, company: { cash: 500 }, lands: [] };
+    const s = migrateSave(thin);
     expect(s.saveVersion).toBe(GAME_META.saveVersion);
-    expect(s.contracts.active).toEqual([]);
-    expect(s.contracts.credit).toBe(250);
+    expect(s.company.cash).toBe(500);
     expect(s.sales).toBeTruthy();
     expect(s.sales?.deals).toEqual([]);
+    expect(s.contracts.active).toEqual([]);
+    expect(s.cards).toBeTruthy();
+  });
+
+  it('このコードより新しいセーブは読まない', async () => {
+    const { migrateSave } = await import('../state/migrations');
+    const { GAME_META } = await import('@/game/data/meta');
+    expect(() => migrateSave({ saveVersion: GAME_META.saveVersion + 1 })).toThrow();
   });
 });
 

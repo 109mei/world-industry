@@ -35,7 +35,7 @@ export const BULK_BUY_LIMIT: readonly number[] = [5, 15, 40, 100];
 
 export const PRESTIGE_UPGRADES: readonly PrestigeUpgradeDef[] = [
   { id: 'production', name: '生産の効率', icon: 'icon_ui_factory', perLevel: '全施設の生産 +6%', maxLevel: 20, cost: rising(1), description: 'すべての施設の生産量が上がる。' },
-  { id: 'gather', name: '手作業の腕', icon: 'icon_ui_hand', perLevel: '採集の量 +12%', maxLevel: 10, cost: rising(1), description: '手で集める量が増える。序盤が軽くなる。' },
+  { id: 'gather', name: '手作業の腕', icon: 'icon_tool_gloves', perLevel: '採集の量 +12%', maxLevel: 10, cost: rising(1), description: '手で集める量が増える。序盤が軽くなる。' },
   { id: 'craft', name: '職人の手際', icon: 'icon_ui_craft', perLevel: 'クラフトの出来高 +10%', maxLevel: 10, cost: rising(1), description: 'クラフトでできる数が増える（端数は確率で上乗せ）。' },
   { id: 'research', name: '研究の資金', icon: 'icon_ui_research', perLevel: '研究ポイント +10%', maxLevel: 10, cost: rising(1), description: '研究が早く進む。' },
   { id: 'start_cash', name: '開業資金', icon: 'icon_ui_money', perLevel: '開始時の所持金 +50万円', maxLevel: 20, cost: flat(1), description: '次の会社を始めるときの所持金が増える。' },
