@@ -163,3 +163,52 @@ describe('気になる場所の印', () => {
     expect(e.state.bookmarks!.length).toBeLessThanOrEqual(200);
   });
 });
+
+describe('転生しても、一度開いた画面は消えない', () => {
+  it('転生すると「会社」が消えて永続ポイントに触れなくなる、が起きない', () => {
+    const e = fresh();
+    // 一度でも売上が立てば「会社」が出る
+    e.debugAddCash(1);
+    e.state.company.totalEarned = 1_000;
+    e.tick(1);
+    expect(visibleHomeSubs(e.state)).toContain('company');
+
+    // 転生すると売上は0に戻る。それでも入口は残っていなければならない
+    e.state.company.totalEarned = 0;
+    e.state.prestige.count = 1;
+    e.state.prestige.points = 5;
+    e.tick(1);
+    expect(visibleHomeSubs(e.state), '転生後に「会社」が消えた（貯めたポイントに触れなくなる）').toContain('company');
+  });
+
+  it('一度開いたタブは、条件を満たさなくなっても出したまま', () => {
+    const e = fresh();
+    // 地図が開くところまで資産を積む
+    e.debugAddCash(CONFIG.landUnlockAssets + 1);
+    e.tick(1);
+    expect(visibleTabs(e.state, e.derived)).toContain('map');
+    expect(e.state.settings.seenTabs).toContain('map');
+
+    // 資産が無くなっても（転生直後がこれ）、入口は残る
+    e.state.company.cash = 0;
+    delete e.state.unlocked['system:land'];
+    e.tick(1);
+    expect(visibleTabs(e.state, e.derived), '一度開いた地図が消えた').toContain('map');
+  });
+
+  it('覚えた記録が壊れていても落ちない', () => {
+    const e = fresh();
+    (e.state.settings as unknown as Record<string, unknown>).seenTabs = ['map', 'no_such_tab'];
+    const tabs = visibleTabs(e.state, e.derived);
+    expect(tabs).toContain('map');
+    expect(tabs).not.toContain('no_such_tab');
+  });
+
+  it('並びは決まった順のまま（覚えた順に混ざらない）', () => {
+    const e = fresh();
+    e.state.settings.seenTabs = ['settings', 'map', 'home'];
+    const tabs = visibleTabs(e.state, e.derived);
+    expect(tabs.indexOf('home')).toBeLessThan(tabs.indexOf('map'));
+    expect(tabs.indexOf('map')).toBeLessThan(tabs.indexOf('settings'));
+  });
+});

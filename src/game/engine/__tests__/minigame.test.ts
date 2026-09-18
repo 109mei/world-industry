@@ -104,13 +104,7 @@ describe('ミニゲームの出来', () => {
   it('おまけは出来が良かったときだけ出る', () => {
     const def = MINIGAME_MAP.sort;
     expect(def.bonus, '廃品の仕分けにおまけが無い').toBeTruthy();
-    // 解放してから遊ぶ（鉄くずを10kg以上入手している必要がある）
-    const open = () => {
-      const e = makeEngine();
-      e.state.stats.totalObtained.scrap_metal = 100;
-      e.refreshDerived();
-      return e;
-    };
+    const open = () => makeEngine();
     const low = open().playMinigame('sort', BONUS_SCORE - 0.01);
     expect(low.ok).toBe(true);
     expect(low.bonus, 'ぎりぎり届いていないのにおまけが出た').toBeUndefined();
@@ -149,14 +143,19 @@ describe('ミニゲームの出来', () => {
     }
   });
 
-  it('解放されていない遊びは遊べない', () => {
+  it('4つとも最初から遊べる（待たせない）', () => {
     const e = makeEngine();
-    // 岩を割るは、石のつるはしを作ってから
-    expect(isMinigameUnlocked(e.state, 'dig', e.derived.assets)).toBe(false);
-    const r = e.playMinigame('dig', 1);
+    for (const g of MINIGAMES) {
+      expect(isMinigameUnlocked(e.state, g.id, e.derived.assets), `${g.name}が最初から遊べない`).toBe(true);
+      expect(e.playMinigame(g.id, 0.5).ok, `${g.name}が遊べない`).toBe(true);
+    }
+  });
+
+  it('知らない遊びは受け付けない', () => {
+    const e = makeEngine();
+    const r = e.playMinigame('no_such_game' as never, 1);
     expect(r.ok).toBe(false);
     expect(r.reason).toBeTruthy();
-    expect(skillOf(e.state, 'mining').plays).toBe(0);
   });
 });
 

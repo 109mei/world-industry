@@ -57,7 +57,7 @@ export function HomePage() {
           {state.lands.length > 1 && <Stat label="土地" value={`${state.lands.length - 1}ヵ所`} extra={derived.transportCost > 0 ? `輸送費 ${formatMoney(derived.transportCost, mode)}/秒` : undefined} />}
           {state.contracts.credit > 0 && <Stat label="信用ランク" value={derived.creditRank} tone="research" extra={`信用 ${formatNumber(state.contracts.credit, mode)}`} />}
           {state.prestige.points > 0 && (
-            <Stat label="永続ポイント" value={`${state.prestige.points}pt`} tone="research" extra={`会社の「再出発」で使えます（${state.prestige.count}回目）`} />
+            <Stat label="永続ポイント" value={`${state.prestige.points}pt`} tone="research" extra={`会社の「転生」で使えます（${state.prestige.count}回目）`} />
           )}
         </div>
       </Card>

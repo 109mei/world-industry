@@ -45,6 +45,7 @@ import { runRivals } from './systems/rivals';
 import { acquireCompany, buyShares, computeStocks, dissolveCompany, expandCompany, runStocks, sellShares, setCompanyPolicy } from './systems/stocks';
 import { runSurveys } from './systems/survey';
 import { runUnlocks } from './systems/unlocks';
+import { runSeen } from './systems/visibility';
 import type { ProjectPace } from '@/game/data/projectPhases';
 import { buyCard, claimSeries, openPack, runCards, sellCard } from './systems/cards';
 import type { CountryCode } from '@/game/data/lands';
@@ -188,6 +189,8 @@ export class GameEngine {
     runHistory(this.ctx, dt);
     this.derived.creditRank = creditRankDef(state).rank;
     runUnlocks(this.ctx);
+    // 一度でも開いた画面を覚える（転生しても消えないように）
+    runSeen(this.ctx);
     runTutorial(this.ctx);
     runAchievements(this.ctx);
     if (bankrupt) this.goBankrupt();
@@ -852,7 +855,7 @@ export class GameEngine {
     this.refreshDerived();
     runUnlocks(this.ctx);
     const gained = next.prestige.points - prevPoints;
-    this.emit('success', `会社を売却して再出発しました。永続ポイント +${gained}（合計 ${next.prestige.points}pt）。「会社」の再出発から、強化を買えます`, { toast: true });
+    this.emit('success', `会社を売却して転生しました。永続ポイント +${gained}（合計 ${next.prestige.points}pt）。次の会社の名前と本社を決めてください`, { toast: true });
     return true;
   }
 

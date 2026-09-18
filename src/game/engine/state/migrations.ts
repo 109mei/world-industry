@@ -450,6 +450,11 @@ export function fillDefaults(data: Record<string, unknown>): GameState {
       if (merged.nameChosen === undefined) merged.nameChosen = merged.hqChosen === true;
       // 使い方ガイドの既読は、壊れていても必ず文字列の配列にする
       merged.guidesSeen = Array.isArray(merged.guidesSeen) ? merged.guidesSeen.filter((g: unknown) => typeof g === 'string') : [];
+      // 一度でも開いた画面の記録。壊れていたら捨てる（次の tick で入れ直る）
+      for (const key of ['seenTabs', 'seenHomeSubs', 'seenMapSubs'] as const) {
+        const v = merged[key];
+        merged[key] = Array.isArray(v) ? v.filter((x: unknown) => typeof x === 'string') : undefined;
+      }
       merged.guidesOff = merged.guidesOff === true;
       return merged;
     })(),

@@ -42,7 +42,7 @@ export function AutomationCard() {
         <Icon name="icon_ui_settings" size={32} fallback="自動" />
         <div className="row__grow">
           <div className="card__title">自動化</div>
-          <div className="card__sub">再出発で買ったものだけ出てきます。いつでも止められます。</div>
+          <div className="card__sub">転生で買ったものだけ出てきます。いつでも止められます。</div>
         </div>
       </div>
       <div className="card__body">

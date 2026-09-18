@@ -10,8 +10,9 @@ import { formatMoney } from '@/utils/format';
  * 素材の値段をすべて現実の相場に置き換えたとき、「1個」が指す量そのものが変わった
  * （1個＝1kg／1g／1L）。同じ「鉄100」が別の量を意味してしまうので、
  * セーブはそのまま読まずに作り直している。
- * ただし遊んだぶんを消してしまうのは忍びないので、持っていたもの全部を
- * 新しい相場で数え直して、まとめて所持金にしてある。
+ * ただし遊んだぶんを消してしまうのは忍びないので、前の会社の総資産を所持金として渡す。
+ * 数え方は SaveService の carryOverValue を見ること
+ * （**いまの値段で数え直してはいけない**。一度それで150万円が150億円になった）。
  */
 export function CarryOverModal() {
   const { state } = useGame();
@@ -32,12 +33,13 @@ export function CarryOverModal() {
         同じ在庫の数字が前と違う量を意味してしまうため、会社は新しく建て直しています。
       </p>
       <div className="sheet__section" style={{ textAlign: 'center' }}>
-        <div className="field__label">前の会社で持っていたもの全部を、新しい相場で数え直した額</div>
+        <div className="field__label">前の会社の総資産</div>
         <div className="carryover__amount num text-profit" style={{ marginTop: 4 }}>
           {formatMoney(amount, mode)}
         </div>
-        <div className="text-sub" style={{ fontSize: 12, marginTop: 6 }}>
-          所持金・在庫・施設・土地を合わせた額です。まるごと開業資金として持ち越してあります。
+        <div className="text-sub" style={{ fontSize: 12, marginTop: 6, lineHeight: 1.6 }}>
+          所持金と、施設・土地・物件に払った額を合わせたものです。まるごと開業資金として持ち越してあります。
+          （在庫と道具は、古い値段が分からないので数えていません）
         </div>
       </div>
       <p className="text-sub" style={{ fontSize: 12.5, marginTop: 8, lineHeight: 1.6 }}>

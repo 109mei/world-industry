@@ -1,8 +1,5 @@
 import { CONFIG } from '@/game/data/config';
-import { FACILITY_MAP } from '@/game/data/facilities';
-import { LAND_MAP } from '@/game/data/lands';
 import { GAME_META } from '@/game/data/meta';
-import { RESOURCE_MAP } from '@/game/data/resources';
 import type { GameState } from '@/types/state';
 import { migrateSave } from '@/game/engine/state/migrations';
 import type { SaveRepository } from './SaveRepository';
@@ -49,40 +46,44 @@ function numberOf(v: unknown): number {
 }
 
 /**
- * 古いセーブの「持っていたもの全部」を、いまの相場で数え直して円にする。
+ * 古いセーブの総資産を円で数える。
  *
- * 版が変わって形が合わないので、migrateSave は通さずに手で拾う。
- * 知らない ID は黙って飛ばす（消えた資源や施設があっても止まらないように）。
- * 読めなければ 0 を返すだけで、例外は投げない。
+ * **いまの値段で数え直してはいけない。** v2.0 で素材の値段と施設の建設費を
+ * 数十〜数百倍に引き上げたので、古い持ち物を新しい値段で評価すると
+ * 総資産150万円のセーブが150億円になってしまう（実際にそうなった）。
+ *
+ * 円そのものの値打ちは変えていないので、**そのとき実際に払った額**を使う。
+ * ゲーム本体が総資産を出すときと同じで、施設と土地は
+ * 「購入に使った累計（facilityInvestment / landInvestment）」で評価する。
+ * 物件は買値がそのまま残っている。
+ *
+ * 在庫・道具・株は、古い値段の表がもう無いので数えない（多く見積もるより、
+ * 少なく見積もって渡すほうが害が小さい）。
+ *
+ * 版が変わって形が合わないので migrateSave は通さずに手で拾い、
+ * 読めなければ 0 を返すだけで例外は投げない。
  */
 export function carryOverValue(raw: unknown): number {
   const file = (raw ?? {}) as Record<string, unknown>;
   const st = (file.state && typeof file.state === 'object' ? file.state : file) as Record<string, unknown>;
   const company = (st.company ?? {}) as Record<string, unknown>;
+
   let total = numberOf(company.cash);
+  total += numberOf(company.facilityInvestment) * CONFIG.facilityValueRatio;
+  total += numberOf(company.landInvestment) * CONFIG.landValueRatio;
 
-  const inv = (st.inventory ?? {}) as Record<string, unknown>;
-  for (const [id, qty] of Object.entries(inv)) {
-    const def = (RESOURCE_MAP as Record<string, { basePrice: number } | undefined>)[id];
-    if (def) total += numberOf(qty) * def.basePrice;
+  // 物件は買値（手数料込み）がそのまま残っているので、そのまま足せる
+  const estate = (st.estate ?? {}) as Record<string, unknown>;
+  for (const key of ['owned', 'custom'] as const) {
+    const rows = (estate[key] ?? {}) as Record<string, unknown>;
+    if (!rows || typeof rows !== 'object') continue;
+    for (const row of Object.values(rows)) {
+      total += numberOf((row as Record<string, unknown>)?.boughtPrice);
+    }
   }
 
-  const facilities = Array.isArray(st.facilities) ? st.facilities : [];
-  for (const f of facilities) {
-    const row = (f ?? {}) as Record<string, unknown>;
-    const def = (FACILITY_MAP as Record<string, { baseCost: number } | undefined>)[String(row.typeId)];
-    if (def) total += def.baseCost * Math.max(0, numberOf(row.count)) * CONFIG.facilityValueRatio;
-  }
-
-  const lands = Array.isArray(st.lands) ? st.lands : [];
-  for (const l of lands) {
-    const row = (l ?? {}) as Record<string, unknown>;
-    const def = (LAND_MAP as Record<string, { price: number } | undefined>)[String(row.defId ?? row.id)];
-    if (def) total += def.price;
-  }
-
-  // 細工されたセーブに桁違いの数が入っていても、そのまま所持金にはしない
-  const CAP = 1e12;
+  // 細工されたセーブや壊れた数が入っていても、そのまま所持金にはしない
+  const CAP = 1e11;
   return Number.isFinite(total) && total > 0 ? Math.floor(Math.min(total, CAP)) : 0;
 }
 

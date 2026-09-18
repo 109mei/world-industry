@@ -4,6 +4,9 @@
  * 狙いは「序盤のやれることを増やす」こと。押すだけの採集に加えて、
  * うまくやれば手応えのある遊びを置く。
  *
+ * 4つとも最初から遊べる。手仕事は「やれることを増やす」ためのものなので、
+ * 遊べるようになるまで待たせる意味がない。
+ *
  * 報酬は2つある。
  * 1つはその場で手に入る素材で、手で拾い続けるよりだいぶ多い（遊ぶ理由になる量）。
  * もう1つが**腕**で、これは一度上がったら下がらず、終盤の施設の生産にもそのまま効き続ける。
@@ -148,7 +151,7 @@ export const MINIGAMES = [
     // 選り分けているのだから、銅は銅で出てくる
     bonus: 'copper_ore',
     bonusMax: 8,
-    unlock: { type: 'obtained', resource: 'scrap_metal', min: 10 },
+    unlock: { type: 'always' },
   },
   {
     id: 'grow',
@@ -169,7 +172,7 @@ export const MINIGAMES = [
     // よく育った株からは樹液も採れる
     bonus: 'sap',
     bonusMax: 10,
-    unlock: { type: 'obtained', resource: 'plant_fiber', min: 10 },
+    unlock: { type: 'always' },
   },
   {
     id: 'dig',
@@ -190,7 +193,7 @@ export const MINIGAMES = [
     // 鉄鉱石の層には石炭が並んで走っていることが多い
     bonus: 'coal',
     bonusMax: 60,
-    unlock: { type: 'toolCrafted', tool: 'stone_pickaxe' },
+    unlock: { type: 'always' },
   },
 ] as const satisfies readonly MinigameDef[];
 

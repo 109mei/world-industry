@@ -116,8 +116,8 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'storm_rider', name: '嵐のなかで', description: '災害を50回くぐり抜ける。', icon: 'icon_weather_storm', check: (s) => s.stats.disasters >= 50 },
   { id: 'event_veteran', name: '何が起きても', description: 'ランダムイベントを200回経験する。', icon: 'icon_ui_time', check: (s) => s.stats.eventsOccurred >= 200 },
   // 永続
-  { id: 'reborn', name: '再出発', description: '初めて会社を売って再出発する。', icon: 'icon_ui_medal', check: (s) => (s.prestige?.count ?? 0) >= 1 },
-  { id: 'reborn_10', name: '何度でも', description: '10回 再出発する。', icon: 'icon_ui_crown', check: (s) => (s.prestige?.count ?? 0) >= 10 },
+  { id: 'reborn', name: '転生', description: '初めて会社を売って転生する。', icon: 'icon_ui_medal', check: (s) => (s.prestige?.count ?? 0) >= 1 },
+  { id: 'reborn_10', name: '何度でも', description: '10回 転生する。', icon: 'icon_ui_crown', check: (s) => (s.prestige?.count ?? 0) >= 10 },
   { id: 'automated', name: 'すべて自動で', description: '自動化を6種類そろえる。', icon: 'icon_part_robot_arm', check: (s) => ['auto_gather', 'auto_craft', 'auto_deliver', 'auto_pitch', 'auto_survey', 'auto_build'].filter((k) => (s.prestige?.upgrades?.[k] ?? 0) > 0).length >= 6 },
   { id: 'bulk_buyer', name: '買い占め', description: '一括買収で物件をまとめて買う。', icon: 'icon_ui_location', check: (s) => (s.prestige?.upgrades?.bulk_buy ?? 0) > 0 && Object.keys(s.estate?.custom ?? {}).length >= 20 },
 ];

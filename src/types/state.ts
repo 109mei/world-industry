@@ -217,6 +217,15 @@ export interface ResearchState {
 export type ThemeMode = 'dark' | 'light' | 'system';
 
 export interface SettingsState {
+  /**
+   * 一度でも開いたことのある画面。
+   * 転生すると売上も研究も0に戻るので、その場かぎりの判定だけでタブを出し入れすると、
+   * 前の人生で開いていた画面がまとめて消えてしまう。ここに覚えておいて出し続ける。
+   * 設定は転生をまたいで持ち越されるので、ここに置くのがいちばん素直。
+   */
+  seenTabs?: string[];
+  seenHomeSubs?: string[];
+  seenMapSubs?: string[];
   numberFormat: NumberFormatMode;
   /** 画面の配色 */
   theme: ThemeMode;

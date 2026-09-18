@@ -57,7 +57,7 @@ export function OfflineReportModal() {
         </p>
         <p className="text-sub" style={{ fontSize: 12.5, marginTop: 8, lineHeight: 1.6 }}>
           <strong>永続ポイントと実績は残っています。</strong>
-          「会社」の再出発から強化を買えます。
+          「会社」の転生から強化を買えます。
           <br />
           赤字が続くと倒産します。人を雇いすぎたときは、資源を売るか、事業の従業員を減らして立て直してください。
         </p>

@@ -1,6 +1,7 @@
 import { Card } from '@/components/ui/Card';
 import { Segmented } from '@/components/ui/Segmented';
 import { Stat } from '@/components/ui/Stat';
+import { ACHIEVEMENTS } from '@/game/data/achievements';
 import { RESEARCH } from '@/game/data/research';
 import { canPrestige } from '@/game/engine/systems/prestige';
 import { useGame } from '@/stores/gameStore';
@@ -12,7 +13,7 @@ import { AchievementsList } from './AchievementsList';
 import { PrestigePanel } from './PrestigePanel';
 import { RichListPanel } from './RichListPanel';
 
-/** 会社情報・実績・再出発（ホームの「会社」タブの中身） */
+/** 転生・会社情報・実績（ホームの「会社」タブの中身） */
 export function CompanyPanel() {
   const { state, derived } = useGame();
   const sub = useUiStore((s) => s.companySubTab);
@@ -28,10 +29,11 @@ export function CompanyPanel() {
       </div>
       <Segmented
         items={[
+          // 転生はいちばん見つけてほしいので先頭に置く。数字は「解除できた実績の数 / 全部の数」
+          { id: 'prestige', label: '転生', badge: canPrestige(derived.assets) ? 1 : 0 },
           { id: 'info', label: '会社情報' },
-          { id: 'achievements', label: `実績 ${achievementsDone}` },
+          { id: 'achievements', label: `実績 ${achievementsDone}/${ACHIEVEMENTS.length}` },
           { id: 'rich', label: '番付' },
-          { id: 'prestige', label: '再出発', badge: canPrestige(derived.assets) ? 1 : 0 },
         ]}
         value={sub}
         onChange={setSub}
@@ -66,7 +68,7 @@ export function CompanyPanel() {
               <Stat label="壊れた道具" value={formatNumber(state.stats.toolsBroken, mode)} />
               <Stat label="信用ランク" value={derived.creditRank} tone="research" extra={`契約 達成 ${state.stats.contractsCompleted}・打ち切り ${state.stats.contractsFailed}`} />
               <Stat label="納品の売上（累計）" value={formatMoney(state.stats.contractRewards, mode)} tone="profit" />
-              <Stat label="再出発" value={`${state.prestige.count}回・${state.prestige.points}pt`} tone="research" />
+              <Stat label="転生" value={`${state.prestige.count}回・${state.prestige.points}pt`} tone="research" />
             </div>
           </Card>
           <div className="section-title">出来事の履歴</div>

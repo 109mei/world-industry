@@ -3879,3 +3879,19 @@ html[data-theme='dark'] .maplibregl-ctrl-attrib {
   border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
   font-size: 13px;
 }
+
+/* 手仕事のカードに出す「もらえるもの」 */
+.mg-card__reward {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 3px;
+  font-size: 11.5px;
+  font-weight: 700;
+  margin-top: 2px;
+}
+.mg-card__plus {
+  color: var(--text-dim);
+  font-weight: 400;
+}

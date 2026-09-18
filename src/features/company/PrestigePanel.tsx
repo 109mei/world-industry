@@ -13,7 +13,7 @@ import { useUiStore } from '@/stores/uiStore';
 import { formatMoney } from '@/utils/format';
 import { sfx } from '@/utils/sfx';
 
-/** 再出発: 会社を売却してポイントを得て、永続アップグレードに使う */
+/** 転生: 会社を売却してポイントを得て、永続アップグレードに使う */
 export function PrestigePanel() {
   const { state, derived, engine } = useGame();
   const setTab = useUiStore((s) => s.setTab);
@@ -69,15 +69,19 @@ export function PrestigePanel() {
 
   return (
     <div className="list" style={{ gap: 12 }}>
+      {/* 何をするところなのか、開いた瞬間に分かるようにする（分かりにくいと指摘があった） */}
+      <div className="section-title" style={{ marginTop: 0 }}>
+        転生 — 会社を売って、次の会社を有利に始める
+      </div>
       <Card>
         <div className="stat-grid stat-grid--4">
           <Stat label="使えるポイント" value={`${available}pt`} size="lg" tone="research" />
           <Stat label="累計ポイント" value={`${p.points}pt`} extra={`使用済み ${spent}pt`} />
-          <Stat label="再出発の回数" value={`${p.count}回`} />
+          <Stat label="転生の回数" value={`${p.count}回`} />
           <Stat label="次の開始資金" value={formatMoney(startingCash(state), mode)} />
         </div>
         <p className="text-sub" style={{ fontSize: 12, marginTop: 8 }}>
-          総資産が {formatMoney(CONFIG.prestige.minAssets, 'full')} を超えると、会社を売却して再出発できます。ポイント = √(総資産 ÷ 1億円)。ポイントは下の永続アップグレードに使い、売却しても残ります。
+          総資産が {formatMoney(CONFIG.prestige.minAssets, 'full')} を超えると、会社を売却して転生できます。ポイント = √(総資産 ÷ 1億円)。ポイントは下の永続アップグレードに使い、売却しても残ります。
           持ち越すのは実績・設定・会社名・ポイントとアップグレードだけで、資源・施設・土地・研究・不動産・株はすべて初期化されます。
         </p>
       </Card>
@@ -104,7 +108,7 @@ export function PrestigePanel() {
         <div className="btn-row" style={{ marginTop: 12 }}>
           {!confirm ? (
             <Button variant="primary" disabled={!ok} onClick={() => setConfirm(true)}>
-              会社を売却して再出発する
+              会社を売却して転生する
             </Button>
           ) : (
             <>

@@ -54,8 +54,9 @@ export function startingCash(state: GameState): number {
 }
 
 /**
- * 会社を売却して再出発する。実績・設定・会社名・再出発の記録だけを持ち越し、
+ * 会社を売却して転生する。実績・設定・永続ポイントと強化・通算の記録だけを持ち越し、
  * 資源・道具・施設・土地・研究・市場・イベント・不動産・株・自動化・注文はすべて初期化する。
+ * 会社名と本社の場所は選び直してもらう（次の会社を建てるところから始まる）。
  * 新しい状態を返す（エンジン側で差し替える）
  */
 export function buildPrestigeState(state: GameState, assets: number, now: number): GameState | null {
@@ -72,7 +73,12 @@ export function buildPrestigeState(state: GameState, assets: number, now: number
   next.prestige = prestige;
   next.achievements = { ...state.achievements };
   next.settings = { ...state.settings };
-  next.company.name = state.company.name;
+  // 転生は「会社を畳んで、次の会社を建てる」こと。
+  // 名前と本社の場所は選び直してもらう（配色と読んだガイドはそのまま）。
+  next.settings.nameChosen = false;
+  next.settings.hqChosen = false;
+  next.settings.hqLocation = null;
+  next.company.name = createInitialState(now).company.name;
   next.company.cash = 500_000 * (prestige.upgrades?.start_cash ?? 0);
   // チュートリアルは2周目以降は省略
   next.tutorial = { step: 0, completed: true };
