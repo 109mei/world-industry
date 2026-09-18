@@ -9,7 +9,8 @@ import { Stat } from '@/components/ui/Stat';
 import { FACILITY_MAP, isFacilityId } from '@/game/data/facilities';
 import { PROPERTY_KIND, PROPERTY_POPULATION, PROPERTY_TERRAIN } from '@/game/data/properties';
 import { TERRAINS } from '@/game/data/terrain';
-import { customBuyCost, customLandId, customPrice, customRentPerSec, customSellProceeds, getCustom, quoteFeature, quotePrice, quoteRentPerSec } from '@/game/engine/systems/customEstate';
+import { customBuyCost, customLandId, customPrice, customRentPerSec, customSellProceeds, getCustom, quoteAny, quotePrice, quoteRentPerSec } from '@/game/engine/systems/customEstate';
+import { isPlotId } from '@/game/data/plots';
 import { KIND_NEEDS, isClientKind, pitchCost, relationTier } from '@/game/data/clients';
 import { getClient, isSalesUnlocked, pitchCooldownLeft, wantedByKind } from '@/game/engine/systems/sales';
 import { estateFee } from '@/game/engine/systems/estate';
@@ -45,7 +46,9 @@ export function FeatureSheet() {
   const close = () => openFeature(null);
   const owned = getCustom(state, feature.id);
   const kind = PROPERTY_KIND[owned?.kind ?? feature.kind];
-  const quote = quoteFeature(feature);
+  const quote = quoteAny(feature);
+  /** 地図をタップして売り出した更地か（実在の建物ではない） */
+  const isPlot = isPlotId(feature.id);
   const cost = customBuyCost(state, quote);
   const canBuy = !owned && state.company.cash >= cost;
   const landId = customLandId(feature.id);
@@ -64,12 +67,16 @@ export function FeatureSheet() {
   const depositList = Object.entries(land?.deposits ?? {}).filter(([, d]) => (d?.total ?? 0) > 0);
   const stage = land ? nextSurveyStage(land.survey) : null;
   const surveyPrice = land && stage ? surveyCost(state, landId, land.survey, derived.modifiers.surveyCost) : 0;
+  // 区画の名前には場所がすでに入っているので、うしろにもう一度付けない
   const title = (
     <span>
-      {owned?.name ?? feature.name}{' '}
-      <span className="text-sub" style={{ fontSize: 12, fontWeight: 400 }}>
-        {quote.regionLabel}
-      </span>
+      {owned?.name ?? feature.name}
+      {!isPlot && (
+        <span className="text-sub" style={{ fontSize: 12, fontWeight: 400 }}>
+          {' '}
+          {quote.regionLabel}
+        </span>
+      )}
     </span>
   );
   return (
@@ -85,13 +92,24 @@ export function FeatureSheet() {
           />
         </div>
         <p className="card__sub">
-          実在する建物の位置と大きさ（OpenStreetMap）をもとにした物件です。名前は実在の施設をもじった架空のもので、実際の所有者・営業とは関係ありません。
+          {isPlot
+            ? 'その場所を区画として切り出した更地です。値段はまわりの実勢地価から見積もっています。買えば施設を建てられ、調べれば地下に何が眠っているかも分かります。'
+            : '実在する建物の位置と大きさ（OpenStreetMap）をもとにした物件です。名前は実在の施設をもじった架空のもので、実際の所有者・営業とは関係ありません。'}
         </p>
         <div className="stat-grid" style={{ marginTop: 8 }}>
           <Stat label={owned ? '現在の価格' : '売り出し価格'} value={formatMoney(price, mode)} size="lg" extra={formatMoney(price, 'full')} />
           <Stat label="賃料" value={formatMoneyRate(rent, mode)} tone="profit" extra={`${formatMoney(rent * 3600, mode)}/時（利回り ${formatPercent(kind.yield, 0)}/時）`} />
           <Stat label="敷地" value={areaLabel(feature.areaSqm)} extra={`${formatMoney(quote.unitPrice, mode)}/㎡`} />
-          <Stat label="延床" value={areaLabel(floorArea)} extra={`${formatNumber(feature.levels, mode)}階建て`} />
+          {isPlot ? (
+            <Stat
+              label="鉱業権"
+              value={formatMoney(quote.mineralRight ?? 0, mode)}
+              extra={(quote.mineralRight ?? 0) > 0 ? '高いほど、地下に眠るものが多い' : '地下には見込みなし'}
+              tone={(quote.mineralRight ?? 0) > 0 ? 'research' : undefined}
+            />
+          ) : (
+            <Stat label="延床" value={areaLabel(floorArea)} extra={`${formatNumber(feature.levels, mode)}階建て`} />
+          )}
           <Stat label="本社から" value={formatDistance(distanceKm(hqLocation(state), feature))} extra="運ぶ時間と運賃に効きます" />
           <Stat label="土地の分" value={formatMoney(quote.landPart, mode)} />
           <Stat label="建物の分" value={formatMoney(quote.buildingPart, mode)} />

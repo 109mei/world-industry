@@ -1,5 +1,6 @@
 import { lazy, Suspense, useState } from 'react';
 import { Button } from '@/components/ui/Button';
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { Card } from '@/components/ui/Card';
 import { Icon } from '@/components/ui/Icon';
 import { hqLocation, placeLabel } from '@/game/engine/hq';
@@ -87,6 +88,34 @@ export function HqSetupCard() {
         </div>
 
         {picking && (
+          /*
+           * 地図はあとから読み込む部分なので、電波が悪い・公開直後で古いファイル名を
+           * 取りに行った、といったときに失敗しうる。受け皿が無いと真っ白になって
+           * 本社を決められず、読み直しても同じ画面に戻って先へ進めなくなる。
+           * そのときだけ「決めずに始める」を出して、行き止まりを作らない。
+           */
+          <ErrorBoundary
+            fallback={(retry) => (
+              <div className="card" style={{ padding: 12, marginTop: 8 }}>
+                <div className="card__sub">地図を開けませんでした。通信が不安定なときに起きます。</div>
+                <div className="btn-row" style={{ marginTop: 8 }}>
+                  <Button size="sm" onClick={retry}>
+                    もう一度ためす
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => {
+                      engine.keepDefaultHq();
+                      bumpGame();
+                    }}
+                  >
+                    決めずに始める（大阪）
+                  </Button>
+                </div>
+              </div>
+            )}
+          >
           <Suspense fallback={<div className="text-sub" style={{ fontSize: 12, padding: '12px 0' }}>地図を読み込み中…</div>}>
             <HqMapPicker
               start={here ?? { lat: fallback.lat, lon: fallback.lon }}
@@ -96,6 +125,7 @@ export function HqSetupCard() {
               onCancel={() => setPicking(false)}
             />
           </Suspense>
+          </ErrorBoundary>
         )}
 
         {message && (

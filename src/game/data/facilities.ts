@@ -116,35 +116,35 @@ export const FACILITIES = [
   // ---- 採集（作業員：本社） ----
   {
     id: 'worker_stone', name: '採石作業員', nameEn: 'Quarry Worker', category: 'RESOURCE', icon: 'icon_facility_worker', site: 'hq',
-    description: '毎秒200kg。石そのものは1kg3円と安く、売っても給料でほぼ消える。クラフトや建材の材料にすると値が付く。', baseCost: 150_000, costGrowth: 1.12, isWorker: true, employees: 1,
+    description: '毎秒200kg。石そのものは1kg3円と安く、売っても給料でほぼ消える。クラフトや建材の材料にすると値が付く。', baseCost: 80_000, costGrowth: 1.12, isWorker: true, employees: 1,
     production: { outputs: { stone: 200 } }, unlock: { type: 'always' },
   },
   {
     id: 'worker_wood', name: '木材作業員', nameEn: 'Lumber Worker', category: 'RESOURCE', icon: 'icon_facility_logging', site: 'hq',
-    description: '毎秒30kg。木は1kg25円。燃料にも建材にもなり、序盤はいちばん使い道が広い。', baseCost: 290_000, costGrowth: 1.12, isWorker: true, employees: 1,
+    description: '毎秒30kg。木は1kg25円。燃料にも建材にもなり、序盤はいちばん使い道が広い。', baseCost: 150_000, costGrowth: 1.12, isWorker: true, employees: 1,
     production: { outputs: { wood: 30 } }, unlock: { type: 'always' },
   },
   {
     id: 'worker_gatherer', name: '採集作業員', nameEn: 'Gatherer', category: 'RESOURCE', icon: 'icon_facility_farm', site: 'hq',
-    description: '毎秒 水40L・砂40kg・植物繊維12kg・粘土20kg。植物繊維は1kg60円で、縄や布にすると大きく伸びる。', baseCost: 580_000, costGrowth: 1.12, isWorker: true, employees: 1,
+    description: '毎秒 水40L・砂40kg・植物繊維12kg・粘土20kg。植物繊維は1kg60円で、縄や布にすると大きく伸びる。', baseCost: 310_000, costGrowth: 1.12, isWorker: true, employees: 1,
     production: { outputs: { water: 40, sand: 40, plant_fiber: 12, clay: 20 } }, unlock: { type: 'always' },
   },
   {
     id: 'worker_scrap', name: 'スクラップ回収員', nameEn: 'Scrap Collector', category: 'RESOURCE', icon: 'icon_facility_quarry', site: 'hq',
-    description: '毎秒20kg。鉄くずは1kg45円と序盤でいちばん高い。溶かして鉄にすると95円になる。', baseCost: 420_000, costGrowth: 1.15, isWorker: true, employees: 1,
+    description: '毎秒20kg。鉄くずは1kg45円と序盤でいちばん高い。溶かして鉄にすると95円になる。', baseCost: 220_000, costGrowth: 1.15, isWorker: true, employees: 1,
     production: { outputs: { scrap_metal: 20 } }, unlock: { type: 'toolCrafted', tool: 'stone_hammer' },
   },
   {
     // 本社は「拾い集めて売る」商売。鉱石は土地の鉱山でしか出ないので、
     // 手作業のつぎの一手はこれになる。人手はいるが、回収員より桁違いに集まる。
     id: 'scrap_truck', name: '回収車', nameEn: 'Scrap Truck', category: 'RESOURCE', icon: 'icon_logistics_van', site: 'hq',
-    description: '町を回って金属くずを引き取ってくる。毎秒200kg、回収員10人ぶん。', baseCost: 7_700_000, costGrowth: 1.18, employees: 1,
+    description: '町を回って金属くずを引き取ってくる。毎秒200kg、回収員10人ぶん。', baseCost: 13_000_000, costGrowth: 1.18, employees: 1,
     production: { outputs: { scrap_metal: 200 } }, unlock: { type: 'obtained', resource: 'scrap_metal', min: 30 },
   },
   {
     // 選別して圧縮すると、同じ鉄くずでも溶かしやすくなる（＝取り分が増える）
     id: 'scrap_baler', name: 'スクラップ圧縮機', nameEn: 'Scrap Baler', category: 'RESOURCE', icon: 'icon_facility_recycling_plant', site: 'hq',
-    description: '集めた金属くずを選別して圧縮する。人手はいらない。', baseCost: 16_000_000, costGrowth: 1.2, employees: 0,
+    description: '集めた金属くずを選別して圧縮する。毎秒400kg、回収車2台ぶん。', baseCost: 26_000_000, costGrowth: 1.2, employees: 2,
     production: { outputs: { scrap_metal: 400 } }, unlock: { type: 'obtained', resource: 'scrap_metal', min: 500 },
   },
   {
@@ -170,8 +170,8 @@ export const FACILITIES = [
   },
   {
     id: 'wheat_farm', name: '小麦農園', nameEn: 'Wheat Farm', category: 'RESOURCE', icon: 'icon_facility_wheat_farm', site: 'land',
-    description: '小麦を育てる。平原で効率2倍、河川で1.5倍。砂漠や寒冷地では育ちにくい。', baseCost: 510_000_000, costGrowth: 1.15, employees: 4,
-    production: { inputs: { water: 720 }, outputs: { wheat: 2160 } }, terrainBonus: { plains: 2, river: 1.5, forest: 0.7, desert: 0.2, snow: 0.2, mountain: 0.5, city: 0.3 }, unlock: { type: 'landOwned', min: 1 },
+    description: '小麦を育てる。肥料を入れるぶん収穫が3割増える。平原で効率2倍、河川で1.5倍。砂漠や寒冷地では育ちにくい。', baseCost: 620_000_000, costGrowth: 1.15, employees: 4,
+    production: { inputs: { water: 720, fertilizer: 144 }, outputs: { wheat: 2880 } }, terrainBonus: { plains: 2, river: 1.5, forest: 0.7, desert: 0.2, snow: 0.2, mountain: 0.5, city: 0.3 }, unlock: { type: 'landOwned', min: 1 },
   },
   {
     id: 'coal_mine', name: '炭鉱', nameEn: 'Coal Mine', category: 'RESOURCE', icon: 'icon_facility_coal_mine', site: 'land',
@@ -223,7 +223,7 @@ export const FACILITIES = [
   // ---- 加工 ----
   {
     id: 'simple_smelter', name: 'スクラップ溶解炉', nameEn: 'Scrap Furnace', category: 'PROCESSING', icon: 'icon_facility_steel_mill', site: 'hq',
-    description: '拾い集めた鉄くずを溶かして鉄にする。鉄くず1.2kg＋木0.8kg → 鉄1kg、毎秒33kg。', baseCost: 620_000, costGrowth: 1.18, employees: 0,
+    description: '拾い集めた鉄くずを溶かして鉄にする。鉄くず1.2kg＋木0.8kg → 鉄1kg、毎秒33kg。', baseCost: 300_000, costGrowth: 1.18, employees: 0,
     production: { inputs: { scrap_metal: 40, wood: 26 }, outputs: { iron: 33 } }, unlock: { type: 'obtained', resource: 'scrap_metal', min: 5 },
   },
   {
@@ -300,29 +300,29 @@ export const FACILITIES = [
   // ---- 製造 ----
   {
     id: 'tool_workshop', name: '工具工房', nameEn: 'Tool Workshop', category: 'MANUFACTURING', icon: 'icon_facility_machine_factory', site: 'hq',
-    description: '鉄と木から工具を自動で作る。鉄2kg＋木1kg → 工具1個、毎秒1.4個。', baseCost: 2_100_000, costGrowth: 1.2, employees: 2,
+    description: '鉄と木から工具を自動で作る。鉄2kg＋木1kg → 工具1個、毎秒1.4個。手打ちより鉄が3分の1で済む。', baseCost: 3_500_000, costGrowth: 1.2, employees: 2,
     production: { inputs: { iron: 2.9, wood: 1.4 }, outputs: { tool: 1.4 } }, unlock: { type: 'crafted', recipe: 'craft_tool', min: 5 },
   },
   {
     id: 'parts_workshop', name: '部品工房', nameEn: 'Parts Workshop', category: 'MANUFACTURING', icon: 'icon_part_gear', site: 'hq',
-    description: '鉄から機械部品を作る。鉄3kg＋木1kg → 機械部品1個、毎秒1.4個。', baseCost: 2_200_000, costGrowth: 1.2, employees: 3,
+    description: '鉄から機械部品を作る。鉄3kg＋木1kg → 機械部品1個、毎秒1.4個。手削りより鉄が4割で済む。', baseCost: 3_700_000, costGrowth: 1.2, employees: 3,
     production: { inputs: { iron: 4.3, wood: 1.4 }, outputs: { machine_parts: 1.4 } }, unlock: { type: 'crafted', recipe: 'craft_machine_parts', min: 3 },
   },
   {
     // 鋳造所で作った鋳鉄の行き先。鉄を製鉄に回しながら部品を作りたいときに使う
     id: 'cast_parts_workshop', name: '鋳物部品工房', nameEn: 'Cast Parts Workshop', category: 'MANUFACTURING', icon: 'icon_part_gear_set', site: 'hq',
-    description: '鋳鉄2kg＋縄1kg → 機械部品1個、毎秒1.4個。鉄を使わずに済む。', baseCost: 2_000_000, costGrowth: 1.2, employees: 3,
+    description: '鋳鉄2kg＋縄1kg → 機械部品1個、毎秒1.4個。鉄を使わずに済む。', baseCost: 3_400_000, costGrowth: 1.2, employees: 3,
     production: { inputs: { cast_iron: 2.9, rope: 1.4 }, outputs: { machine_parts: 1.4 } }, unlock: { type: 'obtained', resource: 'cast_iron', min: 5 },
   },
   {
     id: 'electronics_factory', name: '電子部品工場', nameEn: 'Electronics Factory', category: 'MANUFACTURING', icon: 'icon_facility_electronics_factory', site: 'land',
-    description: '銅0.5kg＋鋼鉄0.3kg → 電子部品1個。毎秒576個。電力 5MW。', baseCost: 4_700_000_000, costGrowth: 1.2, employees: 20, powerUse: 5,
-    production: { inputs: { copper: 288, steel: 173 }, outputs: { electronics: 576 } }, unlock: { type: 'research', research: 'advanced_materials' }, hiddenUntilUnlocked: true,
+    description: '銅0.5kg＋鋼鉄0.3kg＋陶磁器0.05kg → 電子部品1個。毎秒576個。電力 5MW。', baseCost: 4_700_000_000, costGrowth: 1.2, employees: 20, powerUse: 5,
+    production: { inputs: { copper: 288, steel: 173, ceramic: 29 }, outputs: { electronics: 576 } }, unlock: { type: 'research', research: 'advanced_materials' }, hiddenUntilUnlocked: true,
   },
   {
     id: 'car_factory', name: '自動車工場', nameEn: 'Car Factory', category: 'MANUFACTURING', icon: 'icon_facility_vehicle_factory', site: 'land',
-    description: '1台に鋼鉄900kg・プラスチック300kg・ゴム100kg・ガラス100kg・電子部品400個。毎秒14.4台。電力 15MW。', baseCost: 200_000_000_000, costGrowth: 1.2, employees: 60, powerUse: 15,
-    production: { inputs: { steel: 12960, plastic: 4320, rubber: 1440, glass: 1440, electronics: 5760 }, outputs: { car: 14.4 } }, unlock: { type: 'research', research: 'automotive' }, hiddenUntilUnlocked: true,
+    description: '1台に鋼鉄900kg・アルミ150kg・プラスチック300kg・ガラス100kg・タイヤ5本・バッテリー1個・電動機1個・電子部品400個。毎秒14.4台。電力 15MW。', baseCost: 200_000_000_000, costGrowth: 1.2, employees: 60, powerUse: 15,
+    production: { inputs: { steel: 12960, aluminum: 2160, plastic: 4320, glass: 1440, tire: 72, battery: 14.4, motor: 14.4, electronics: 5760 }, outputs: { car: 14.4 } }, unlock: { type: 'research', research: 'automotive' }, hiddenUntilUnlocked: true,
   },
   {
     id: 'chip_fab', name: '半導体工場', nameEn: 'Chip Fab', category: 'MANUFACTURING', icon: 'icon_facility_semiconductor_factory', site: 'land',
@@ -331,8 +331,8 @@ export const FACILITIES = [
   },
   {
     id: 'robot_factory', name: 'ロボット工場', nameEn: 'Robot Factory', category: 'MANUFACTURING', icon: 'icon_part_robot_arm', site: 'land',
-    description: '1台に半導体20個・機械部品400個・鋼鉄800kg・電子部品400個。毎秒7.2台。電力 20MW。', baseCost: 250_000_000_000, costGrowth: 1.2, employees: 100, powerUse: 20,
-    production: { inputs: { semiconductor: 144, machine_parts: 2880, steel: 5760, electronics: 2880 }, outputs: { robot: 7.2 } }, unlock: { type: 'research', research: 'robotics' }, hiddenUntilUnlocked: true,
+    description: '1台に半導体20個・電動機6個・機械部品400個・鋼鉄800kg・電子部品400個。毎秒7.2台。電力 20MW。', baseCost: 250_000_000_000, costGrowth: 1.2, employees: 100, powerUse: 20,
+    production: { inputs: { semiconductor: 144, motor: 43.2, machine_parts: 2880, steel: 5760, electronics: 2880 }, outputs: { robot: 7.2 } }, unlock: { type: 'research', research: 'robotics' }, hiddenUntilUnlocked: true,
   },
   {
     id: 'gpu_factory', name: 'GPU工場', nameEn: 'GPU Factory', category: 'MANUFACTURING', icon: 'icon_facility_gpu_factory', site: 'land',

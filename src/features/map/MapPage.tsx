@@ -134,7 +134,26 @@ export function MapPage() {
         </>
       )}
       {active === 'marks' && <BookmarkList />}
-      {active === 'stocks' && estateUnlocked && <StockList />}
+      {/*
+        転生すると総資産が0に戻るので、一度開いた「株式」は出たままでも中身は使えない。
+        何も描かないと空白の画面に取り残されるので、戻る条件を出す。
+      */}
+      {active === 'stocks' &&
+        (estateUnlocked ? (
+          <StockList />
+        ) : (
+          <Card>
+            <div className="card__head">
+              <Icon name="icon_ui_lock" size={32} fallback="LK" />
+              <div className="row__grow">
+                <div className="card__title">不動産と株式は、まだ使えません</div>
+                <div className="card__sub">
+                  総資産が {formatMoney(CONFIG.estate.unlockAssets, 'full')} を超えると、また使えるようになります（いま {formatMoney(derived.assets, mode)}）。
+                </div>
+              </div>
+            </div>
+          </Card>
+        ))}
       <p className="text-dim" style={{ fontSize: 12 }}>
         建物の形と位置は OpenStreetMap（ODbL）のデータ、名前はそれをもじった架空のものです。価格は実勢を参考にしたゲーム用の値で、会社はすべて架空です。
       </p>

@@ -8,6 +8,7 @@ import { useUiStore } from '@/stores/uiStore';
 import { formatPercent } from '@/utils/format';
 import { formatQty, formatUnitPrice } from '@/utils/names';
 import { sfx } from '@/utils/sfx';
+import { DemandReach } from './DemandReach';
 
 /** 市場の一覧（価格・変動・所持量・売却） */
 export function MarketPanel() {
@@ -22,6 +23,9 @@ export function MarketPanel() {
         <strong>GPU と暗号資産は値動きが荒く</strong>、これよりずっと広く（おおよそ 0.4〜4.8 倍まで）動きます。
         売るほど需要が飽和して価格が下がり、時間で回復します。相場高騰などのイベント中は価格が大きく変わります。
       </p>
+      <div style={{ marginBottom: 12 }}>
+        <DemandReach />
+      </div>
       <div className="table-wrap">
         <table className="table">
           <thead>

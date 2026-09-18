@@ -8,7 +8,8 @@ import { hqLocation } from '@/game/engine/hq';
 import { COUNTRY_MAP, SHIP_MODE_MAP, type ShipMode } from '@/game/data/trade';
 import { RESOURCE_MAP, type ResourceId } from '@/game/data/resources';
 import { getLand } from '@/game/engine/land';
-import { customLandId, customPrice, getCustom, quoteFeature } from '@/game/engine/systems/customEstate';
+import { customLandId, customPrice, getCustom, plotFeatureAt, quoteAny } from '@/game/engine/systems/customEstate';
+import { cellPolygon, parsePlotId, PLOT_SIZES, PLOT_SIZE_MAP } from '@/game/data/plots';
 import { overpass, type BBox, type OsmFeature } from '@/game/services/osm/overpass';
 import { PROPERTY_KIND as KIND_DEF } from '@/game/data/properties';
 import { bumpGame, useGame } from '@/stores/gameStore';
@@ -92,7 +93,13 @@ export function RealMap() {
   const setRadiusKm = useUiStore((s) => s.setMapRadiusKm);
   const radiusFrom = useUiStore((s) => s.mapRadiusFrom);
   const setRadiusFrom = useUiStore((s) => s.setMapRadiusFrom);
+  const plotSize = useUiStore((s) => s.mapPlotSize);
+  const setPlotSize = useUiStore((s) => s.setMapPlotSize);
+  const selectedFeature = useUiStore((s) => s.selectedFeature);
   const buildingLayerRef = useRef<L.LayerGroup | null>(null);
+  const plotLayerRef = useRef<L.LayerGroup | null>(null);
+  /** 建物を押したときに、その下の地面まで拾ってしまわないための目印 */
+  const layerClickAtRef = useRef(0);
   const radiusLayerRef = useRef<L.LayerGroup | null>(null);
   const buildingRendererRef = useRef<L.Canvas | null>(null);
 
@@ -124,6 +131,17 @@ export function RealMap() {
       setView({ lat: c.lat, lon: c.lng, zoom: map.getZoom() });
     };
     map.on('moveend', syncBounds);
+    /*
+     * 何も無いところを押したら、その足もとの区画を売り出す。
+     * 建物を押したときは、その建物のほうを開きたいので少しのあいだ無視する
+     * （Leaflet は地面と重なった図形の両方に click を流すことがある）。
+     */
+    map.on('click', (ev: L.LeafletMouseEvent) => {
+      if (Date.now() - layerClickAtRef.current < 80) return;
+      const size = useUiStore.getState().mapPlotSize;
+      if (map.getZoom() < PLOT_SIZE_MAP[size].minZoom) return;
+      useUiStore.getState().openFeature(plotFeatureAt({ lat: ev.latlng.lat, lon: ev.latlng.lng }, size));
+    });
     map.on('zoomend', () => {
       setZoom(map.getZoom());
       syncBounds();
@@ -243,7 +261,8 @@ export function RealMap() {
       });
       const built = state.facilities.filter((x) => x.landId === customLandId(cp.id)).reduce((a, x) => a + x.count, 0);
       m.bindTooltip(`${cp.name}（${cp.label}）<br>所有中・${formatMoney(customPrice(state, cp), mode)}<br>施設 ${built}`, { direction: 'top', offset: [0, -12] });
-      m.on('click', () =>
+      m.on('click', () => {
+        layerClickAtRef.current = Date.now();
         openFeature({
           id: cp.id,
           kind: cp.kind,
@@ -255,8 +274,8 @@ export function RealMap() {
           areaSqm: cp.areaSqm,
           levels: cp.levels,
           polygon: [],
-        }),
-      );
+        });
+      });
       m.addTo(layer);
     }
     // 印を付けた場所（★）。どこに目を付けていたかを地図の上でも分かるようにする
@@ -278,6 +297,34 @@ export function RealMap() {
     hq.addTo(layer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [zoom, ownedKey, companyOwnedKey, holdingsKey, landsKey, builtKey, priceKey, customKeyForMarkers, hqKey, ready, state.settings.numberFormat, radiusKm, centerLat, centerLon, landSystemOpen, markKey]);
+
+  /*
+   * 区画の輪郭。
+   * ピンだけだと「どこからどこまで買ったのか」が分からないので、
+   * 持っている区画は塗り、いま選んでいる区画は点線で囲って広さを見せる。
+   */
+  const ownedPlotsKey = Object.keys(state.estate.custom ?? {}).filter((id) => parsePlotId(id)).sort().join(',');
+  const selectedPlotId = selectedFeature && parsePlotId(selectedFeature.id) ? selectedFeature.id : null;
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (!plotLayerRef.current) plotLayerRef.current = L.layerGroup().addTo(map);
+    const layer = plotLayerRef.current;
+    layer.clearLayers();
+    if (zoom < CITY_ZOOM) return;
+    const draw = (id: string, owned: boolean) => {
+      const cell = parsePlotId(id);
+      if (!cell) return;
+      L.polygon(
+        cellPolygon(cell).map((pt) => [pt.lat, pt.lon] as [number, number]),
+        owned
+          ? { color: '#8fbf6a', weight: 2, opacity: 0.95, fillColor: '#8fbf6a', fillOpacity: 0.22, interactive: false }
+          : { color: '#5EA7FF', weight: 2, opacity: 0.95, dashArray: '6 5', fillColor: '#5EA7FF', fillOpacity: 0.12, interactive: false },
+      ).addTo(layer);
+    };
+    for (const id of ownedPlotsKey ? ownedPlotsKey.split(',') : []) draw(id, true);
+    if (selectedPlotId && !ownedPlotsKey.split(',').includes(selectedPlotId)) draw(selectedPlotId, false);
+  }, [ownedPlotsKey, selectedPlotId, zoom, ready]);
 
   // --- 半径の円（絞り込んでいる範囲を目で見えるようにする） ---
   useEffect(() => {
@@ -383,7 +430,7 @@ export function RealMap() {
    * 「買える件数」が変わったときにだけ描き直す（所持金は毎秒動くので、
    * そのまま依存に入れると毎秒すべての建物を描き直すことになる）。
    */
-  const priced = useMemo(() => shownFeatures.map((f) => ({ f, price: quoteFeature(f).basePrice })), [shownFeatures]);
+  const priced = useMemo(() => shownFeatures.map((f) => ({ f, price: quoteAny(f).basePrice })), [shownFeatures]);
   const cash = state.company.cash;
   const affordCount = useMemo(() => priced.reduce((a, x) => a + (cash >= x.price ? 1 : 0), 0), [priced, cash]);
   const use3DRef = useRef(false);
@@ -463,7 +510,10 @@ export function RealMap() {
         `${owned?.name ?? f.name}<br>${owned?.label ?? f.label}・${Math.round(f.areaSqm).toLocaleString('ja-JP')}㎡<br>${stateLabel}`,
         { direction: 'top', sticky: true },
       );
-      poly.on('click', () => openFeature(f));
+      poly.on('click', () => {
+        layerClickAtRef.current = Date.now();
+        openFeature(f);
+      });
       poly.addTo(layer);
       // 持っている場所には印を置く（塗りだけだと、混んだ場所で見失う）
       if (owned) {
@@ -582,6 +632,26 @@ export function RealMap() {
             ))}
           </div>
         </div>
+        <div className="rm__radius">
+          <span className="rm__radius-label">区画を買う</span>
+          <div className="rm__radius-opts" role="group" aria-label="区画の大きさ">
+            {PLOT_SIZES.map((o) => (
+              <button
+                key={o.id}
+                className={`rm__radius-btn${plotSize === o.id ? ' rm__radius-btn--on' : ''}`}
+                title={o.hint}
+                onClick={() => {
+                  setPlotSize(o.id);
+                  // その大きさが押せるところまで寄る（押しても何も出ない、を無くす）
+                  const map = mapRef.current;
+                  if (map && map.getZoom() < o.minZoom) map.setZoom(o.minZoom);
+                }}
+              >
+                {o.name}
+              </button>
+            ))}
+          </div>
+        </div>
         <span className="text-sub" style={{ fontSize: 11 }}>
           {radiusKm != null && zoom >= BUILDING_ZOOM && hiddenByRadius > 0
             ? `${radiusFrom === 'hq' ? '本社' : '地図の中心'}から ${radiusKm}km 以内の ${shownFeatures.length}件だけ出しています（範囲の外の ${hiddenByRadius}件は隠しています）`
@@ -595,7 +665,7 @@ export function RealMap() {
                 ? 'この辺りの建物を読み込み中…'
                 : osmState === 'error'
                   ? `建物を読み込めませんでした（${osmError ?? '通信エラー'}）。少し待つか、地図を動かすと再試行します`
-                  : '建物や区画をタップすると買えます'}
+                  : `建物をタップすると買えます。何も無いところをタップすると、その足もとを${PLOT_SIZE_MAP[plotSize].name}（${PLOT_SIZE_MAP[plotSize].hint}）として買えます`}
         </span>
       </div>
       <div className="rm__stage">

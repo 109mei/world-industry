@@ -77,6 +77,7 @@ export function visibleMapSubs(state: GameState, derived: DerivedState): MapSub[
 export function runSeen(ctx: EngineContext): void {
   const { state, derived } = ctx;
   const s = state.settings;
+  if (!s) return;
   const add = (key: 'seenTabs' | 'seenHomeSubs' | 'seenMapSubs', now: string[]) => {
     const cur = s[key];
     if (!cur) {

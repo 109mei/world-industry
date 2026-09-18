@@ -75,7 +75,9 @@ export async function createRuntime(): Promise<GameRuntime> {
     /* 数えられなくても進める */
   }
   try {
-    await purgeLegacySaves(repo);
+    // 0円だったときは消さない。読み損ねただけかもしれず、消すと取り返しがつかない。
+    // 次に開いたときにもう一度機会が残る。
+    if (carriedOver > 0) await purgeLegacySaves(repo);
   } catch {
     /* 消せなくても進める */
   }

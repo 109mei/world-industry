@@ -26,7 +26,7 @@ import { buyTickets, play, runLottery, type PlayResult } from './systems/gamblin
 import { playMinigame, type MinigameResult } from './systems/minigame';
 import type { MinigameId } from '@/game/data/minigames';
 import { buyProperty, computeEstate, isEstateUnlocked, runEstate, sellProperty } from './systems/estate';
-import { buyCustomProperty, customBuyCost, quoteFeature, sellCustomProperty } from './systems/customEstate';
+import { buyCustomProperty, customBuyCost, quoteAny, sellCustomProperty } from './systems/customEstate';
 import { hasStarted, placeLabel } from './hq';
 import type { OsmFeature } from '@/game/services/osm/overpass';
 import { computeEventMods, runEvents, triggerEvent } from './systems/events';
@@ -814,7 +814,7 @@ export class GameEngine {
     let budget = this.state.company.cash * 0.5;
     const candidates = features
       .filter((f) => !this.state.estate.custom?.[f.id])
-      .map((f) => ({ f, cost: customBuyCost(this.state, quoteFeature(f)) }))
+      .map((f) => ({ f, cost: customBuyCost(this.state, quoteAny(f)) }))
       .filter((c) => c.cost <= budget)
       .sort((a, b) => a.cost - b.cost);
     let bought = 0;

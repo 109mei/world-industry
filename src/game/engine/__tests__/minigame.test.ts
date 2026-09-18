@@ -7,6 +7,7 @@
 import { describe, expect, it } from 'vitest';
 import { BONUS_SCORE, MINIGAMES, MINIGAME_MAP, SKILLS, SKILL_MAP, expFromScore, expToNext, rewardMultiplier, type SkillId } from '@/game/data/minigames';
 import { RESOURCE_MAP } from '@/game/data/resources';
+import { RECIPE_MAP } from '@/game/data/recipes';
 import { FACILITY_MAP } from '@/game/data/facilities';
 import { WAGE_PER_EMPLOYEE } from '../systems/finance';
 import { createBaseModifiers, applySkills } from '../systems/modifiers';
@@ -133,13 +134,31 @@ describe('ミニゲームの出来', () => {
     }
   });
 
-  it('それでも、手で拾い続けるよりは実入りが良い（遊ぶ意味がある）', () => {
-    // 同じ時間だけ手で拾った場合。1タップ1kg、毎秒2回、25秒ぶん
-    const byHand = 50;
+  it('のんびり叩くより実入りが良い（遊ぶほど進みが遅くなる、を防ぐ）', () => {
+    /*
+     * 比べる相手は「素材を拾う」ではなく「拾って工具にする」流れ。
+     * 遊んでいるあいだは手が止まるので、そこと釣り合わないと
+     * ミニゲームを遊んだ人ほど最初の土地が遠くなる（実際そうなっていた）。
+     */
+    const tool = RECIPE_MAP.craft_tool;
+    const smelt = RECIPE_MAP.smelt_scrap;
+    const tapsPerTool =
+      (tool.inputs!.iron! / smelt.outputs!.iron!) * (smelt.inputs!.scrap_metal! + smelt.inputs!.wood!) + tool.inputs!.wood!;
+    // 1秒に1回押す人の、1秒あたりの値打ち
+    const byHandPerSec = (tool.outputs!.tool! * RESOURCE_MAP.tool.basePrice) / tapsPerTool;
+    expect(byHandPerSec).toBeGreaterThan(0);
+
     for (const g of MINIGAMES) {
       const best = g.rewardMax * RESOURCE_MAP[g.reward].basePrice + (g.bonus && g.bonusMax ? g.bonusMax * RESOURCE_MAP[g.bonus].basePrice : 0);
-      const hand = byHand * RESOURCE_MAP[g.reward].basePrice;
-      expect(best, `${g.name}は手で拾うのと変わらない`).toBeGreaterThan(hand * 1.5);
+      const perSec = best / g.durationSec;
+      expect(perSec, `${g.name}は叩いているほうが得になってしまう`).toBeGreaterThan(byHandPerSec);
+    }
+  });
+
+  it('遊びの長さが書いてある（釣り合いを測る土台）', () => {
+    for (const g of MINIGAMES) {
+      expect(g.durationSec, `${g.name}に長さが無い`).toBeGreaterThan(0);
+      expect(g.durationSec, `${g.name}が長すぎる`).toBeLessThanOrEqual(60);
     }
   });
 

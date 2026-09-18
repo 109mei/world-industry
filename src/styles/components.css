@@ -1338,8 +1338,8 @@ textarea.input {
 }
 .rm__notice {
   position: absolute;
-  /* 右上の 3D ボタンと重ならないように空けておく */
-  left: 8px;
+  /* 右上の 3D ボタン、左上のズーム（＋／−）と重ならないように空けておく */
+  left: 52px;
   right: 56px;
   /* 下は「どこまで寄れば建物が出るか」の案内が使うので、こちらは上に出す */
   top: 8px;
@@ -3894,4 +3894,63 @@ html[data-theme='dark'] .maplibregl-ctrl-attrib {
 .mg-card__plus {
   color: var(--text-dim);
   font-weight: 400;
+}
+
+/* 新しい版が出たときのお知らせ。下のタブより上に、細く出す */
+.update-banner {
+  position: fixed;
+  left: 8px;
+  right: 8px;
+  bottom: calc(var(--nav-height, 64px) + 8px + env(safe-area-inset-bottom, 0px));
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border-radius: var(--radius-md, 10px);
+  background: var(--surface-2);
+  border: 1px solid var(--accent);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.35);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.update-banner__text {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+.update-banner__actions {
+  display: flex;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+/* ---------- 売れる量の内訳（市場） ---------- */
+.reach {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.reach__item {
+  background: var(--surface-2, rgba(127, 142, 163, 0.08));
+  border: 1px solid var(--border, rgba(127, 142, 163, 0.25));
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+.reach__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+.reach__hint {
+  font-size: 11px;
+  color: var(--text-sub);
+  margin-top: 4px;
+  line-height: 1.4;
+}
+@media (max-width: 420px) {
+  .reach {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

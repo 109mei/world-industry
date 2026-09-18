@@ -1,6 +1,7 @@
 import { CONFIG } from '@/game/data/config';
 import { EVENT_MAP, isEventDefId } from '@/game/data/events';
 import { RESOURCE_MAP, type ResourceId } from '@/game/data/resources';
+import { demandGrowthFrom, localDemandBase, type DemandSource } from '@/game/data/demand';
 import type { AutoSellConfig, GameState, MarketResourceState } from '@/types/state';
 import { clean } from '../inventory';
 import { FACILITY_MAP, isFacilityId } from '@/game/data/facilities';
@@ -61,9 +62,41 @@ export function eventDemandMultiplier(state: GameState, id: ResourceId): number 
   return mult;
 }
 
-/** 需要容量。飽和量がこの値に達すると価格が半分になる */
+/**
+ * 売り先の数え上げ。需要がどれだけ広がっているかは、ここだけで数える
+ * （画面に出す内訳と、実際に効く倍率がずれないようにするため）。
+ */
+export function demandCounts(state: GameState): Record<DemandSource['id'], number> {
+  const props = Object.values(state.estate?.custom ?? {});
+  const countries = new Set<string>();
+  for (const cp of props) if (cp?.country) countries.add(cp.country);
+  let shops = 0;
+  // f.id は「土地:種類」の通し番号なので、種類は typeId のほうを見る
+  for (const f of state.facilities ?? []) {
+    const def = f && isFacilityId(f.typeId) ? FACILITY_MAP[f.typeId] : null;
+    if (def?.category === 'COMMERCIAL') shops += f.count ?? 0;
+  }
+  let clients = 0;
+  for (const c of Object.values(state.sales?.clients ?? {})) if ((c?.relation ?? 0) > 0) clients += 1;
+  return { property: props.length, client: clients, shop: shops, country: Math.max(0, countries.size - 1) };
+}
+
+/**
+ * 需要の伸び（倍）。1 なら「本社のある町の市場だけ」。
+ * 物件・取引先・自分の店・よその国への足場が増えるほど、売れる量そのものが増える。
+ */
+export function demandGrowth(state: GameState): number {
+  return demandGrowthFrom(demandCounts(state));
+}
+
+/**
+ * 需要容量。飽和量がこの値に達すると価格が半分になる。
+ *
+ * もとになるのは「その品を作るいちばん小さい施設 25 棟ぶん」（data/demand.ts）。
+ * そこに売り先の広がりと、研究などの倍率、イベントの上下を掛ける。
+ */
 export function demandCapacity(state: GameState, id: ResourceId): number {
-  return RESOURCE_MAP[id].liquidity * CONFIG.market.demandCapacityMult * eventDemandMultiplier(state, id);
+  return localDemandBase(id) * demandGrowth(state) * eventDemandMultiplier(state, id);
 }
 
 /** 需要係数 0〜1。1 = まったく飽和していない */

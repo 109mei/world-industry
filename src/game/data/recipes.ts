@@ -39,9 +39,9 @@ export const RECIPES = [
   { id: 'blow_glass', name: 'ガラスを吹く', category: 'materials', icon: 'icon_facility_glass_factory', inputs: { sand: 4, wood: 2 }, outputs: { glass: 1 }, unlock: { type: 'obtained', resource: 'sand', min: 20 }, description: '砂4kgと木2kgからガラス1kgを作る。工場より遅いが序盤から作れる。' },
   { id: 'cast_scrap', name: '鉄くずを鋳る', category: 'materials', icon: 'icon_material_steel_plate', inputs: { scrap_metal: 2.4, wood: 0.8 }, outputs: { cast_iron: 2 }, unlock: { type: 'obtained', resource: 'scrap_metal', min: 5 }, description: '鉄くず2.4kgと木0.8kgから鋳鉄2kg。精錬より鉄くずを活かせる。' },
   // ---- 部品 ----
-  { id: 'craft_machine_parts', name: '機械部品', category: 'parts', icon: 'icon_part_gear_set', inputs: { iron: 3, wood: 1 }, outputs: { machine_parts: 1 }, unlock: { type: 'obtained', resource: 'iron', min: 20 }, description: '鉄3kgと木1kgから機械部品1個を作る。' },
+  { id: 'craft_machine_parts', name: '機械部品', category: 'parts', icon: 'icon_part_gear_set', inputs: { iron: 6, wood: 2, stone: 2 }, outputs: { machine_parts: 1 }, unlock: { type: 'obtained', resource: 'iron', min: 20 }, description: '鉄6kg・木2kg・石2kgから機械部品1個。手で削り出すので鉄を倍も無駄にする。部品工房なら鉄3kgで済む。' },
   // ---- 製品 ----
-  { id: 'craft_tool', name: '工具', category: 'products', icon: 'icon_tool_wrench', inputs: { iron: 2, wood: 1 }, outputs: { tool: 1 }, unlock: { type: 'obtained', resource: 'iron', min: 1 }, description: '鉄2kgと木1kgから工具1個を作る。市場で高く売れる。' },
+  { id: 'craft_tool', name: '工具', category: 'products', icon: 'icon_tool_wrench', inputs: { iron: 4, wood: 2 }, outputs: { tool: 1 }, unlock: { type: 'obtained', resource: 'iron', min: 1 }, description: '鉄4kgと木2kgから工具1個。手打ちなので鉄が倍要る。工具工房なら鉄2kgで作れる。' },
   // ---- v1.0 追加 ----
   { id: 'make_charcoal', name: '木炭を焼く', category: 'materials', icon: 'icon_resource_coal', inputs: { wood: 3 }, outputs: { charcoal: 2 }, unlock: { type: 'obtained', resource: 'wood', min: 20 }, description: '木3kgから木炭2kg。石炭の代わりの燃料になる。' },
   { id: 'saw_lumber', name: '板材に挽く', category: 'materials', icon: 'icon_material_plywood', inputs: { wood: 2 }, outputs: { lumber: 3 }, unlock: { type: 'obtained', resource: 'wood', min: 10 }, description: '木2kgから板材3kg。家具や建材のもと。' },

@@ -7,7 +7,7 @@ import { FACILITY_MAP, facilityBulkCost } from '@/game/data/facilities';
 import { LANDS } from '@/game/data/lands';
 import { RESOURCE_MAP, type ResourceId } from '@/game/data/resources';
 import { getLand } from '../land';
-import { currentPrice, demandFactor, getMarketState, referencePrice, sellRevenue } from '../systems/market';
+import { currentPrice, demandFactor, getMarketState, referencePrice, sellRevenue, demandCapacity } from '../systems/market';
 import { migrateSave } from '../state/migrations';
 
 function seeded(seed = 11): () => number {
@@ -47,10 +47,10 @@ describe('市場の需要曲線', () => {
   it('大量に売ると需要が飽和して価格が下がり、時間で回復する', () => {
     const e = makeEngine();
     e.state.unlocked['facility:large_warehouse'] = true;
-    // 需要容量ぶん（工具 288万個）を一度に抱えるには、大型倉庫（+3,000t）が要る。1棟16億円
+    // 需要容量ぶんを一度に抱えるには倉庫が要る。1棟16億円
     e.debugAddCash(facilityBulkCost(FACILITY_MAP.large_warehouse, 0, 1) + 10_000_000);
     expect(e.buyFacility('large_warehouse', 1)).toBe(1);
-    const cap = RESOURCE_MAP.tool.liquidity * CONFIG.market.demandCapacityMult;
+    const cap = demandCapacity(e.state, 'tool');
     e.debugAddResource('tool', cap);
     expect(e.state.inventory.tool).toBe(cap); // 倉庫に全部入っている
     const ref = referencePrice(e.state, 'tool');
@@ -178,7 +178,7 @@ describe('巨大産業', () => {
      * 石炭は火力発電の燃料とシリコン精製の両方に要るので、切らすと連鎖が止まる。
      */
     const stock = e.state.lands.find((l) => l.id === 'jp_hokkaido')!.stock;
-    for (const id of ['coal', 'sand', 'copper', 'water', 'machine_parts', 'steel', 'electronics'] as const) {
+    for (const id of ['coal', 'sand', 'copper', 'water', 'machine_parts', 'steel', 'electronics', 'motor', 'ceramic'] as const) {
       stock[id] = 400_000;
     }
     e.advance(10);

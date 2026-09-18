@@ -24,7 +24,7 @@ export interface GatherActionDef {
 }
 
 export const GATHER_ACTIONS = [
-  { id: 'gather_stone', resource: 'stone', label: '石を拾う', baseAmount: 1, tools: [], requiresTool: false, unlock: { type: 'always' }, hint: '' },
+  { id: 'gather_stone', resource: 'stone', label: '石を拾う', baseAmount: 1, tools: ['steel_pickaxe', 'iron_pickaxe', 'stone_pickaxe'], requiresTool: false, unlock: { type: 'always' }, hint: 'つるはしがあると2〜4倍' },
   { id: 'gather_wood', resource: 'wood', label: '木を集める', baseAmount: 1, tools: ['stone_axe'], requiresTool: false, unlock: { type: 'always' }, hint: '石の斧があると3倍' },
   { id: 'gather_water', resource: 'water', label: '水を汲む', baseAmount: 1, tools: ['bucket'], requiresTool: false, unlock: { type: 'always' }, hint: 'バケツがあると5倍' },
   { id: 'gather_sand', resource: 'sand', label: '砂を集める', baseAmount: 1, tools: ['shovel'], requiresTool: false, unlock: { type: 'always' }, hint: 'シャベルがあると3倍' },
@@ -34,7 +34,7 @@ export const GATHER_ACTIONS = [
   { id: 'gather_sap', resource: 'sap', label: '樹液を採る', baseAmount: 1, tools: ['stone_axe'], requiresTool: false, unlock: { type: 'obtained', resource: 'wood', min: 8 }, hint: '石の斧があると3倍' },
   { id: 'gather_iron_ore', resource: 'iron_ore', label: '鉄鉱石を掘る', baseAmount: 2, tools: ['steel_pickaxe', 'iron_pickaxe', 'stone_pickaxe'], requiresTool: true, unlock: { type: 'toolCrafted', tool: 'stone_pickaxe' }, hint: 'つるはしが必要' },
   { id: 'gather_gold', resource: 'gold_ore', label: '砂金を探す', baseAmount: 0.01, tools: ['shovel'], requiresTool: true, unlock: { type: 'research', research: 'gold_rush' }, hint: 'シャベルが必要。めったに見つからない' },
-  { id: 'gather_limestone', resource: 'limestone', label: '石灰石を割る', baseAmount: 1, tools: ['steel_pickaxe', 'iron_pickaxe', 'stone_pickaxe'], requiresTool: true, unlock: { type: 'obtained', resource: 'stone', min: 10 }, hint: 'つるはしが必要。セメントのもと' },
+  { id: 'gather_limestone', resource: 'limestone', label: '石灰石を割る', baseAmount: 1, tools: ['steel_pickaxe', 'iron_pickaxe', 'stone_pickaxe'], requiresTool: true, unlock: { type: 'obtained', resource: 'stone', min: 10 }, hint: 'つるはしが必要。良いつるはしほど多く採れる' },
 ] as const satisfies readonly GatherActionDef[];
 
 export type GatherActionId = (typeof GATHER_ACTIONS)[number]['id'];

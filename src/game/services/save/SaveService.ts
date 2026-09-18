@@ -82,8 +82,10 @@ export function carryOverValue(raw: unknown): number {
     }
   }
 
-  // 細工されたセーブや壊れた数が入っていても、そのまま所持金にはしない
-  const CAP = 1e11;
+  // 細工されたセーブや壊れた数が入っていても、そのまま所持金にはしない。
+  // 上限は転生できる総資産（10億円）に合わせる。ここより上を渡すと、
+  // 始めた瞬間に不動産も株も転生も開いてしまい、遊ぶところが無くなる。
+  const CAP = 1e9;
   return Number.isFinite(total) && total > 0 ? Math.floor(Math.min(total, CAP)) : 0;
 }
 

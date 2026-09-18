@@ -153,11 +153,15 @@ describe('鉱脈と現地在庫', () => {
     const e = withLand();
     e.buyFacility('wheat_farm', 1, 'jp_hokkaido');
     const land = getLand(e.state, 'jp_hokkaido')!;
-    land.stock.water = 1000;
-    // 小麦 2,160kg/秒・水 720L/秒。置いた水 1,000L で足りる範囲の 0.1秒ぶんで見る
+    // 投入と産出はデータから読む（配合を変えてもここが追随するように）
+    const farm = FACILITY_MAP.wheat_farm.production!;
+    const water0 = 1000;
+    land.stock.water = water0;
+    land.stock.fertilizer = 1000;
+    // 足りる範囲の 0.1秒ぶんで見る。十勝は平原なので効率2倍
     e.tick(0.1);
-    expect(land.stock.wheat).toBeCloseTo(432, 5); // 2,160 × 2（平原）× 0.1秒
-    expect(land.stock.water).toBeCloseTo(856, 5); // 1000 − 720 × 2 × 0.1秒
+    expect(land.stock.wheat).toBeCloseTo(farm.outputs!.wheat! * 2 * 0.1, 5);
+    expect(land.stock.water).toBeCloseTo(water0 - farm.inputs!.water! * 2 * 0.1, 5);
   });
 });
 

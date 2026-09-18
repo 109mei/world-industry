@@ -1,4 +1,5 @@
 import type { OsmFeature } from '@/game/services/osm/overpass';
+import type { PlotSizeId } from '@/game/data/plots';
 import { create } from 'zustand';
 import type { RecipeCategory } from '@/game/data/recipes';
 import type { ResourceId } from '@/game/data/resources';
@@ -77,6 +78,9 @@ interface UiStore {
   setEstateFilter: (f: 'all' | 'owned' | 'affordable') => void;
   /** 地図で「本社から半径○km」だけを出す絞り込み（null＝制限なし） */
   mapRadiusKm: number | null;
+  /** 地図をタップして買う「区画」の大きさ */
+  mapPlotSize: PlotSizeId;
+  setMapPlotSize: (v: PlotSizeId) => void;
   setMapRadiusKm: (km: number | null) => void;
   /** 半径を測る中心（本社から／いま見ている地図の中心から） */
   mapRadiusFrom: 'hq' | 'view';
@@ -139,6 +143,8 @@ export const useUiStore = create<UiStore>((set) => ({
   estateFilter: 'all',
   setEstateFilter: (estateFilter) => set({ estateFilter }),
   mapRadiusKm: null,
+  mapPlotSize: 'medium',
+  setMapPlotSize: (mapPlotSize) => set({ mapPlotSize }),
   setMapRadiusKm: (mapRadiusKm) => set({ mapRadiusKm }),
   mapRadiusFrom: 'hq',
   setMapRadiusFrom: (mapRadiusFrom) => set({ mapRadiusFrom }),

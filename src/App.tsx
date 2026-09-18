@@ -10,6 +10,7 @@ import { FactoryPage } from '@/features/factory/FactoryPage';
 import { HomePage } from '@/features/home/HomePage';
 import { TutorialCard } from '@/features/home/TutorialCard';
 import { GuideModal } from '@/features/guide/GuideModal';
+import { UpdateBanner } from '@/features/settings/UpdateBanner';
 import { CarryOverModal } from '@/features/offline/CarryOverModal';
 import { OfflineReportModal } from '@/features/offline/OfflineReportModal';
 import { MapPage } from '@/features/map/MapPage';
@@ -57,7 +58,8 @@ export function App() {
    * 出していない画面を開いたままにしておくと（解放条件が下がったときなど）
    * 中身の無い画面に取り残されるので、そのときはホームに戻す。
    */
-  const tabs = visibleTabs(state, derived);
+  // 最初に決めることが終わるまでは、押しても中身が変わらないタブを並べない
+  const tabs = onboarding ? (['home'] as const).slice() : visibleTabs(state, derived);
   const activeTab = tabs.includes(tab) ? tab : 'home';
   const Page = onboarding ? PAGES.home : PAGES[activeTab];
   const stopped = Object.values(derived.facilityRuntime).some((r) => r.status === 'no_input' || r.status === 'storage_full' || r.status === 'no_power' || r.status === 'depleted');
@@ -81,6 +83,7 @@ export function App() {
       </div>
       <BottomNav attention={attention} tabs={tabs} />
       <ResourceDetailSheet />
+      <UpdateBanner />
       <CarryOverModal />
       <OfflineReportModal />
       <GuideModal />

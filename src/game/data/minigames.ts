@@ -12,9 +12,12 @@
  * もう1つが**腕**で、これは一度上がったら下がらず、終盤の施設の生産にもそのまま効き続ける。
  * 腕が上がると手に入る素材も増えるので、鍛えるほど1回の実入りも良くなる。
  *
- * それでも施設の生産には遠く及ばない量にしてある（工具工房1棟＝毎分14万円に対し、
- * 廃品の仕分け1回＝約5,700円）。序盤の後押しにはなるが、
- * 延々と回すのが最適解にはならない、という位置に置いている。
+ * 量は「秒あたり」で釣り合いを取ってある。少ないと、遊んでいるあいだ手が止まるぶん
+ * 手で拾って工具にするより損になり、遊ぶほど進みが遅くなる（実際そうなっていた）。
+ * いまはどれも、のんびり叩くより少し得になる高さにしてある。
+ *
+ * それでも施設の生産には遠く及ばない（工具工房1棟＝毎分14万円）。
+ * 序盤の後押しにはなるが、延々と回すのが最適解にはならない、という位置。
  */
 import type { ResourceId } from './resources';
 import type { UnlockCondition } from './unlockTypes';
@@ -104,6 +107,12 @@ export interface MinigameDef {
   reward: ResourceId;
   /** 満点・腕が Lv.0 のときに手に入る量（kg）。腕が上がるとここから増える */
   rewardMax: number;
+  /**
+   * 1回にかかるおよその秒数（開け閉めも含む）。
+   * 「遊ぶくらいなら手で拾ったほうが得」にならないよう、
+   * 秒あたりの実入りを見張るのに使う（minigame.test.ts）。
+   */
+  durationSec: number;
   /** 出来が良かったとき（BONUS_SCORE 以上）だけ出る、別のもの。無い遊びもある */
   bonus?: ResourceId;
   /** その最大量 */
@@ -127,9 +136,10 @@ export const MINIGAMES = [
     ],
     scoring: '帯の外なら0点。中に入れば、真ん中に近いほど1点に近づきます。',
     reward: 'wood',
-    rewardMax: 80,
+    rewardMax: 250,
     bonus: 'stone',
-    bonusMax: 40,
+    bonusMax: 100,
+    durationSec: 13,
     unlock: { type: 'always' },
   },
   {
@@ -147,10 +157,11 @@ export const MINIGAMES = [
     ],
     scoring: '12個のうち、正しく分けられた割合がそのまま出来になります。',
     reward: 'scrap_metal',
-    rewardMax: 100,
+    rewardMax: 200,
+    durationSec: 20,
     // 選り分けているのだから、銅は銅で出てくる
     bonus: 'copper_ore',
-    bonusMax: 8,
+    bonusMax: 16,
     unlock: { type: 'always' },
   },
   {
@@ -168,10 +179,11 @@ export const MINIGAMES = [
     ],
     scoring: '20秒のうち、帯の中に収まっていた時間の割合が出来になります。',
     reward: 'plant_fiber',
-    rewardMax: 80,
+    rewardMax: 200,
+    durationSec: 23,
     // よく育った株からは樹液も採れる
     bonus: 'sap',
-    bonusMax: 10,
+    bonusMax: 25,
     unlock: { type: 'always' },
   },
   {
@@ -189,10 +201,11 @@ export const MINIGAMES = [
     ],
     scoring: '10回のうち、割れた回数の割合が出来になります。',
     reward: 'iron_ore',
-    rewardMax: 150,
+    rewardMax: 300,
+    durationSec: 10,
     // 鉄鉱石の層には石炭が並んで走っていることが多い
     bonus: 'coal',
-    bonusMax: 60,
+    bonusMax: 120,
     unlock: { type: 'always' },
   },
 ] as const satisfies readonly MinigameDef[];

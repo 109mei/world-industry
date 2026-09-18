@@ -9,6 +9,9 @@ import { estimateLandValue } from '@/game/data/landValue';
 import { COUNTRY_NAME } from '@/game/data/lands';
 import { PROPERTY_KIND, PROPERTY_POPULATION, PROPERTY_TERRAIN, type PropertyKind } from '@/game/data/properties';
 import { depositsFor, terrainFromTags } from './geology';
+import { cellAreaSqm, cellCenter, cellPolygon, cellsOverlap, isPlotId, parsePlotId, plotId, plotName, PLOT_SIZE_MAP, type PlotCell, type PlotSizeId } from '@/game/data/plots';
+import { RESOURCE_MAP, type ResourceId } from '@/game/data/resources';
+import type { LatLon } from '@/utils/geo';
 import type { TerrainId } from '@/game/data/terrain';
 import type { OsmFeature } from '@/game/services/osm/overpass';
 import type { CustomProperty, GameState, LandState } from '@/types/state';
@@ -134,6 +137,8 @@ export function prominenceOf(f: Pick<OsmFeature, 'areaSqm' | 'levels' | 'kind'> 
 export interface CustomQuote {
   /** 地価倍率を掛ける前の評価額（円） */
   basePrice: number;
+  /** 鉱業権の分（円）。区画だけに付く。地下に眠るものの市場価値のおよそ1% */
+  mineralRight?: number;
   /** 土地の単価（円/㎡） */
   unitPrice: number;
   /** 土地の分（円） */
@@ -314,7 +319,16 @@ export function buyCustomProperty(ctx: EngineContext, f: OsmFeature): boolean {
   const { state } = ctx;
   if (!state.estate.custom) state.estate.custom = {};
   if (state.estate.custom[f.id]) return false;
-  const quote = quoteFeature(f);
+  // 区画は、すでに持っている区画と重ならないときだけ買える（鉱脈の二重取りを止める）
+  const cell = parsePlotId(f.id);
+  if (cell) {
+    const clash = overlappingPlot(state, cell);
+    if (clash) {
+      ctx.emit('warn', `そこは「${clash.name}」と重なっています`, { toast: true });
+      return false;
+    }
+  }
+  const quote = quoteAny(f);
   const cost = customBuyCost(state, quote);
   if (state.company.cash + 1e-9 < cost) return false;
   state.company.cash -= cost;
@@ -372,4 +386,91 @@ export function sellCustomProperty(ctx: EngineContext, id: string): number {
 /** 表示用: 近くの都市名 */
 export function customCityName(cp: CustomProperty): string {
   return isCityId(cp.cityId) ? CITY_MAP[cp.cityId].name : cp.regionLabel;
+}
+
+
+// ---------------------------------------------------------------------------
+// 地図のどこでも買える「区画」
+// ---------------------------------------------------------------------------
+
+/**
+ * 区画を、買う仕組みがそのまま使える形（OSM の建物と同じ形）に仕立てる。
+ *
+ * タグが無いので用途は「更地」。地形はその場所の緯度と街からの距離で決める。
+ * 名前は座標から作るので、同じマスならいつ見ても同じ名前になる。
+ */
+export function plotFeatureAt(at: LatLon, size: PlotSizeId): OsmFeature {
+  return plotFeatureOf(cellAt2(at, size));
+}
+
+function cellAt2(at: LatLon, size: PlotSizeId): PlotCell {
+  const { deg } = PLOT_SIZE_MAP[size];
+  return { size, row: Math.floor(at.lat / deg), col: Math.floor(at.lon / deg) };
+}
+
+export function plotFeatureOf(cell: PlotCell): OsmFeature {
+  const c = cellCenter(cell);
+  const v = estimateLandValue(c);
+  const near = v.distanceKm < 3 ? v.nearestCityName : `${v.nearestCityName}から${Math.round(v.distanceKm)}km`;
+  return {
+    id: plotId(cell),
+    kind: 'land',
+    label: PLOT_SIZE_MAP[cell.size].name,
+    name: plotName(cell, near),
+    named: false,
+    lat: c.lat,
+    lon: c.lon,
+    areaSqm: cellAreaSqm(cell),
+    levels: 0,
+    polygon: cellPolygon(cell),
+    tags: {},
+  };
+}
+
+/** 区画の地形（更地なのでタグは無く、緯度と街からの距離だけで決まる） */
+export function plotTerrain(f: Pick<OsmFeature, 'lat' | 'lon'>): TerrainId {
+  return terrainFromTags({}, 'land', f.lat, estimateLandValue({ lat: f.lat, lon: f.lon }).distanceKm);
+}
+
+/**
+ * 地下に眠るものの値打ち（円）。
+ * 決め打ちの土地（data/lands.ts）と同じ考え方で、その1%を鉱業権として値段に乗せる。
+ * これが無いと、安い山林を大きく買うだけで鉱脈がただで付いてくる。
+ */
+export const MINERAL_RIGHT_RATIO = 0.01;
+
+export function mineralRightOf(f: Pick<OsmFeature, 'lat' | 'lon' | 'areaSqm'>): number {
+  const terrain = plotTerrain(f);
+  const deposits = depositsFor(f.lat, f.lon, f.areaSqm, terrain);
+  let value = 0;
+  for (const [rid, d] of Object.entries(deposits) as [ResourceId, { total: number } | undefined][]) {
+    if (!d) continue;
+    value += d.total * (RESOURCE_MAP[rid]?.basePrice ?? 0);
+  }
+  return Math.round(value * MINERAL_RIGHT_RATIO);
+}
+
+/** 区画の評価額。更地としての地価に、鉱業権を足す */
+export function quotePlot(f: Pick<OsmFeature, 'kind' | 'areaSqm' | 'levels' | 'lat' | 'lon'>): CustomQuote {
+  const base = quoteFeature(f);
+  const mineralRight = mineralRightOf(f);
+  return { ...base, mineralRight, basePrice: base.basePrice + mineralRight };
+}
+
+/** 建物でも区画でも、同じ呼び方で値段を出す */
+export function quoteAny(f: Pick<OsmFeature, 'id' | 'kind' | 'areaSqm' | 'levels' | 'lat' | 'lon'> & { named?: boolean; tags?: OsmFeature['tags'] }): CustomQuote {
+  return isPlotId(f.id) ? quotePlot(f) : quoteFeature(f);
+}
+
+/**
+ * すでに持っている区画と重なるか。
+ * 大きい区画を買ってから、その中の小さい区画をもう一度買う——という
+ * 二重取り（鉱脈も二重にもらえる）を止める。
+ */
+export function overlappingPlot(state: GameState, cell: PlotCell): CustomProperty | null {
+  for (const cp of customProperties(state)) {
+    const other = parsePlotId(cp?.id ?? '');
+    if (other && cellsOverlap(cell, other)) return cp;
+  }
+  return null;
 }

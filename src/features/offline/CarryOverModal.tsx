@@ -33,7 +33,7 @@ export function CarryOverModal() {
         同じ在庫の数字が前と違う量を意味してしまうため、会社は新しく建て直しています。
       </p>
       <div className="sheet__section" style={{ textAlign: 'center' }}>
-        <div className="field__label">前の会社の総資産</div>
+        <div className="field__label">前の会社に払った額の合計</div>
         <div className="carryover__amount num text-profit" style={{ marginTop: 4 }}>
           {formatMoney(amount, mode)}
         </div>

@@ -78,7 +78,6 @@ export function buildPrestigeState(state: GameState, assets: number, now: number
   next.settings.nameChosen = false;
   next.settings.hqChosen = false;
   next.settings.hqLocation = null;
-  next.company.name = createInitialState(now).company.name;
   next.company.cash = 500_000 * (prestige.upgrades?.start_cash ?? 0);
   // チュートリアルは2周目以降は省略
   next.tutorial = { step: 0, completed: true };
