@@ -19,12 +19,15 @@ import { HighlightsCard } from './HighlightsCard';
 import { TrendCard } from './TrendCard';
 import { KeyResources } from './KeyResources';
 import { NextGoals } from './NextGoals';
+import { ThemeSetupCard } from './ThemeSetupCard';
 import { TutorialCard } from './TutorialCard';
 
 /** ホーム。資源と会社もこの中にまとめている */
 export function HomePage() {
   const { state, derived } = useGame();
   const sub = useUiStore((s) => s.homeSubTab);
+  // 最初に決めること（配色と本社）が終わるまでは、ゲーム本体を出さない
+  const ready = state.settings.themeChosen === true && state.settings.hqChosen === true;
   const setSub = useUiStore((s) => s.setHomeSubTab);
   const mode = state.settings.numberFormat;
   return (
@@ -47,7 +50,7 @@ export function HomePage() {
         </div>
       </Card>
 
-      {state.settings.hqChosen && (
+      {ready && (
       <Segmented
         ariaLabel="ホームの切替"
         items={[
@@ -64,9 +67,11 @@ export function HomePage() {
 
       <DebtWarning />
 
-      {!state.settings.hqChosen && <HqSetupCard />}
+      {/* 最初に決めることは1つずつ出す（色 → 本社）。決まるまでは先に進めない */}
+      {!state.settings.themeChosen && <ThemeSetupCard />}
+      {state.settings.themeChosen && !state.settings.hqChosen && <HqSetupCard />}
 
-      {state.settings.hqChosen && (
+      {ready && (
       <>
       {/* 案内は、ホームのどのタブにいても出す（誘導先へ行ったとたんに消えないように） */}
       <TutorialCard />

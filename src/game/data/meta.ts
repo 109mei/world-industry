@@ -5,7 +5,7 @@ export const GAME_META = {
   description: '石を拾うところから始めて、世界規模の産業企業を築く経営シミュレーション',
   themeColor: '#0E1116',
   /** アプリのバージョン（表示用） */
-  version: '1.5.0',
+  version: '1.5.1',
   /** 公開先。SNS に貼ったときのサムネイルの場所を絶対URLで書くのに使う */
   siteUrl: 'https://109mei.github.io/world-industry/',
   /** SNS に貼ったときの見出しと説明 */

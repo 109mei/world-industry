@@ -235,6 +235,8 @@ export interface SettingsState {
   hqLocation?: { lat: number; lon: number; label: string } | null;
   /** 本社の場所を決めたか（最初に1回だけ決められる） */
   hqChosen?: boolean;
+  /** 配色（暗い／明るい）を最初に選んだか。選ぶまで先に進めない */
+  themeChosen?: boolean;
   /** 施設一覧で「今建てられるものだけ」を表示する */
   factoryOnlyBuildable: boolean;
   /** クラフト一覧で「作れるものだけ」を表示する */

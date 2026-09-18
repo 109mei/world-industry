@@ -35,7 +35,12 @@
   --rar-ar: #E9B949;
   --rar-sar: #FB923C;
   --rar-ur: #F472B6;
-  --rar-lr: #FFD75E;
+  --rar-lr: #FDF0C4;
+
+  /* 画面の切替タブ。選択中がひと目で分かるように、溝・選択面・印の3色に分けてある */
+  --seg-track: #0A0D12;
+  --seg-on: #263141;
+  --seg-mark: #5EA7FF;
 
   /* テーマで変わる補助色 */
   --header-bg: rgba(14, 17, 22, 0.92);
@@ -105,10 +110,15 @@
   --rar-r: #2B7BD6;
   --rar-sr: #7B4FE0;
   --rar-ssr: #12876A;
-  --rar-ar: #B8860B;
+  --rar-ar: #A3780A;
   --rar-sar: #C2410C;
   --rar-ur: #BE185D;
-  --rar-lr: #9A6A00;
+  --rar-lr: #6B4A12;
+
+  /* 画面の切替タブ（明るい配色用） */
+  --seg-track: #E2E8F0;
+  --seg-on: #FFFFFF;
+  --seg-mark: #2B7BD6;
 
   --header-bg: rgba(255, 255, 255, 0.9);
   --nav-bg: rgba(255, 255, 255, 0.96);

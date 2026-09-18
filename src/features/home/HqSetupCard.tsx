@@ -84,16 +84,6 @@ export function HqSetupCard() {
           <Button size="sm" onClick={() => setPicking((v) => !v)}>
             {picking ? '地図を閉じる' : 'マップから選ぶ'}
           </Button>
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() => {
-              engine.keepDefaultHq();
-              bumpGame();
-            }}
-          >
-            大阪のままにする
-          </Button>
         </div>
 
         {picking && (

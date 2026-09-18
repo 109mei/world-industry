@@ -305,7 +305,12 @@ export function fillDefaults(data: Record<string, unknown>): GameState {
     history: fixHistory(d.history),
     eventLog: Array.isArray(d.eventLog) ? d.eventLog : [],
     nextEventId: typeof d.nextEventId === 'number' ? d.nextEventId : 1,
-    settings: { ...base.settings, ...(d.settings ?? {}) },
+    // 既に本社を決めているセーブに、いまさら配色の選択を出さない
+    settings: (() => {
+      const merged = { ...base.settings, ...(d.settings ?? {}) };
+      if (merged.themeChosen === undefined) merged.themeChosen = merged.hqChosen === true;
+      return merged;
+    })(),
   };
   // 壊れた物件（種類や値段が無いもの）を先に取り除く
   dropBrokenCustom(result);

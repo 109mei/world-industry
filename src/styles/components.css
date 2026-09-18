@@ -322,11 +322,17 @@
 }
 
 /* ---------- セグメント（サブタブ） ---------- */
+/*
+ * 画面の切替タブ。
+ * 選択中の面と溝の明るさだけで見分けさせると、暗い配色では差が 1.1:1 しか出ず
+ * ほとんど見えない。そこで「溝を暗くする・選択面を明るくする・選択に色の枠を付ける」の
+ * 3つを重ねてある。枠と溝の差は暗い配色で 7.5:1、明るい配色で 3.5:1 ある。
+ */
 .segmented {
   display: flex;
   gap: 4px;
   padding: 4px;
-  background: var(--card);
+  background: var(--seg-track);
   border: 1px solid var(--border);
   border-radius: 10px;
   overflow-x: auto;
@@ -345,17 +351,42 @@
   font-weight: 700;
   color: var(--text-sub);
   white-space: nowrap;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.segmented__item:hover:not([aria-selected='true']) {
+  background: color-mix(in srgb, var(--seg-on) 55%, transparent);
+  color: var(--text);
 }
 .segmented__item[aria-selected='true'] {
-  background: var(--card-2);
+  background: var(--seg-on);
   color: var(--text);
-  box-shadow: inset 0 0 0 1px var(--border-strong);
+  box-shadow: inset 0 0 0 1.5px var(--seg-mark);
+}
+/* 色が見分けにくい場合や、印刷・強制配色でも選択が分かるように、下線でも示す */
+.segmented__item[aria-selected='true']::after {
+  content: '';
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 5px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--seg-mark);
+}
+.segmented__item {
+  position: relative;
 }
 
 /* ---------- ナビゲーション ---------- */
+/*
+ * 下のタブは、並べた数にかかわらず必ず均等幅になるようにする。
+ * 列数を数字で書くと、項目を足し引きしたときに幅がずれる
+ * （7列に6個だと右に1つぶん空きができて、左に寄って見える）。
+ */
 .nav {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
   height: var(--nav-h);
 }
 @media (max-width: 419px) {
@@ -2060,6 +2091,67 @@ html[data-theme='dark'] .maplibregl-ctrl-attrib {
   flex-wrap: wrap;
   padding: 8px 10px;
   background: var(--surface-2, rgba(255, 255, 255, 0.04));
+}
+
+/* ---------- 最初に選ぶ配色 ---------- */
+.themepick {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.themepick__opt {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  padding: 8px;
+  border-radius: 12px;
+  border: 1.5px solid var(--border);
+  background: var(--card-2);
+  text-align: left;
+  cursor: pointer;
+}
+.themepick__opt--on {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+/* 見本の中は、その配色そのままの色で描く（tokens ではなく直接の色） */
+.themepick__sample {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 5px;
+  border-radius: 8px;
+  border: 1.5px solid;
+}
+.themepick__bar,
+.themepick__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 3px 5px;
+  border-radius: 5px;
+  border: 1px solid;
+  line-height: 1.2;
+}
+.themepick__btn {
+  margin-top: 1px;
+  padding: 4px 0;
+  border-radius: 6px;
+  text-align: center;
+  font-size: 10px;
+  font-weight: 800;
+}
+.themepick__name {
+  font-size: 12.5px;
+  font-weight: 800;
+  margin-top: 2px;
+}
+.themepick__note {
+  font-size: 10.5px;
+  color: var(--text-sub);
+  line-height: 1.25;
 }
 
 /* ホーム以外の画面に出す、1行の道案内。押すとその画面へ移る */

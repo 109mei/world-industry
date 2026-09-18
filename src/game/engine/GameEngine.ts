@@ -6,7 +6,7 @@ import { LANDS, type LandDefId } from '@/game/data/lands';
 import { RECIPES, type RecipeId } from '@/game/data/recipes';
 import { RESEARCH, type ResearchId } from '@/game/data/research';
 import type { ResourceId } from '@/game/data/resources';
-import type { AutomationKey, DerivedState, GameEvent, GameEventType, GameState, OfflineReport } from '@/types/state';
+import type { AutomationKey, DerivedState, GameEvent, GameEventType, GameState, OfflineReport, ThemeMode } from '@/types/state';
 import { craft } from './actions/craft';
 import { buyFacility, setFacilityEnabled } from './actions/facility';
 import { gather } from './actions/gather';
@@ -401,6 +401,16 @@ export class GameEngine {
       this.refreshDerived();
     }
     return ok;
+  }
+
+  /**
+   * 最初に配色（暗い／明るい／端末に合わせる）を選ぶ。
+   * あとから設定でいつでも変えられるので、ここは「最初の1回だけ聞く」ための印だけ立てる。
+   */
+  chooseTheme(mode: ThemeMode): void {
+    if (mode !== 'dark' && mode !== 'light' && mode !== 'system') return;
+    this.state.settings.theme = mode;
+    this.state.settings.themeChosen = true;
   }
 
   /** 本社の場所を決める。最初の1回だけ（決めたあとは変えられない） */

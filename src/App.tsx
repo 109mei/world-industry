@@ -44,8 +44,9 @@ export function App() {
   useEffect(() => {
     setNumberDisplay({ currencyId: state.settings.currency ?? 'jpy', unitStyle: state.settings.unitStyle ?? 'ja' });
   }, [state.settings.currency, state.settings.unitStyle]);
-  // 本社を決めるまではホームから動かさない（最初に1回だけ決める）
-  const Page = state.settings.hqChosen ? PAGES[tab] : PAGES.home;
+  // 最初に決めること（配色・本社）が終わるまではホームから動かさない
+  const onboarding = state.settings.themeChosen !== true || state.settings.hqChosen !== true;
+  const Page = onboarding ? PAGES.home : PAGES[tab];
   const stopped = Object.values(derived.facilityRuntime).some((r) => r.status === 'no_input' || r.status === 'storage_full' || r.status === 'no_power' || r.status === 'depleted');
   // LAND: 買える土地があるのにまだ1つも持っていない／輸送手段がなく在庫が溜まっている土地がある
   const landSystem = isLandSystemUnlocked(state, derived.assets);
@@ -61,7 +62,7 @@ export function App() {
         <Header />
         <main className="app__main">
           {/* 案内した先の画面でも、いま何をするのかが見えているようにする（ホームは大きいカードのほうを出す） */}
-          {tab !== 'home' && <TutorialCard compact />}
+          {tab !== 'home' && !onboarding && <TutorialCard compact />}
           <Page />
         </main>
       </div>

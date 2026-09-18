@@ -28,8 +28,24 @@ body {
   overflow-x: hidden;
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior-y: none;
-  /* 長押しで端末の「画像を保存」メニューが出ないようにする */
+  /*
+   * 長押ししたときに「コピー」「選択」の青い吹き出しが出ないようにする。
+   * ゲームの画面は読むものではなく押すものなので、既定では文字を選べないようにし、
+   * 入力欄と、あとから「ここは写したい」と決めた場所（.selectable）だけ選べるようにしてある。
+   */
   -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* 文字を写したい場所だけ、選べるように戻す */
+input,
+textarea,
+[contenteditable='true'],
+.selectable {
+  -webkit-touch-callout: default;
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 #root {

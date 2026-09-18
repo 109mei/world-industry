@@ -127,6 +127,7 @@ export function createInitialState(now = Date.now()): GameState {
       unitStyle: 'ja',
       hqLocation: null,
       hqChosen: false,
+      themeChosen: false,
       map3D: false,
     },
   };
