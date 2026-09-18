@@ -78,7 +78,7 @@ function rivalsBuyProperties(ctx: EngineContext): void {
     onMarket -= 1;
     changed = true;
     const held = ownershipOf(state, c.id) > 0;
-    ctx.emit(held ? 'info' : 'event', `${c.name}が${pick.name}を取得しました（${Math.round(price).toLocaleString('ja-JP')}円）`, { toast: held });
+    ctx.emit(held ? 'info' : 'event', `${c.name}が${pick.name}を取得しました（${Math.round(price).toLocaleString('ja-JP')}円）`, { toast: held, scope: 'other' });
   }
   if (changed) computeStocks(ctx);
 }
@@ -101,7 +101,7 @@ function rivalsIssueShares(ctx: EngineContext): void {
     changed = true;
     if (own > 0) {
       const after = ownershipOf(state, c.id);
-      ctx.emit('warn', `${c.name}が${(cfg.issueRatio * 100).toFixed(0)}%増資。持株比率 ${(own * 100).toFixed(1)}% → ${(after * 100).toFixed(1)}%（経営権を取る前に増資されると必要な株数が増えます）`, { toast: true });
+      ctx.emit('warn', `${c.name}が${(cfg.issueRatio * 100).toFixed(0)}%増資。持株比率 ${(own * 100).toFixed(1)}% → ${(after * 100).toFixed(1)}%（経営権を取る前に増資されると必要な株数が増えます）`, { toast: true, scope: 'other' });
     }
   }
   if (changed) computeStocks(ctx);

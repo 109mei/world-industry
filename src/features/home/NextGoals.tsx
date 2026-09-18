@@ -9,7 +9,7 @@ import type { UnlockCondition } from '@/game/data/unlockTypes';
 import { conditionProgress, describeCondition, envOf, isLandSystemUnlocked, isUnlocked } from '@/game/engine/systems/unlocks';
 import { useGame } from '@/stores/gameStore';
 import { formatNumber } from '@/utils/format';
-import { NAMES } from '@/utils/names';
+import { NAMES, formatQty } from '@/utils/names';
 
 interface Goal {
   key: string;
@@ -48,6 +48,13 @@ export function NextGoals() {
     .sort((a, b) => b.ratio - a.ratio)
     .slice(0, 3);
   const mode = state.settings.numberFormat;
+  /** 「累計入手」「累計売却」の条件は資源の数量なので、その資源の単位で出す */
+  const progressText = (p: { current: number; target: number }, cond: UnlockCondition): string => {
+    if (cond.type === 'obtained' || cond.type === 'sold') {
+      return `${formatQty(cond.resource, Math.floor(p.current), mode)} / ${formatQty(cond.resource, p.target, mode)}`;
+    }
+    return `${formatNumber(Math.floor(p.current), mode)} / ${formatNumber(p.target, mode)}`;
+  };
   return (
     <Card>
       <div className="list">
@@ -65,7 +72,7 @@ export function NextGoals() {
               </div>
               {p && (
                 <span className="text-sub num" style={{ fontSize: 12 }}>
-                  {formatNumber(Math.floor(p.current), mode)} / {formatNumber(p.target, mode)}
+                  {progressText(p, g.cond)}
                 </span>
               )}
             </div>

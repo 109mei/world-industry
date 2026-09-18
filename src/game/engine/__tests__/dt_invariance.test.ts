@@ -18,6 +18,7 @@ function seeded(seed = 20260918) {
 
 function withGather(level: number) {
   const e = new GameEngine({ rng: seeded(), now: () => 1_000_000 });
+  e.keepDefaultHq();
   e.updateSettings({ events: false });
   e.debugAddCash(500_000_000);
   e.debugUnlockAll();
@@ -31,6 +32,7 @@ function withGather(level: number) {
 
 function withBuild(level: number) {
   const e = new GameEngine({ rng: seeded(7), now: () => 1_000_000 });
+  e.keepDefaultHq();
   e.updateSettings({ events: false });
   e.debugUnlockAll();
   e.debugAddCash(1e15);
@@ -70,6 +72,7 @@ describe('自動採集は刻み方で損をしない', () => {
 describe('自動クラフトは刻み方で損をしない', () => {
   const make = () => {
     const e = new GameEngine({ rng: seeded(11), now: () => 1_000_000 });
+    e.keepDefaultHq();
     e.updateSettings({ events: false });
     e.debugUnlockAll();
     e.debugAddCash(500_000_000);
@@ -138,6 +141,7 @@ describe('おかしな時間を渡しても壊れない', () => {
 describe('自動化の時計は溜まり続けない', () => {
   it('8時間まとめて進めても、どの時計も間隔の中に収まる', () => {
     const e = new GameEngine({ rng: seeded(3), now: () => 1_000_000 });
+    e.keepDefaultHq();
     e.updateSettings({ events: false });
     e.debugUnlockAll();
     e.debugAddCash(1e12);

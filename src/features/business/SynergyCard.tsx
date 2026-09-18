@@ -105,7 +105,7 @@ export function SynergyCard() {
               })}
             </div>
             <button type="button" className="synergy__more" onClick={() => setShowAll((v) => !v)}>
-              {showAll ? '閉じる' : `ぜんぶ見る（${BUSINESSES.length}業種）`}
+              {showAll ? '閉じる' : `すべて見る（${BUSINESSES.length}業種）`}
             </button>
           </>
         )}

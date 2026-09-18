@@ -3,7 +3,7 @@ import { Icon } from '@/components/ui/Icon';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { RESOURCE_MAP, type ResourceId } from '@/game/data/resources';
 import { useGame } from '@/stores/gameStore';
-import { formatAmount, formatRate } from '@/utils/format';
+import { formatQty, formatQtyRate } from '@/utils/names';
 
 interface Props {
   id: ResourceId;
@@ -32,12 +32,12 @@ export function ResourceCard({ id, onOpen }: Props) {
         <div className="row__grow">
           <div className="card__title">{def.name}</div>
           <div className="card__sub">
-            {formatAmount(amount, mode)} / {formatAmount(derived.capacity, mode)}
+            {formatQty(id, amount, mode)} / {formatQty(id, derived.capacity, mode)}
             {auto?.enabled && <span className="badge badge--profit" style={{ marginLeft: 6 }}>自動売却</span>}
           </div>
         </div>
         <div className="stat" style={{ textAlign: 'right' }}>
-          <span className={`stat__value num ${net > 0 ? 'text-profit' : net < 0 ? 'text-loss' : ''}`}>{formatRate(net, mode)}</span>
+          <span className={`stat__value num ${net > 0 ? 'text-profit' : net < 0 ? 'text-loss' : ''}`}>{formatQtyRate(id, net, mode)}</span>
           <span className="stat__label">純増 /秒</span>
         </div>
       </div>
@@ -45,8 +45,8 @@ export function ResourceCard({ id, onOpen }: Props) {
         <ProgressBar ratio={amount / derived.capacity} tone="auto" />
       </div>
       <div className="row row--between text-sub num" style={{ fontSize: 12, marginTop: 6 }}>
-        <span>生産 {formatRate(prod, mode)}/秒</span>
-        <span>消費 {formatRate(-cons, mode)}/秒</span>
+        <span>生産 {formatQtyRate(id, prod, mode)}/秒</span>
+        <span>消費 {formatQtyRate(id, -cons, mode)}/秒</span>
         <span className="text-dim">{def.sellable ? '詳細・売却 ›' : '詳細 ›'}</span>
       </div>
     </Card>

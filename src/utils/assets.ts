@@ -17,9 +17,11 @@ export const ICON_FALLBACK: Record<string, string> = {
 };
 
 /** assets/art の中の絵（台の絵など）の URL */
-export function artUrl(name: string): string {
+export function artUrl(name: string, ext: 'png' | 'jpg' = 'png'): string {
   const base = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`;
-  return `${base}assets/art/${name}.png`;
+  // 季節の景色だけは写真のように色数が多いので JPEG で置いてある
+  const kind = ext === 'jpg' || name.startsWith('season_') ? 'jpg' : 'png';
+  return `${base}assets/art/${name}.${kind}`;
 }
 
 /**

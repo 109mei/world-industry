@@ -3,7 +3,7 @@ import { GameEngine } from '@/game/engine/GameEngine';
 import { playSfx, type SfxName } from '@/game/services/audio/sfx';
 import { GameLoop } from '@/game/services/GameLoop';
 import { LocalStorageSaveRepository, MemorySaveRepository, type SaveRepository } from '@/game/services/save/SaveRepository';
-import { SAVE_KEY, SaveService, hasProgress, purgeLegacySaves, savedHasProgress, serializeState } from '@/game/services/save/SaveService';
+import { SAVE_KEY, SaveService, hasProgress, purgeLegacySaves, readLegacyCarryOver, savedHasProgress, serializeState } from '@/game/services/save/SaveService';
 import { bumpGame, refreshGame, setChangeHook, useGameStore } from '@/stores/gameStore';
 import { useUiStore } from '@/stores/uiStore';
 import type { GameState, OfflineReport } from '@/types/state';
@@ -66,7 +66,14 @@ function wireEngine(engine: GameEngine): void {
 export async function createRuntime(): Promise<GameRuntime> {
   if (runtime) return runtime;
   const repo = createRepository();
-  // 古い保存先は読まずに消す（カード100種の入れ替えに合わせて、ここで一度作り直している）
+  // 前の版のセーブは形が合わないので読まない。ただし捨てる前に、
+  // 持っていたもの全部の値打ちを今の相場で数えておき、所持金として引き継ぐ。
+  let carriedOver = 0;
+  try {
+    carriedOver = await readLegacyCarryOver(repo);
+  } catch {
+    /* 数えられなくても進める */
+  }
   try {
     await purgeLegacySaves(repo);
   } catch {
@@ -87,6 +94,13 @@ export async function createRuntime(): Promise<GameRuntime> {
     console.error('セーブデータの読み込みに失敗しました。', e);
   }
   let engine = new GameEngine(loaded ? { state: loaded } : {});
+  // 新しく始める人で、前の版のセーブがあった場合だけ、引き継いだぶんを所持金に入れる
+  if (!loaded && carriedOver > 0) {
+    engine.state.company.cash += carriedOver;
+    engine.state.company.totalEarned += carriedOver;
+    engine.state.meta.carriedOver = carriedOver;
+    engine.refreshDerived();
+  }
   wireEngine(engine);
 
   // オフライン進行

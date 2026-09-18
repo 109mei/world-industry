@@ -4,7 +4,7 @@ import { ProgressBar } from '@/components/ui/ProgressBar';
 import { RESOURCE_MAP, type ResourceId } from '@/game/data/resources';
 import { useGame } from '@/stores/gameStore';
 import { useUiStore } from '@/stores/uiStore';
-import { formatAmount, formatRate } from '@/utils/format';
+import { formatQty, formatQtyRate } from '@/utils/names';
 
 const KEY_IDS: ResourceId[] = ['stone', 'wood', 'scrap_metal', 'iron_ore', 'iron', 'tool', 'coal', 'steel', 'copper', 'fuel', 'electronics'];
 
@@ -32,9 +32,9 @@ export function KeyResources() {
               <Icon name={def.icon} size={28} fallback={def.name.slice(0, 2)} />
               <div className="row__grow">
                 <div className="card__sub">{def.name}</div>
-                <div className="stat__value num">{formatAmount(amount, mode)}</div>
+                <div className="stat__value num">{formatQty(id, amount, mode)}</div>
               </div>
-              <span className={`badge num ${net > 0 ? 'badge--profit' : net < 0 ? 'badge--loss' : ''}`}>{formatRate(net, mode)}/秒</span>
+              <span className={`badge num ${net > 0 ? 'badge--profit' : net < 0 ? 'badge--loss' : ''}`}>{formatQtyRate(id, net, mode)}/秒</span>
               <span className="text-dim" aria-hidden="true">›</span>
             </div>
             <div style={{ marginTop: 8 }}>

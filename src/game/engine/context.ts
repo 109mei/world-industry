@@ -6,6 +6,8 @@ export interface EmitOptions {
   toast?: boolean;
   achievementId?: string;
   eventId?: string;
+  /** 他社の動き（ホームの「最近の出来事」には出さず、株式の画面で見せる） */
+  scope?: 'other';
   /**
    * まとめて進めているあいだでも必ず知らせる。
    * 倒産のように「見逃すと何が起きたのか分からなくなる」ものだけに使う。

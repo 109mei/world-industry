@@ -1,6 +1,6 @@
 import { RESOURCE_MAP, type ResourceId } from '@/game/data/resources';
 import { useGame } from '@/stores/gameStore';
-import { formatAmount } from '@/utils/format';
+import { formatQty } from '@/utils/names';
 import { Icon } from './Icon';
 
 interface IngredientsProps {
@@ -11,6 +11,7 @@ interface IngredientsProps {
 /** 材料一覧。足りないものは赤で表示 */
 export function Ingredients({ needs, times = 1 }: IngredientsProps) {
   const { state } = useGame();
+  const mode = state.settings.numberFormat;
   return (
     <div className="ingredients">
       {(Object.entries(needs) as [ResourceId, number][]).map(([id, n]) => {
@@ -20,7 +21,7 @@ export function Ingredients({ needs, times = 1 }: IngredientsProps) {
         return (
           <span key={id} className={`ingredient ${ok ? 'ingredient--ok' : 'ingredient--short'}`} title={RESOURCE_MAP[id].name}>
             <Icon name={RESOURCE_MAP[id].icon} size={16} />
-            {RESOURCE_MAP[id].name} {formatAmount(have, state.settings.numberFormat)}/{need}
+            {RESOURCE_MAP[id].name} {formatQty(id, have, mode)}/{formatQty(id, need, mode)}
           </span>
         );
       })}

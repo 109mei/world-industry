@@ -42,7 +42,13 @@ export type EventKind =
   /** 特需: 契約の単価が上がる */
   | 'order_rush'
   /** 操業の停滞: すべての土地の生産が落ちる */
-  | 'slowdown';
+  | 'slowdown'
+  /** 関税: ある国の関税が上下する（貿易の輸入だけに効く） */
+  | 'tariff'
+  /** 為替: ある国の通貨が動き、その国の値段が上下する */
+  | 'fx'
+  /** 港の停滞: ある国との輸送に時間がかかる */
+  | 'port';
 
 export interface EventDef {
   id: string;
@@ -100,6 +106,13 @@ export const EVENTS = [
   // ---- 取引・研究 ----
   { id: 'order_rush', kind: 'order_rush', name: '特需', icon: 'icon_office_contract', duration: 240, weight: 3, magnitude: 1.5, description: '急な引き合いが続き、契約の納品単価が1.5倍に。' },
   { id: 'order_slump', kind: 'order_rush', name: '発注減', icon: 'icon_ui_loss', duration: 180, weight: 2, magnitude: 0.75, description: '取引先の発注が細り、契約の納品単価が75%に。' },
+  // ---- 貿易（相手国ごとに効く） ----
+  { id: 'tariff_up', kind: 'tariff', name: '関税引き上げ', icon: 'icon_ui_warning', duration: 300, weight: 3, magnitude: 2.2, description: '{target}が関税を引き上げた。そこからの輸入にかかる関税が2.2倍に。' },
+  { id: 'trade_deal', kind: 'tariff', name: '貿易協定', icon: 'icon_office_contract', duration: 360, weight: 2, magnitude: 0.25, description: '{target}と貿易協定が結ばれた。関税が4分の1に下がり、仕入れが安くなる。' },
+  { id: 'fx_strong', kind: 'fx', name: '通貨高', icon: 'icon_ui_chart_trend', duration: 240, weight: 3, magnitude: 1.3, description: '{target}の通貨が急騰。そこの値段が1.3倍になり、仕入れは高く、売り込みは有利に。' },
+  { id: 'fx_weak', kind: 'fx', name: '通貨安', icon: 'icon_ui_loss', duration: 240, weight: 3, magnitude: 0.75, description: '{target}の通貨が急落。そこの値段が75%になり、仕入れ時。売るには不利。' },
+  { id: 'port_strike', kind: 'port', name: '港湾ストライキ', icon: 'icon_ui_warning', duration: 210, weight: 3, magnitude: 2, disaster: true, description: '{target}の港が止まった。そこへの行き帰りに2倍の時間がかかる。' },
+  { id: 'customs_delay', kind: 'port', name: '通関の遅れ', icon: 'icon_ui_time', duration: 180, weight: 2, magnitude: 1.5, description: '{target}の通関が混雑。輸送に1.5倍の時間がかかる。' },
   { id: 'research_grant', kind: 'research_grant', name: '技術補助金', icon: 'icon_ui_research', duration: 0, weight: 3, magnitude: 120, description: '技術開発の補助金が出て、研究が一気に進んだ。' },
   { id: 'tax', kind: 'tax', name: '臨時の出費', icon: 'icon_ui_loss', duration: 0, weight: 3, magnitude: 45, description: '設備の修繕と追徴で、まとまった出費が出た。' },
   { id: 'inspection', kind: 'tax', name: '立入検査', icon: 'icon_ui_warning', duration: 0, weight: 2, magnitude: 25, description: '当局の立入検査。是正の費用がかかった。' },

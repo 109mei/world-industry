@@ -25,7 +25,7 @@ export type UnlockCondition =
   | { type: 'tutorialStep'; min: number }
   /** その研究を完了している */
   | { type: 'research'; research: string }
-  /** 本社以外の土地を min か所以上所有 */
+  /** 本社以外の土地を min ヵ所以上所有 */
   | { type: 'landOwned'; min: number }
   /** 発電能力が min MW 以上 */
   | { type: 'powerCapacity'; min: number }

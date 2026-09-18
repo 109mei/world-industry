@@ -3,6 +3,9 @@ import { EVENT_MAP, isEventDefId } from '@/game/data/events';
 import { RESOURCE_MAP, type ResourceId } from '@/game/data/resources';
 import type { AutoSellConfig, GameState, MarketResourceState } from '@/types/state';
 import { clean } from '../inventory';
+import { FACILITY_MAP, isFacilityId } from '@/game/data/facilities';
+import { RECIPE_MAP } from '@/game/data/recipes';
+import { isHq } from '../land';
 import type { EngineContext } from '../context';
 
 export function getMarketState(state: GameState, id: ResourceId): MarketResourceState {
@@ -234,6 +237,41 @@ export function sellResource(ctx: EngineContext, id: ResourceId, amount: number,
   return { amount: qty, revenue, unitPrice };
 }
 
+/** 自動売却で残しておく「生産に使うぶん」の長さ（秒） */
+export const PRODUCTION_RESERVE_SECONDS = 180;
+
+/**
+ * 生産に使う材料の取り置き。
+ *
+ * 作るのに要るものを売ってしまうと、せっかく建てた工場が材料待ちで止まる。
+ * 売るより作るほうを先にしたいので、本社の在庫から材料を使う施設と、
+ * 自動でクラフトしている工程のぶんを、先に取り置く。
+ */
+export function productionReserve(state: GameState): Partial<Record<ResourceId, number>> {
+  const out: Partial<Record<ResourceId, number>> = {};
+  const add = (id: ResourceId, n: number) => {
+    if (!(n > 0)) return;
+    out[id] = (out[id] ?? 0) + n;
+  };
+  for (const inst of state.facilities) {
+    if (inst.count <= 0 || inst.enabled === false || !isFacilityId(inst.typeId)) continue;
+    // 本社の施設だけが本社の在庫（＝自動売却の対象）から材料を取る。土地の施設はその土地の在庫を使う
+    if (!isHq(inst.landId)) continue;
+    const inputs = FACILITY_MAP[inst.typeId].production?.inputs;
+    if (!inputs) continue;
+    for (const [rid, rate] of Object.entries(inputs) as [ResourceId, number][]) {
+      add(rid, (rate ?? 0) * inst.count * PRODUCTION_RESERVE_SECONDS);
+    }
+  }
+  // 自動クラフトに設定している工程のぶんも残す（10回ぶん）
+  for (const rid of state.automation?.recipes ?? []) {
+    const def = RECIPE_MAP[rid as keyof typeof RECIPE_MAP];
+    if (!def) continue;
+    for (const [res, n] of Object.entries(def.inputs) as [ResourceId, number][]) add(res, (n ?? 0) * 10);
+  }
+  return out;
+}
+
 /**
  * 自動売却。指定量を超えた分を売る。得た金額を返す。
  * 販売係がいるときは、下限価格（相場が安いときは売らない）と注文ぶんの取り置きが効く
@@ -241,7 +279,7 @@ export function sellResource(ctx: EngineContext, id: ResourceId, amount: number,
 export function runAutoSell(ctx: EngineContext): number {
   const { state } = ctx;
   let gained = 0;
-  const reserve: Partial<Record<ResourceId, number>> = {};
+  const reserve: Partial<Record<ResourceId, number>> = { ...productionReserve(state) };
   for (const c of state.contracts?.active ?? []) reserve[c.resource] = (reserve[c.resource] ?? 0) + Math.max(0, c.amount - c.delivered);
   // 契約している納品ぶんは売らずに残しておく
   for (const d of state.sales?.deals ?? []) reserve[d.resource] = (reserve[d.resource] ?? 0) + d.amountPer;

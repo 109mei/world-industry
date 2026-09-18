@@ -59,6 +59,16 @@ export interface ConditionNames {
   tool: (id: string) => string;
   recipe: (id: string) => string;
   facility: (id: string) => string;
+  /**
+   * 資源の数量を単位つきで書く（「30kg」「20g」「5個」）。
+   * 資源によって1個の意味が違う（素材はkg、金銀はg、製品は個）ので、
+   * 「30個」と決め打ちすると嘘になる。渡されなければ「個」で書く。
+   */
+  quantity?: (id: string, n: number) => string;
+}
+
+function qty(names: ConditionNames, id: string, n: number): string {
+  return names.quantity ? names.quantity(id, n) : `${n.toLocaleString('ja-JP')}個`;
 }
 
 /** 条件を人が読める文にする（ロック表示用） */
@@ -67,9 +77,9 @@ export function describeCondition(cond: UnlockCondition, names: ConditionNames):
     case 'always':
       return '';
     case 'obtained':
-      return `${names.resource(cond.resource)}を累計${cond.min.toLocaleString('ja-JP')}個入手`;
+      return `${names.resource(cond.resource)}を累計${qty(names, cond.resource, cond.min)}入手`;
     case 'sold':
-      return `${names.resource(cond.resource)}を累計${cond.min.toLocaleString('ja-JP')}個売却`;
+      return `${names.resource(cond.resource)}を累計${qty(names, cond.resource, cond.min)}売却`;
     case 'cash':
       return `所持金 ${cond.min.toLocaleString('ja-JP')}円`;
     case 'assets':
@@ -85,7 +95,7 @@ export function describeCondition(cond: UnlockCondition, names: ConditionNames):
     case 'research':
       return `研究「${isResearchId(cond.research) ? RESEARCH_MAP[cond.research].name : cond.research}」を完了`;
     case 'landOwned':
-      return cond.min <= 1 ? '土地を購入する' : `土地を${cond.min}か所所有`;
+      return cond.min <= 1 ? '土地を購入する' : `土地を${cond.min}ヵ所所有`;
     case 'powerCapacity':
       return `発電能力 ${cond.min}MW`;
     case 'all':

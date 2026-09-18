@@ -5,6 +5,7 @@ import { Stat } from '@/components/ui/Stat';
 import { RESOURCE_MAP, type ResourceId } from '@/game/data/resources';
 import { resourceValue } from '@/game/engine/analysis/roi';
 import { SAMPLE_SECONDS } from '@/game/engine/systems/history';
+import { capacityNote, formatCapacity } from '@/utils/names';
 import { useGame } from '@/stores/gameStore';
 import { formatAmount, formatDuration, formatMoney, formatMoneyRate, formatPercent } from '@/utils/format';
 
@@ -60,7 +61,7 @@ export function ResourceOverview({ ids }: { ids: ResourceId[] }) {
           <Stat label="種類" value={`${ids.length}種`} />
           <Stat label="満杯のもの" value={`${full}種`} tone={full > 0 ? 'loss' : 'default'} extra={full > 0 ? '生産が止まります' : undefined} />
           <Stat label="在庫の値打ち" value={formatMoney(rows.reduce((a, r) => a + r.value, 0), mode)} />
-          <Stat label="倉庫の上限" value={formatAmount(cap, mode)} extra="1種類あたり" />
+          <Stat label="倉庫の上限" value={formatCapacity(cap, mode)} extra={capacityNote(cap, mode)} />
         </div>
 
         {fullest.length > 0 && (

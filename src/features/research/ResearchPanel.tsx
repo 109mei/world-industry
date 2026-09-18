@@ -71,7 +71,7 @@ export function ResearchPanel() {
         <div className="stat-grid stat-grid--4">
           <Stat label="研究ポイント" value={`${formatNumber(Math.floor(points), mode)} RP`} size="lg" tone="research" extra={`累計 ${formatNumber(Math.floor(state.research.totalPoints), mode)} RP`} />
           <Stat label="増加 /秒" value={`${formatRate(derived.researchRate, mode)} RP`} tone={derived.researchRate > 0 ? 'profit' : 'default'} />
-          <Stat label="研究所" value={`${labs}か所`} extra={labs === 0 ? 'FACTORY で研究所を建てよう' : undefined} />
+          <Stat label="研究所" value={`${labs}ヵ所`} extra={labs === 0 ? 'FACTORY で研究所を建てよう' : undefined} />
           <Stat label="完了した研究" value={`${done.length} / ${defs.length}`} />
         </div>
       </Card>

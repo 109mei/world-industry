@@ -7,6 +7,7 @@ import { ACHIEVEMENTS } from '@/game/data/achievements';
 import { RESEARCH } from '@/game/data/research';
 import { GATHER_ACTIONS } from '@/game/data/gathering';
 import { BUSINESS_MAP } from '@/game/data/business';
+import { FACILITY_MAP, facilityBulkCost } from '@/game/data/facilities';
 import { CARDS } from '@/game/data/cards';
 import { divisionBreakdown, getDivision, mineShares } from '../systems/business';
 import { ICON_FALLBACK } from '@/utils/assets';
@@ -94,21 +95,26 @@ describe('鉱区の利益の表示', () => {
     expect(r.ok).toBe(true);
     const div = getDivision(e.state, r.id!)!;
     e.setDivisionStaff(div.id, 10);
-    // 倉庫を広げて満杯の影響を外す
-    e.buyFacility('large_warehouse', 40);
+    // 倉庫を広げて満杯の影響を外す。
+    // 大型倉庫は延床1万㎡級の物流倉庫＝1棟16億円になったので、建設費もデータから出して足す
+    // （足さないと1棟も建たず、「満杯の影響を外した」ことにならない）
+    const warehouses = 40;
+    e.debugAddCash(facilityBulkCost(FACILITY_MAP['large_warehouse'], 0, warehouses));
+    expect(e.buyFacility('large_warehouse', warehouses)).toBe(warehouses);
     e.refreshDerived();
     const shown = divisionBreakdown(e.state, div, e.derived.modifiers, e.derived.capacity).revenue;
     const before = { ...e.state.inventory };
     e.tick(1);
-    // 実際に掘れた量に基準価格を掛けて、値打ちで比べる
-    const PRICE: Record<string, number> = { iron_ore: 12, coal: 10 };
+    // 実際に掘れた量に基準価格を掛けて、値打ちで比べる。
+    // 値段はデータ（RESOURCE_MAP）から引く。表示側（divisionBreakdown）も採掘側（runMine）も
+    // 同じ basePrice を見ているので、ここで別の数字を置くと相場を直すたびに食い違う。
     let real = 0;
     let realValue = 0;
     for (const [id, n] of Object.entries(e.state.inventory)) {
       const diff = (n ?? 0) - (before[id as keyof typeof before] ?? 0);
       if (diff <= 0) continue;
       real += diff;
-      realValue += diff * (PRICE[id] ?? RESOURCE_MAP[id as ResourceId]?.basePrice ?? 0);
+      realValue += diff * (RESOURCE_MAP[id as ResourceId]?.basePrice ?? 0);
     }
     expect(real).toBeGreaterThan(0);
     expect(Math.abs(shown - realValue) / Math.max(1, realValue)).toBeLessThan(0.05);

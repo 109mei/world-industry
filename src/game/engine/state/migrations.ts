@@ -1,3 +1,4 @@
+import { LAND_MAP, isLandDefId } from '@/game/data/lands';
 import { GAME_META } from '@/game/data/meta';
 import { dropBrokenCustom, addCustomLand } from '../systems/customEstate';
 import { createInitialSales } from '../systems/sales';
@@ -6,8 +7,12 @@ import type { GameState, LandState } from '@/types/state';
 import { createHqLand, createInitialAutomation, createInitialBusiness, createInitialCompanyStock, createInitialContracts, createInitialEstate, createInitialPrestige, createInitialState, createInitialStocks } from './createInitialState';
 import { CARD_HYPE_MAX, CARD_HYPE_MIN, CARD_MAP, CARD_PRICE_MAX, CARD_PRICE_MIN, SERIES_MAP } from '@/game/data/cards';
 import { GATHER_MAP } from '@/game/data/gathering';
+import { SKILL_IDS, SKILL_MAP } from '@/game/data/minigames';
 import { RECIPE_MAP } from '@/game/data/recipes';
 import { createInitialCards } from '../systems/cards';
+import { createInitialTrade } from '../systems/trade';
+import { RESOURCE_MAP, type ResourceId } from '@/game/data/resources';
+import { COUNTRIES, COUNTRY_PRICE_MAX, COUNTRY_PRICE_MIN, FX_MAX, FX_MIN, SHIP_MODE_MAP, isCountryCode } from '@/game/data/trade';
 
 /**
  * 保存されたセーブデータを、いまの形に整えて読み込む。
@@ -51,6 +56,72 @@ function fixSales(v: Partial<GameState['sales']> | undefined): GameState['sales'
     deals: Array.isArray(v.deals) ? v.deals : [],
     nextId: typeof v.nextId === 'number' ? v.nextId : 1,
   };
+}
+
+/** ゲームの中の暦。壊れていると日付が NaN になって画面が崩れるので、必ず数に直す */
+function fixCalendar(v: unknown): GameState['calendar'] {
+  const x = (v ?? {}) as Record<string, unknown>;
+  const days = typeof x.elapsedDays === 'number' && Number.isFinite(x.elapsedDays) ? Math.max(0, x.elapsedDays) : 0;
+  const month = typeof x.lastMonth === 'number' && x.lastMonth >= 1 && x.lastMonth <= 12 ? Math.floor(x.lastMonth) : 4;
+  const season = typeof x.lastSeason === 'string' ? x.lastSeason : 'spring';
+  return { elapsedDays: days, lastMonth: month, lastSeason: season };
+}
+
+/**
+ * 気になる場所の印。
+ * 壊れた要素（座標が数でないものなど）は、そのままだと地図が飛べなくなるので落とす。
+ */
+/**
+ * 手仕事の腕。壊れていると倍率が NaN になって生産が全部止まるので、必ず数に直す。
+ * 知らない腕の名前は捨てる（遊びを入れ替えたときに古い値が残らないように）。
+ */
+function fixSkills(v: unknown): GameState['skills'] {
+  const out: NonNullable<GameState['skills']> = {};
+  const x = (v ?? {}) as Record<string, unknown>;
+  for (const id of SKILL_IDS) {
+    const row = (x[id] ?? {}) as Record<string, unknown>;
+    const num = (k: string) => (typeof row[k] === 'number' && Number.isFinite(row[k] as number) ? Math.max(0, row[k] as number) : 0);
+    const level = Math.min(SKILL_MAP[id].maxLevel, Math.floor(num('level')));
+    out[id] = { level, exp: num('exp'), plays: Math.floor(num('plays')), best: Math.min(1, num('best')) };
+  }
+  return out;
+}
+
+function fixBookmarks(v: unknown): GameState['bookmarks'] {
+  if (!Array.isArray(v)) return [];
+  const out: NonNullable<GameState['bookmarks']> = [];
+  const seen = new Set<string>();
+  for (const b of v) {
+    if (!b || typeof b !== 'object') continue;
+    const x = b as Record<string, unknown>;
+    if (typeof x.id !== 'string' || typeof x.label !== 'string') continue;
+    if (typeof x.lat !== 'number' || typeof x.lon !== 'number' || !Number.isFinite(x.lat) || !Number.isFinite(x.lon)) continue;
+    const kind = x.kind === 'land' || x.kind === 'property' || x.kind === 'client' || x.kind === 'company' ? x.kind : 'feature';
+    const key = `${kind}:${x.id}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({
+      kind,
+      id: x.id,
+      label: x.label,
+      sub: typeof x.sub === 'string' ? x.sub : undefined,
+      lat: x.lat,
+      lon: x.lon,
+      note: typeof x.note === 'string' ? x.note : undefined,
+      at: typeof x.at === 'number' && Number.isFinite(x.at) ? x.at : 0,
+    });
+  }
+  return out.slice(-200);
+}
+
+/**
+ * 電力会社との契約。
+ * 壊れた値（マイナス・数でないもの）が入っていると基本料金の計算が狂って
+ * 所持金が飛ぶので、必ず 0 以上の数に直す。
+ */
+function fixPower(v: Partial<GameState['power']> | undefined): GameState['power'] {
+  const mw = typeof v?.contractMW === 'number' && Number.isFinite(v.contractMW) ? Math.max(0, v.contractMW) : 0;
+  return { contractMW: mw };
 }
 
 /** グラフ用の記録。配列でなければ作り直す（壊れていると毎 tick で例外になる） */
@@ -149,6 +220,63 @@ function fixCards(v: Partial<GameState['cards']> | undefined): GameState['cards'
   };
 }
 
+/**
+ * 貿易の状態を繕う。
+ * 輸送中の荷は「もう無い国・品・手段」を指していたら捨てる（そのまま進めると届いた瞬間に落ちる）。
+ */
+function fixTrade(v: Partial<GameState['trade']> | undefined): GameState['trade'] {
+  const base = createInitialTrade();
+  if (!v) return base;
+  const fx: Record<string, number> = { ...base.fx };
+  for (const c of COUNTRIES) {
+    const got = num((v.fx ?? {})[c.id], 1);
+    fx[c.id] = Math.max(FX_MIN, Math.min(FX_MAX, got));
+  }
+  const priceMult: Record<string, number> = {};
+  for (const [k, n] of Object.entries(v.priceMult ?? {})) {
+    const [country, resource] = k.split(':');
+    if (!isCountryCode(country) || !RESOURCE_MAP[resource as ResourceId]) continue;
+    priceMult[k] = Math.max(COUNTRY_PRICE_MIN, Math.min(COUNTRY_PRICE_MAX, num(n, 1)));
+  }
+  const shipments = (Array.isArray(v.shipments) ? v.shipments : []).filter(
+    (s) => s && isCountryCode(s.country) && RESOURCE_MAP[s.resource as ResourceId] && SHIP_MODE_MAP[s.mode as keyof typeof SHIP_MODE_MAP] && num(s.qty, 0) > 0,
+  ).map((s) => ({
+    ...s,
+    id: num(s.id, 0),
+    qty: Math.max(0, Math.floor(num(s.qty, 0))),
+    remaining: Math.max(0, num(s.remaining, 0)),
+    totalSeconds: Math.max(1, num(s.totalSeconds, 1)),
+    amount: Math.max(0, num(s.amount, 0)),
+    kind: s.kind === 'export' ? ('export' as const) : ('import' as const),
+  }));
+  const offers = (Array.isArray(v.offers) ? v.offers : []).filter(
+    (o) => o && isCountryCode(o.country) && RESOURCE_MAP[o.resource as ResourceId] && num(o.qty, 0) > 0 && num(o.unitPrice, 0) > 0,
+  ).map((o) => ({
+    ...o,
+    id: num(o.id, 0),
+    qty: Math.max(1, Math.floor(num(o.qty, 0))),
+    unitPrice: Math.max(1, num(o.unitPrice, 1)),
+    expiresIn: Math.max(0, num(o.expiresIn, 0)),
+    kind: o.kind === 'sell' ? ('sell' as const) : ('buy' as const),
+    company: typeof o.company === 'string' && o.company ? o.company : '取引先',
+    place: typeof o.place === 'string' && o.place ? o.place : '',
+  }));
+  const maxId = Math.max(0, ...shipments.map((s) => s.id), ...offers.map((o) => o.id));
+  return {
+    fx,
+    priceMult,
+    shipments,
+    offers,
+    nextOfferIn: num(v.nextOfferIn, base.nextOfferIn),
+    nextDriftIn: num(v.nextDriftIn, base.nextDriftIn),
+    nextId: Math.max(num(v.nextId, 1), maxId + 1),
+    spent: num(v.spent, 0),
+    earned: num(v.earned, 0),
+    freight: num(v.freight, 0),
+    duty: num(v.duty, 0),
+  };
+}
+
 function fixAutomation(v: Partial<GameState['automation']> | undefined): GameState['automation'] {
   const base = createInitialAutomation();
   if (!v) return base;
@@ -231,7 +359,12 @@ export function fillDefaults(data: Record<string, unknown>): GameState {
   const fixedLands: LandState[] = lands.map((l) => ({
     ...(l.id === 'hq' ? hqBase : {}),
     ...l,
-    terrain: l.terrain ?? (l.id === 'hq' ? hqBase.terrain : 'plains'),
+    // 名前が欠けていると、画面に「undefined に輸送手段がありません」のような文が出てしまう。
+    // 元の一覧にある土地なら名前を引き直し、無ければ当たり障りのない名前にしておく
+    name: l.name ?? (l.id === 'hq' ? hqBase.name : (isLandDefId(l.id) ? LAND_MAP[l.id].name : '名前のない土地')),
+    country: l.country ?? (l.id === 'hq' ? hqBase.country : (isLandDefId(l.id) ? LAND_MAP[l.id].country : '—')),
+    region: l.region ?? (l.id === 'hq' ? hqBase.region : (isLandDefId(l.id) ? LAND_MAP[l.id].region : '—')),
+    terrain: l.terrain ?? (l.id === 'hq' ? hqBase.terrain : (isLandDefId(l.id) ? LAND_MAP[l.id].terrain : 'plains')),
     purchasedAt: l.purchasedAt ?? 0,
     survey: l.survey ?? (l.id === 'hq' ? 4 : 0),
     surveyProgress: l.surveyProgress ?? null,
@@ -302,6 +435,11 @@ export function fillDefaults(data: Record<string, unknown>): GameState {
     automation: fixAutomation(d.automation),
     business: fixBusiness(d.business),
     cards: fixCards(d.cards),
+    trade: fixTrade(d.trade),
+    power: fixPower(d.power),
+    bookmarks: fixBookmarks(d.bookmarks),
+    skills: fixSkills(d.skills),
+    calendar: fixCalendar(d.calendar),
     history: fixHistory(d.history),
     eventLog: Array.isArray(d.eventLog) ? d.eventLog : [],
     nextEventId: typeof d.nextEventId === 'number' ? d.nextEventId : 1,
@@ -309,6 +447,10 @@ export function fillDefaults(data: Record<string, unknown>): GameState {
     settings: (() => {
       const merged = { ...base.settings, ...(d.settings ?? {}) };
       if (merged.themeChosen === undefined) merged.themeChosen = merged.hqChosen === true;
+      if (merged.nameChosen === undefined) merged.nameChosen = merged.hqChosen === true;
+      // 使い方ガイドの既読は、壊れていても必ず文字列の配列にする
+      merged.guidesSeen = Array.isArray(merged.guidesSeen) ? merged.guidesSeen.filter((g: unknown) => typeof g === 'string') : [];
+      merged.guidesOff = merged.guidesOff === true;
       return merged;
     })(),
   };

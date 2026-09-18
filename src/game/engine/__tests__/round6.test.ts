@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import { GameEngine } from '../GameEngine';
 import { BUSINESS_MAP } from '@/game/data/business';
+import { FACILITY_MAP, facilityBulkCost } from '@/game/data/facilities';
 import { getDivision } from '../systems/business';
 import { customPrice, customRentPerSec, getCustom, quotePrice, quoteFeature, quoteRentPerSec } from '../systems/customEstate';
 import type { OsmFeature } from '@/game/services/osm/overpass';
@@ -13,6 +14,7 @@ let clock = 1_000_000;
 function makeEngine(cash = 0) {
   clock = 1_000_000;
   const e = new GameEngine({ rng: () => 0.42, now: () => clock });
+  e.keepDefaultHq();
   e.updateSettings({ events: false });
   if (cash > 0) e.debugAddCash(cash);
   e.refreshDerived();
@@ -76,6 +78,7 @@ describe('少し遅れただけの tick', () => {
     const run = (dt: number) => {
       clock = 1_000_000;
       const e = new GameEngine({ rng: () => 0.5, now: () => clock });
+      e.keepDefaultHq();
       e.debugUnlockAll();
       e.debugAddCash(1e10);
       e.buyFacility('worker_stone', 5);
@@ -97,8 +100,11 @@ describe('少し遅れただけの tick', () => {
 
   it('離れているあいだの倒産は、まとめ進行でも必ず知らされる', () => {
     const e = makeEngine(0);
-    e.debugAddCash(200);
-    e.buyFacility('worker_stone', 3);
+    // 作業員を3人雇って、手元にはほとんど残さない。
+    // 雇う費用は現実の額（1人目15万円）になったので、建設費はデータから出して足す。
+    // 石は売らないので収入は無く、給料（3人 × 432円/秒）だけが出ていって資金がショートする。
+    e.debugAddCash(facilityBulkCost(FACILITY_MAP['worker_stone'], 0, 3) + 200);
+    expect(e.buyFacility('worker_stone', 3)).toBe(3);
     e.refreshDerived();
     const toasts: string[] = [];
     e.addListener((ev, o) => {
@@ -163,7 +169,9 @@ describe('お店の口コミ', () => {
     const div = getDivision(e.state, r.id!)!;
     e.setDivisionStaff(div.id, def.maxStaff);
     div.awareness = 30;
-    e.buyFacility('large_warehouse', 30);
+    // 品物を置く場所を広げる。大型倉庫は1棟16億円なので、建設費はデータから出して足す
+    e.debugAddCash(facilityBulkCost(FACILITY_MAP['large_warehouse'], 0, 30));
+    expect(e.buyFacility('large_warehouse', 30)).toBe(30);
     for (const g of def.goods ?? []) {
       e.debugAddResource(g, 5000);
       e.setRestockTarget(div.id, g, 2000);

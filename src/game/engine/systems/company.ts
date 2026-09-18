@@ -4,7 +4,16 @@ import { FACILITY_MAP, isFacilityId } from '@/game/data/facilities';
 import { RESOURCE_MAP, type ResourceId } from '@/game/data/resources';
 import { TOOL_MAP, type ToolId } from '@/game/data/tools';
 import type { EngineContext } from '../context';
-import { currentPrice } from './market';
+
+/**
+ * 在庫の評価額。
+ * わざと「相場」ではなく「基準価格」で数える。時価で数えると、
+ * 何も売っていないのに相場が動いただけで総資産が上下してしまい、
+ * ホームの数字が信用できなくなるため（不動産・株はそれ自体が値動きの商品なので時価のまま）。
+ */
+export function bookValue(id: ResourceId, amount: number): number {
+  return amount * RESOURCE_MAP[id].basePrice;
+}
 
 /** 総資産・会社価値・従業員数などを計算する */
 export function runCompanyMetrics(ctx: EngineContext): void {
@@ -12,13 +21,13 @@ export function runCompanyMetrics(ctx: EngineContext): void {
   let inventoryValue = 0;
   for (const [id, amount] of Object.entries(state.inventory) as [ResourceId, number][]) {
     if (!amount || !RESOURCE_MAP[id]) continue;
-    inventoryValue += amount * currentPrice(state, id);
+    inventoryValue += bookValue(id, amount);
   }
   // 土地の在庫も評価に含める
   for (const land of state.lands) {
     for (const [id, amount] of Object.entries(land.stock ?? {}) as [ResourceId, number][]) {
       if (!amount || !RESOURCE_MAP[id]) continue;
-      inventoryValue += amount * currentPrice(state, id);
+      inventoryValue += bookValue(id, amount);
     }
   }
   let toolsValue = 0;

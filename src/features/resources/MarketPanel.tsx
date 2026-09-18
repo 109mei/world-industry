@@ -5,7 +5,8 @@ import { RESOURCES, type ResourceId } from '@/game/data/resources';
 import { currentPrice, demandFactor, eventPriceMultiplier, getMarketState } from '@/game/engine/systems/market';
 import { bumpGame, useGame } from '@/stores/gameStore';
 import { useUiStore } from '@/stores/uiStore';
-import { formatAmount, formatMoney, formatPercent } from '@/utils/format';
+import { formatPercent } from '@/utils/format';
+import { formatQty, formatUnitPrice } from '@/utils/names';
 import { sfx } from '@/utils/sfx';
 
 /** 市場の一覧（価格・変動・所持量・売却） */
@@ -49,13 +50,13 @@ export function MarketPanel() {
                       <span style={{ fontWeight: 700 }}>{r.name}</span>
                     </button>
                   </td>
-                  <td>{formatMoney(price, 'full')}</td>
+                  <td>{formatUnitPrice(id, price, 'full')}</td>
                   <td className={`hide-sm ${diff > 0.02 ? 'text-profit' : diff < -0.02 ? 'text-loss' : 'text-sub'}`}>
                     {diff >= 0 ? '+' : ''}
                     {(diff * 100).toFixed(0)}%
                   </td>
                   <td className={demand >= 0.9 ? 'text-profit' : demand >= 0.6 ? 'text-warn' : 'text-loss'}>{formatPercent(demand)}</td>
-                  <td>{formatAmount(amount, mode)}</td>
+                  <td>{formatQty(id, amount, mode)}</td>
                   <td>
                     <Button
                       variant="sell"

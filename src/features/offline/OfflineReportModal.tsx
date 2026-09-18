@@ -4,7 +4,8 @@ import { Sheet } from '@/components/ui/Sheet';
 import { RESOURCE_MAP, type ResourceId } from '@/game/data/resources';
 import { useGame } from '@/stores/gameStore';
 import { useUiStore } from '@/stores/uiStore';
-import { formatDuration, formatMoney, formatRate } from '@/utils/format';
+import { formatDuration, formatMoney } from '@/utils/format';
+import { formatQtyRate } from '@/utils/names';
 
 export function OfflineReportModal() {
   const report = useUiStore((s) => s.offlineReport);
@@ -12,7 +13,38 @@ export function OfflineReportModal() {
   const { state } = useGame();
   if (!report) return null;
   const mode = state.settings.numberFormat;
-  const entries = Object.entries(report.resourceDelta) as [ResourceId, number][];
+  /**
+   * 増えたものと減ったものに分けて、大きいものから並べる。
+   * 全部並べると何十行にもなって、何が起きたのか読めなくなるので、
+   * 小数点以下しか動いていないものは出さず、多いときは下位をまとめる。
+   */
+  const all = (Object.entries(report.resourceDelta) as [ResourceId, number][])
+    .filter(([, d]) => Math.abs(d) >= 1)
+    .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
+  const gained = all.filter(([, d]) => d > 0);
+  const lost = all.filter(([, d]) => d < 0);
+  const TOP = 6;
+
+  const rows = (list: [ResourceId, number][]) => (
+    <>
+      {list.slice(0, TOP).map(([id, d]) => (
+        <div key={id} className="row row--between">
+          <div className="row">
+            <Icon name={RESOURCE_MAP[id].icon} size={24} fallback={RESOURCE_MAP[id].name.slice(0, 2)} />
+            <span>{RESOURCE_MAP[id].name}</span>
+          </div>
+          <span className={`num ${d >= 0 ? 'text-profit' : 'text-loss'}`} style={{ fontWeight: 700 }}>
+            {formatQtyRate(id, Math.round(d), mode)}
+          </span>
+        </div>
+      ))}
+      {list.length > TOP && (
+        <div className="text-dim" style={{ fontSize: 12 }}>
+          ほか {list.length - TOP}種類
+        </div>
+      )}
+    </>
+  );
 
   // 離席中に倒産していたら、資源の増減を並べても意味がない（会社ごと入れ替わっているため）
   if (report.bankrupted) {
@@ -44,30 +76,35 @@ export function OfflineReportModal() {
         離席中の {formatDuration(report.simulatedSeconds)} ぶんを計算しました。
         {report.capped && <span className="text-warn">（上限 {formatDuration(state.settings.maxOfflineSeconds)} で打ち切り）</span>}
       </p>
+
+      {/*
+        帰ってきて最初に知りたいのは「いくら増えたか」なので、そこだけ大きく出す。
+        素材の増減はその根拠にあたるので、下にまわしてある。
+      */}
+      <div className="offline__hero">
+        <div className="offline__hero-label">{report.cashDelta >= 0 ? '離席中に増えたお金' : '離席中に減ったお金'}</div>
+        <div className={`offline__hero-value num ${report.cashDelta >= 0 ? 'text-profit' : 'text-loss'}`}>
+          {report.cashDelta >= 0 ? '+' : '−'}
+          {formatMoney(Math.abs(report.cashDelta), mode)}
+        </div>
+        <div className="offline__hero-sub text-sub num">
+          1時間あたり {formatMoney((report.cashDelta / Math.max(1, report.simulatedSeconds)) * 3600, mode)}
+        </div>
+      </div>
+
       <div className="sheet__section list">
-        {entries.length === 0 && report.cashDelta === 0 && <div className="empty">変化はありませんでした。作業員を雇うと離席中も生産されます。</div>}
-        {entries.map(([id, d]) => (
-          <div key={id} className="row row--between">
-            <div className="row">
-              <Icon name={RESOURCE_MAP[id].icon} size={24} fallback={RESOURCE_MAP[id].name.slice(0, 2)} />
-              <span>{RESOURCE_MAP[id].name}</span>
-            </div>
-            <span className={`num ${d >= 0 ? 'text-profit' : 'text-loss'}`} style={{ fontWeight: 700 }}>
-              {formatRate(Math.round(d), mode)}
-            </span>
-          </div>
-        ))}
-        {report.cashDelta !== 0 && (
-          <div className="row row--between">
-            <div className="row">
-              <Icon name="icon_ui_money" size={24} fallback="¥" />
-              <span>所持金</span>
-            </div>
-            <span className={`num ${report.cashDelta >= 0 ? 'text-profit' : 'text-loss'}`} style={{ fontWeight: 700 }}>
-              {report.cashDelta >= 0 ? '+' : ''}
-              {formatMoney(report.cashDelta, mode)}
-            </span>
-          </div>
+        {all.length === 0 && report.cashDelta === 0 && <div className="empty">変化はありませんでした。作業員を雇うと離席中も生産されます。</div>}
+        {gained.length > 0 && (
+          <>
+            <div className="field__label">増えた素材</div>
+            {rows(gained)}
+          </>
+        )}
+        {lost.length > 0 && (
+          <>
+            <div className="field__label" style={{ marginTop: 6 }}>減った素材</div>
+            {rows(lost)}
+          </>
         )}
       </div>
       <div className="card__actions">

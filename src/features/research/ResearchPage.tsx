@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Segmented } from '@/components/ui/Segmented';
+import { ResearchLabHint } from './ResearchLabHint';
 import { ResearchPanel } from './ResearchPanel';
 import { ResearchTree } from './ResearchTree';
 
@@ -11,6 +12,7 @@ export function ResearchPage() {
       <h1 className="page__title">
         研究<small>研究ポイントで生産と解放を進める</small>
       </h1>
+      <ResearchLabHint />
       <Segmented
         ariaLabel="研究の表示"
         items={[

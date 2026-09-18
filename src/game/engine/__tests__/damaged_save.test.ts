@@ -4,7 +4,9 @@
  * そのまま「二度と読めないセーブ」になる。そこを全部ふさいでおく。
  */
 import { describe, expect, it } from 'vitest';
+import { FACILITY_MAP, facilityBulkCost } from '@/game/data/facilities';
 import { GameEngine } from '../GameEngine';
+import { WAGE_PER_EMPLOYEE } from '../systems/finance';
 import { migrateSave } from '../state/migrations';
 import { LEGACY_SAVE_KEYS, SAVE_BACKUP_KEY, SAVE_BROKEN_KEY, SAVE_KEY, SaveService, purgeLegacySaves, serializeState } from '@/game/services/save/SaveService';
 import type { SaveRepository } from '@/game/services/save/SaveRepository';
@@ -32,13 +34,23 @@ class MemRepo implements SaveRepository {
   }
 }
 
+/**
+ * 採石作業員3人ぶんの建設費。
+ * 人を雇う費用を現実の額にしたので、1人目で15万円、3人で50万円を超える。
+ * 引数の cash は「雇ったあとに手元に残るお金」として扱いたいので、建設費はここで別に足す。
+ */
+const WORKER3_COST = facilityBulkCost(FACILITY_MAP['worker_stone'], 0, 3);
+
 function playedState(cash = 500_000) {
   const e = new GameEngine({ rng: () => 0.4, now: () => 1_000_000 });
+  e.keepDefaultHq();
   e.updateSettings({ events: false });
-  e.debugAddCash(cash);
-  e.buyFacility('worker_stone', 3);
+  e.debugAddCash(WORKER3_COST + cash);
+  // 雇えないと石が1個も出ず、「遊んだ跡のあるセーブ」にならない（テストの前提が崩れる）
+  expect(e.buyFacility('worker_stone', 3)).toBe(3);
   for (let i = 0; i < 30; i++) e.tick(1);
   e.refreshDerived();
+  expect(e.state.stats.totalObtained.stone ?? 0).toBeGreaterThan(0);
   return e.state;
 }
 
@@ -46,6 +58,7 @@ function playedState(cash = 500_000) {
 function loadAndRun(raw: Record<string, unknown>) {
   const state = migrateSave(raw);
   const e = new GameEngine({ state, rng: () => 0.4, now: () => 1_000_000 });
+  e.keepDefaultHq();
   e.updateSettings({ events: false });
   e.advance(120);
   e.refreshDerived();
@@ -69,7 +82,7 @@ const DAMAGED: [string, Record<string, unknown>][] = [
   ['イベントが null', { saveVersion: 14, events: { active: null, nextIn: null, nextId: null } }],
   ['イベントの中身が null', { saveVersion: 14, events: { active: [null], nextIn: 10, nextId: 1 } }],
   ['カードが壊れている', { saveVersion: 14, cards: { owned: { nope: 3, c_stone: null }, price: { nope: 9 }, hype: null } }],
-  ['ぜんぶ null', { saveVersion: 14, company: null, lands: null, market: null, business: null, estate: null, cards: null }],
+  ['すべて null', { saveVersion: 14, company: null, lands: null, market: null, business: null, estate: null, cards: null }],
 ];
 
 describe('壊れたセーブを読む', () => {
@@ -181,24 +194,33 @@ describe('裏に回したまま閉じても、その時間が消えない', () =
 
   it('オフライン進行の上限までは、ちゃんと進む', () => {
     const e = new GameEngine({ rng: () => 0.4, now: () => 1_000_000 });
+    e.keepDefaultHq();
     e.updateSettings({ events: false });
-    e.debugAddCash(1_000_000);
-    e.buyFacility('worker_stone', 5);
+    const workers = 5;
+    const seconds = 2 * 3600;
+    // 建設費だけでなく、離れているあいだの人件費も先に持たせる。
+    // 給料が現実の額（1人432円/秒）になったので、2時間ぶんで1,500万円を超える。
+    // 足りないと途中で倒産して進行そのものが巻き戻り、「進んだか」を見られなくなる。
+    const setup = facilityBulkCost(FACILITY_MAP['worker_stone'], 0, workers);
+    const wages = WAGE_PER_EMPLOYEE * FACILITY_MAP['worker_stone'].employees * workers * seconds;
+    e.debugAddCash(setup + wages * 2);
+    expect(e.buyFacility('worker_stone', workers)).toBe(workers);
     e.refreshDerived();
     const before = e.state.stats.totalObtained.stone ?? 0;
-    const report = e.applyOffline(2 * 3600);
+    const report = e.applyOffline(seconds);
     expect(report.simulatedSeconds).toBeGreaterThan(0);
     expect(e.state.stats.totalObtained.stone ?? 0).toBeGreaterThan(before);
   });
 });
 
 /**
- * カード100種の入れ替えに合わせて、保存先ごと作り直した。
+ * 値段を現実の相場に直したとき、「1個」の意味そのものが変わった（1個＝1kg／1g／1L）。
+ * 古いセーブをそのまま読むと同じ「鉄100」が別の量を指すので、保存先ごと v3 に作り直した。
  * 古い保存先は「読まずに消す」ので、古い形式の変換で引っかかることがない。
  */
 describe('古いセーブの一斉破棄', () => {
-  it('保存先が v2 に変わっていて、古い名前とかぶらない', () => {
-    expect(SAVE_KEY).toBe('world-industry.save.v2');
+  it('保存先が v3 に変わっていて、古い名前とかぶらない', () => {
+    expect(SAVE_KEY).toBe('world-industry.save.v3');
     for (const k of LEGACY_SAVE_KEYS) {
       expect(k).not.toBe(SAVE_KEY);
       expect(k).not.toBe(SAVE_BACKUP_KEY);

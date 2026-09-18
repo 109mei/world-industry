@@ -88,6 +88,8 @@ export function formatRate(value: number, mode: NumberFormatMode = 'short'): str
   let body: string;
   if (mode === 'full') body = formatFull(abs);
   else if (abs >= (display.unitStyle === 'ja' ? 10_000 : 1_000)) body = formatShort(abs);
+  // 1,000 を超えたら小数点以下は読む意味がないので、桁区切りの整数にする（4618.9 ではなく 4,619）
+  else if (abs >= 1_000) body = Math.round(abs).toLocaleString('ja-JP');
   else if (Number.isInteger(abs)) body = abs.toLocaleString('ja-JP');
   else body = abs < 10 ? abs.toFixed(2).replace(/\.?0+$/, '') || '0' : abs.toFixed(1);
   return `${sign}${body}`;

@@ -1338,10 +1338,14 @@ textarea.input {
 }
 .rm__notice {
   position: absolute;
+  /* 右上の 3D ボタンと重ならないように空けておく */
   left: 8px;
-  right: 8px;
-  bottom: 8px;
-  z-index: 500;
+  right: 56px;
+  /* 下は「どこまで寄れば建物が出るか」の案内が使うので、こちらは上に出す */
+  top: 8px;
+  z-index: 490;
+  /* 知らせるだけの札なので、下にあるボタンの邪魔をしない */
+  pointer-events: none;
   background: var(--card);
   color: var(--text);
   border: 1px solid var(--warn);
@@ -2091,6 +2095,62 @@ html[data-theme='dark'] .maplibregl-ctrl-attrib {
   flex-wrap: wrap;
   padding: 8px 10px;
   background: var(--surface-2, rgba(255, 255, 255, 0.04));
+}
+
+/* 地図の上を動く、自社の船・飛行機・トラック */
+.rm-ship {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  font-size: 14px;
+  line-height: 1;
+  background: color-mix(in srgb, var(--ship, #A47BFF) 22%, var(--card));
+  border: 1.5px solid var(--ship, #A47BFF);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--ship, #A47BFF) 55%, transparent);
+}
+
+/* ---------- 貿易の見積もり ---------- */
+/* 押す前に「いくら出て、いくら入るか」を並べて見せる */
+.tradequote {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 10px;
+}
+@media (max-width: 420px) {
+  .tradequote {
+    grid-template-columns: 1fr;
+  }
+}
+.tradequote__col {
+  padding: 8px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--card-2);
+}
+.tradequote__head {
+  font-size: 12px;
+  font-weight: 800;
+  margin-bottom: 4px;
+}
+.tradequote__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11.5px;
+  color: var(--text-sub);
+  line-height: 1.5;
+}
+.tradequote__row--total {
+  margin-top: 3px;
+  padding-top: 3px;
+  border-top: 1px solid var(--border);
+  color: var(--text);
+  font-weight: 800;
+  font-size: 12.5px;
 }
 
 /* ---------- 最初に選ぶ配色 ---------- */
@@ -3076,4 +3136,746 @@ html[data-theme='dark'] .maplibregl-ctrl-attrib {
   object-fit: cover;
   border-radius: 4px;
   display: block;
+}
+
+/* ---- 使い方ガイド ---- */
+.guide__badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--power-bg);
+  color: var(--power);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  margin-bottom: 8px;
+}
+.guide__p {
+  font-size: 13px;
+  line-height: 1.75;
+  margin: 0 0 10px;
+  color: var(--text);
+}
+.guide__p:last-child {
+  margin-bottom: 0;
+}
+.guide__points {
+  display: grid;
+  gap: 8px;
+}
+.guide__point {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 9px 11px;
+  background: var(--card-2);
+}
+.guide__point-label {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 3px;
+}
+.guide__point-text {
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--text-sub);
+}
+.guide__off {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px;
+  min-height: 44px;
+  border: none;
+  background: none;
+  color: var(--text-dim);
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.guidelist {
+  display: grid;
+  gap: 6px;
+}
+.guidelist__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 52px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card-2);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.guidelist__item:active {
+  transform: scale(0.99);
+}
+.guidelist__title {
+  font-size: 13px;
+  font-weight: 700;
+}
+.guidelist__sub {
+  font-size: 11.5px;
+  color: var(--text-sub);
+  line-height: 1.5;
+}
+.guidelist__read {
+  font-size: 11px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+/* ---- 研究所がまだ無い人への道案内 ---- */
+.labhint {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  counter-reset: none;
+}
+.labhint li {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-2);
+  font-size: 12.5px;
+  line-height: 1.55;
+  opacity: 0.62;
+}
+.labhint li strong {
+  display: block;
+  color: var(--text);
+}
+.labhint__sub {
+  display: block;
+  color: var(--text-sub);
+  font-size: 11.5px;
+  margin-top: 2px;
+}
+.labhint__n {
+  flex: none;
+  width: 21px;
+  height: 21px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: var(--border);
+  color: var(--text-sub);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+.labhint--done {
+  opacity: 0.45;
+}
+.labhint--done .labhint__n {
+  background: var(--profit-bg);
+  color: var(--profit);
+}
+.labhint--now {
+  opacity: 1;
+  border-color: var(--research);
+  background: var(--research-bg);
+}
+.labhint--now .labhint__n {
+  background: var(--research);
+  color: #fff;
+}
+
+/* ---- 地図の「本社から半径○km」 ---- */
+.rm__radius {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.rm__radius-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-sub);
+  flex: none;
+}
+.rm__radius-from {
+  flex: 1 1 200px;
+  min-width: 180px;
+}
+.rm__radius-from .segmented__item {
+  min-height: 34px;
+  font-size: 12px;
+  padding: 0 10px;
+}
+.rm__radius-opts {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.rm__radius-btn {
+  min-height: 34px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-sub);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.rm__radius-btn--on {
+  border-color: var(--power);
+  background: var(--power-bg);
+  color: var(--power);
+}
+
+/* ---- 地図: 立体表示の切り替え（地図の右上に小さく重ねる） ---- */
+.rm__3d {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 500;
+  min-width: 38px;
+  height: 32px;
+  padding: 0 9px;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  background: color-mix(in srgb, var(--card) 88%, transparent);
+  color: var(--text-sub);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.35);
+}
+.rm__3d--on {
+  border-color: var(--power);
+  background: var(--power);
+  color: #fff;
+}
+
+/* ---- 地図: 持っている建物に置く印 ---- */
+.rm-own {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--profit);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 900;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+
+/* ---- 地図の凡例: 実際の描かれ方をそのまま小さく見せる ---- */
+.rm__legend {
+  gap: 8px 16px;
+  align-items: flex-start;
+}
+.rm__legend-item strong {
+  display: block;
+  color: var(--text);
+  font-size: 11.5px;
+}
+.rm__legend-item small {
+  display: block;
+  color: var(--text-dim);
+  font-size: 10.5px;
+}
+.rm-swatch {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 22px;
+  height: 18px;
+  border-radius: 4px;
+}
+.rm-swatch--buy {
+  border: 2px solid var(--power);
+  background: color-mix(in srgb, var(--power) 38%, transparent);
+}
+.rm-swatch--poor {
+  border: 1px dashed var(--power);
+  background: color-mix(in srgb, var(--power) 7%, transparent);
+  opacity: 0.75;
+}
+.rm-swatch--owned {
+  border: 2.5px solid #fff;
+  background: color-mix(in srgb, var(--power) 60%, transparent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+/* ---- 地図: どこまで寄れば建物が出るか ---- */
+.rm__zoomhint {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  z-index: 500;
+  display: grid;
+  gap: 1px;
+  min-width: 168px;
+  padding: 7px 10px 9px;
+  border-radius: 10px;
+  border: 1px solid var(--border-strong);
+  background: color-mix(in srgb, var(--card) 90%, transparent);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.4);
+}
+.rm__zoomhint b {
+  font-size: 12px;
+  font-weight: 800;
+}
+.rm__zoomhint small {
+  font-size: 10.5px;
+  color: var(--text-sub);
+}
+.rm__zoomhint:disabled {
+  cursor: default;
+}
+.rm__zoomhint--on {
+  border-color: var(--profit);
+}
+.rm__zoomhint--on b {
+  color: var(--profit);
+}
+.rm__zoombar {
+  display: block;
+  height: 4px;
+  margin-top: 4px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+}
+.rm__zoombar > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--power);
+}
+.rm__zoomhint--on .rm__zoombar > span {
+  background: var(--profit);
+}
+
+/* ---- 気になる場所の印（★） ---- */
+.bookmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 34px;
+  padding: 0 11px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-2);
+  color: var(--text-sub);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.bookmark--block {
+  width: 100%;
+  justify-content: center;
+}
+.bookmark--on {
+  border-color: var(--warn);
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+.bookmark span:first-child {
+  font-size: 14px;
+  line-height: 1;
+}
+
+/* ---- 地図: 印を付けた場所 ---- */
+.rm-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  color: var(--warn);
+  font-size: 17px;
+  line-height: 1;
+  text-shadow: 0 0 2px #000, 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+
+/* ---- 季節の帯（いまがゲームの中でいつなのか） ---- */
+.seasonband {
+  position: relative;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background-size: cover;
+  background-position: center 62%;
+  min-height: 92px;
+}
+.seasonband__veil {
+  display: grid;
+  gap: 2px;
+  align-content: end;
+  min-height: 92px;
+  padding: 10px 12px;
+  /* 絵の上でも文字が読めるように、下だけ暗くする */
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.62) 0%, rgba(0, 0, 0, 0.28) 46%, rgba(0, 0, 0, 0) 100%);
+}
+.seasonband__date {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.seasonband__ymd {
+  color: #fff;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+}
+.seasonband__season {
+  padding: 1px 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #10161f;
+  font-size: 11.5px;
+  font-weight: 800;
+}
+.seasonband__note {
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 11.5px;
+  line-height: 1.5;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+
+/* ---- ヘッダーの日付 ---- */
+.header__date {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  margin-left: auto;
+  padding: 2px 8px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  white-space: nowrap;
+}
+.header__date-ymd {
+  font-size: 10px;
+  color: var(--text-dim);
+}
+.header__date-md {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.header__date-season {
+  font-size: 10.5px;
+  font-weight: 800;
+  padding: 0 6px;
+  border-radius: 999px;
+  color: #10161f;
+}
+.header__date-season--spring { background: #F2B8CE; }
+.header__date-season--summer { background: #8ED88A; }
+.header__date-season--autumn { background: #F0A24B; }
+.header__date-season--winter { background: #AFD4F0; }
+
+/*
+ * 「おかえりなさい」の見出し数字。
+ * 戻ってきて最初に知りたいのは増えた額なので、そこだけ大きく出す。
+ * 幅390pxでも折り返さないよう、桁が多いときは字を詰める（clamp）。
+ */
+.offline__hero {
+  margin-top: 12px;
+  padding: 18px 16px;
+  border-radius: var(--radius-lg, 14px);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  text-align: center;
+}
+.offline__hero-label {
+  font-size: 12px;
+  color: var(--text-sub);
+  letter-spacing: 0.04em;
+}
+.offline__hero-value {
+  margin-top: 4px;
+  font-size: clamp(28px, 9vw, 40px);
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+}
+.offline__hero-sub {
+  margin-top: 6px;
+  font-size: 12px;
+}
+
+/*
+ * 前の版からの引き継ぎのお知らせ。値段を作り直してセーブを作り直したときに一度だけ出す。
+ */
+.carryover__amount {
+  font-size: clamp(24px, 7.5vw, 34px);
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+}
+
+/* ===== 手仕事のミニゲーム =====
+ * 印の動き・持ち時間のバーは CSS のアニメーションに任せ、
+ * 毎フレーム JavaScript を動かさない（重くしないため）。
+ */
+.mg {
+  padding: 10px 14px 14px;
+}
+.mg__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12px;
+  margin-bottom: 10px;
+}
+.mg__round {
+  color: var(--text-sub);
+  font-variant-numeric: tabular-nums;
+}
+.mg__note {
+  font-weight: 700;
+}
+.mg__action {
+  margin-top: 12px;
+}
+.mg__foot {
+  font-size: 11px;
+  margin-top: 8px;
+  line-height: 1.6;
+}
+
+/* --- 手を合わせる --- */
+.mg__track {
+  position: relative;
+  height: 56px;
+  border-radius: var(--radius-md, 10px);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.mg__zone {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: color-mix(in srgb, var(--accent) 26%, transparent);
+  border-left: 1px solid color-mix(in srgb, var(--accent) 60%, transparent);
+  border-right: 1px solid color-mix(in srgb, var(--accent) 60%, transparent);
+}
+.mg__zone-core {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--accent);
+  opacity: 0.9;
+}
+.mg__marker {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  width: 8px;
+  margin-left: -4px;
+  border-radius: 4px;
+  background: var(--text);
+  /* 位置は JavaScript が毎フレーム書く（CSS アニメーションだと
+     「動きを減らす」設定のときに止まって遊べなくなるため） */
+  will-change: left;
+}
+.mg__dots {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  margin-top: 10px;
+}
+.mg__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+.mg__dot--good { background: var(--profit); border-color: var(--profit); }
+.mg__dot--ok { background: var(--warn); border-color: var(--warn); }
+.mg__dot--miss { background: var(--loss); border-color: var(--loss); }
+
+/* --- 廃品を仕分ける --- */
+.mg__item {
+  position: relative;
+  min-height: 92px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md, 10px);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.mg__item--ok { border-color: var(--profit); }
+.mg__item--ng { border-color: var(--loss); }
+.mg__item-name {
+  font-size: 18px;
+  font-weight: 700;
+  padding: 0 12px;
+  text-align: center;
+}
+.mg__timer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 4px;
+  background: var(--accent);
+  /* 幅も JavaScript が書く。理由は上の印と同じ */
+  will-change: width;
+}
+.mg__bins {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 12px;
+}
+.mg__bin {
+  min-height: 52px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+/* --- 苗を育てる --- */
+.mg__gauge {
+  position: relative;
+  height: 150px;
+  border-radius: var(--radius-md, 10px);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.mg__gauge-band {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: color-mix(in srgb, var(--profit) 22%, transparent);
+  border-top: 1px dashed color-mix(in srgb, var(--profit) 70%, transparent);
+  border-bottom: 1px dashed color-mix(in srgb, var(--profit) 70%, transparent);
+}
+.mg__gauge-fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: color-mix(in srgb, var(--accent) 45%, transparent);
+  transition: height 90ms linear;
+}
+.mg__gauge-fill--profit { background: color-mix(in srgb, var(--profit) 45%, transparent); }
+.mg__gauge-fill--warn { background: color-mix(in srgb, var(--warn) 45%, transparent); }
+.mg__gauge-fill--loss { background: color-mix(in srgb, var(--loss) 45%, transparent); }
+.mg__gauge-label {
+  position: absolute;
+  top: 6px;
+  left: 8px;
+  font-size: 11px;
+  color: var(--text-sub);
+}
+.mg__meter {
+  position: relative;
+  height: 22px;
+  margin-top: 10px;
+  border-radius: 11px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.mg__meter-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: color-mix(in srgb, var(--profit) 35%, transparent);
+  transition: width 120ms linear;
+}
+.mg__meter-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+}
+
+/* --- 岩を割る --- */
+.mg__rock {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  padding: 10px;
+  border-radius: var(--radius-md, 10px);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+.mg__rock--hit { border-color: var(--profit); }
+.mg__rock--miss { border-color: var(--loss); }
+.mg__crack {
+  aspect-ratio: 1 / 1;
+  min-height: 64px;
+  border-radius: var(--radius-sm, 8px);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  cursor: pointer;
+}
+.mg__crack--lit {
+  background: color-mix(in srgb, var(--warn) 55%, var(--surface));
+  border-color: var(--warn);
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--warn) 70%, transparent);
+}
+
+/* --- ホームの欄に並ぶカード --- */
+.mg-card {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  padding: 10px 10px 12px;
+  text-align: center;
+}
+.mg-card__skill {
+  font-size: 11px;
+  color: var(--text-sub);
+}
+.mg-card__bar {
+  display: block;
+  margin-top: 2px;
+}
+.mg__levelup {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md, 10px);
+  background: color-mix(in srgb, var(--profit) 14%, var(--surface-2));
+  border: 1px solid color-mix(in srgb, var(--profit) 45%, transparent);
+  font-size: 13px;
+}
+
+/* ミニゲームのおまけ（出来が良かったときだけ出る） */
+.mg__bonus {
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-radius: var(--radius-md, 10px);
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface-2));
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  font-size: 13px;
 }

@@ -21,7 +21,8 @@ html {
 body {
   margin: 0;
   font-family: var(--font);
-  font-size: 14px;
+  /* 設定の「文字の大きさ」。--font-scale は useAppChrome が html に付ける */
+  font-size: calc(14px * var(--font-scale, 1));
   line-height: 1.45;
   color: var(--text);
   background: var(--bg);
@@ -273,5 +274,35 @@ a {
 @media (max-width: 479px) {
   .hide-sm {
     display: none !important;
+  }
+}
+
+
+/*
+ * 設定の「動きを減らす」。
+ * 数字が飛ぶ・カードが伸びる・地図が滑る、といった演出をまとめて止める。
+ * 個々の場所で止めて回ると足し忘れるので、ここで一括にしてある。
+ * （端末の「視差効果を減らす」設定も同じように尊重する）
+ */
+html[data-motion='reduce'] *,
+html[data-motion='reduce'] *::before,
+html[data-motion='reduce'] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+html[data-motion='reduce'] .pop,
+html[data-motion='reduce'] .float-num {
+  display: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:not([data-motion='full']) *,
+  html:not([data-motion='full']) *::before,
+  html:not([data-motion='full']) *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
   }
 }

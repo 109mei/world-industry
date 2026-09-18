@@ -18,7 +18,7 @@ import { FACILITY_CATEGORY_LABEL, type FacilityCategory } from '@/game/data/faci
 type Filter = 'all' | ResearchBranch;
 
 const FILTERS: { id: Filter; label: string }[] = [
-  { id: 'all', label: 'ぜんぶ' },
+  { id: 'all', label: 'すべて' },
   { id: 'industry', label: BRANCH_LABEL.industry },
   { id: 'logistics', label: BRANCH_LABEL.logistics },
   { id: 'energy', label: BRANCH_LABEL.energy },
@@ -138,7 +138,7 @@ export function ResearchTree() {
                   return (
                     <button key={q} type="button" className="row row--between tree__req" onClick={() => setSelected(q)}>
                       <span>{d?.name ?? q}</span>
-                      <Badge tone={done(q) ? 'profit' : 'warn'}>{done(q) ? '完了' : 'まだ'}</Badge>
+                      <Badge tone={done(q) ? 'profit' : 'warn'}>{done(q) ? '完了' : '未完了'}</Badge>
                     </button>
                   );
                 })}

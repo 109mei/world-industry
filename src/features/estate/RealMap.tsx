@@ -1,9 +1,12 @@
 import L from 'leaflet';
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/Button';
+import { Segmented } from '@/components/ui/Segmented';
 import { COMPANIES, SECTOR_LABEL, type CompanyDef } from '@/game/data/companies';
 import { LANDS, type LandDef } from '@/game/data/lands';
 import { hqLocation } from '@/game/engine/hq';
+import { COUNTRY_MAP, SHIP_MODE_MAP, type ShipMode } from '@/game/data/trade';
+import { RESOURCE_MAP, type ResourceId } from '@/game/data/resources';
 import { getLand } from '@/game/engine/land';
 import { customLandId, customPrice, getCustom, quoteFeature } from '@/game/engine/systems/customEstate';
 import { overpass, type BBox, type OsmFeature } from '@/game/services/osm/overpass';
@@ -11,10 +14,27 @@ import { PROPERTY_KIND as KIND_DEF } from '@/game/data/properties';
 import { bumpGame, useGame } from '@/stores/gameStore';
 import { useUiStore } from '@/stores/uiStore';
 import { formatMoney, formatNumber } from '@/utils/format';
+import { formatQty } from '@/utils/names';
 import { sfx } from '@/utils/sfx';
+import { distanceKm, formatDistance, polygonCenter } from '@/utils/geo';
+import { isLandSystemUnlocked, isUnlocked } from '@/game/engine/systems/unlocks';
 import { BULK_BUY_LIMIT, levelOf } from '@/game/data/prestigeTree';
 
 const Map3D = lazy(() => import('./Map3D').then((m) => ({ default: m.Map3D })));
+
+/**
+ * 「本社から半径○km」の選択肢。
+ * 近所を探すとき（徒歩・車で行ける範囲）から、県内・全国まで一息に切り替えられるようにする。
+ */
+const RADIUS_OPTIONS: { km: number | null; label: string }[] = [
+  { km: null, label: '制限なし' },
+  { km: 1, label: '1km' },
+  { km: 5, label: '5km' },
+  { km: 10, label: '10km' },
+  { km: 50, label: '50km' },
+  { km: 100, label: '100km' },
+  { km: 500, label: '500km' },
+];
 
 /** ズームがこれ未満のときは都市ごとにまとめて表示する */
 const CITY_ZOOM = 11;
@@ -68,7 +88,12 @@ export function RealMap() {
   const [bulkMsg, setBulkMsg] = useState<string | null>(null);
   const bulkLevel = levelOf(state.prestige?.upgrades, 'bulk_buy');
   const openFeature = useUiStore((s) => s.openFeature);
+  const radiusKm = useUiStore((s) => s.mapRadiusKm);
+  const setRadiusKm = useUiStore((s) => s.setMapRadiusKm);
+  const radiusFrom = useUiStore((s) => s.mapRadiusFrom);
+  const setRadiusFrom = useUiStore((s) => s.setMapRadiusFrom);
   const buildingLayerRef = useRef<L.LayerGroup | null>(null);
+  const radiusLayerRef = useRef<L.LayerGroup | null>(null);
   const buildingRendererRef = useRef<L.Canvas | null>(null);
 
   // 地図の作成（1回だけ）
@@ -84,7 +109,8 @@ export function RealMap() {
       zoomControl: true,
       attributionControl: true,
       worldCopyJump: true,
-      minZoom: 2,
+      // 地球の反対側まで荷を運ぶので、世界全体が1画面に入るところまで引けるようにする
+      minZoom: 1,
       maxZoom: 19,
     });
     mapRef.current = map;
@@ -141,6 +167,14 @@ export function RealMap() {
     map.flyTo([mapTarget.lat, mapTarget.lon], mapTarget.zoom, { duration: 0.8 });
   }, [mapTarget]);
 
+  // --- 「本社から半径○km」の絞り込み ---
+  // 中心は本社か、いま見ている地図の真ん中。どちらも数値2つに落としてから使う
+  // （オブジェクトのまま useEffect の依存に入れると、毎回作り直されて描画が走ってしまう）
+  const hqPoint = hqLocation(state);
+  const centerLat = radiusFrom === 'view' ? view.lat : hqPoint.lat;
+  const centerLon = radiusFrom === 'view' ? view.lon : hqPoint.lon;
+  const landSystemOpen = isLandSystemUnlocked(state, derived.assets);
+
   // マーカーの内容を決める要素。変わったときだけ描き直す
   const ownedKey = Object.keys(state.estate.owned).sort().join(',');
   const companyOwnedKey = Object.entries(state.estate.companyOwned)
@@ -152,6 +186,7 @@ export function RealMap() {
     .join(',');
   const landsKey = state.lands.map((l) => l.id).join(',');
   const customKeyForMarkers = Object.keys(state.estate.custom ?? {}).sort().join(',');
+  const markKey = (state.bookmarks ?? []).map((b) => `${b.kind}:${b.id}`).join(',');
   const hqKey = `${state.settings.hqLocation?.lat ?? ''},${state.settings.hqLocation?.lon ?? ''}`;
   const builtKey = state.facilities.map((f) => `${f.landId}:${f.count}`).sort().join(',');
   const priceKey = Object.values(state.estate.cityMult)
@@ -164,6 +199,7 @@ export function RealMap() {
     if (!map || !layer) return;
     layer.clearLayers();
     const mode = state.settings.numberFormat;
+    const withinRadius = (pt: { lat: number; lon: number }) => radiusKm == null || distanceKm({ lat: centerLat, lon: centerLon }, pt) <= radiusKm;
 
     // 会社の本社（寄ったときだけ）
     for (const c of COMPANIES as readonly CompanyDef[]) {
@@ -177,12 +213,23 @@ export function RealMap() {
       m.on('click', () => openCompany(c.id));
       m.addTo(layer);
     }
-    // 前のバージョンで買った産業用地（持っているものだけ出す）
+    // 産業用地。持っているものと、いま買えるものの両方を出す
+    // （買えるものを出さないと、用意された土地にたどり着く道が地図の上に無くなってしまう）
+    const hqHere = hqLocation(state);
     for (const l of LANDS as readonly LandDef[]) {
-      if (!getLand(state, l.id)) continue;
-      const built = state.facilities.filter((f) => f.landId === l.id).reduce((a, f) => a + f.count, 0);
-      const m = L.marker([l.lat, l.lon], { icon: landIcon(true), title: l.name, zIndexOffset: 50 });
-      m.bindTooltip(`${l.name}（所有）<br>施設 ${formatNumber(built, mode)}`, { direction: 'top', offset: [0, -12] });
+      const owned = !!getLand(state, l.id);
+      if (!owned) {
+        if (!landSystemOpen || !isUnlocked(state, 'land', l.id)) continue;
+        if (!withinRadius(l)) continue;
+      }
+      const built = owned ? state.facilities.filter((f) => f.landId === l.id).reduce((a, f) => a + f.count, 0) : 0;
+      const m = L.marker([l.lat, l.lon], { icon: landIcon(owned), title: l.name, zIndexOffset: 50 });
+      m.bindTooltip(
+        owned
+          ? `${l.name}（所有）<br>施設 ${formatNumber(built, mode)}`
+          : `${l.name}<br>${formatMoney(l.price, mode)}・${Math.round(l.areaSqm).toLocaleString('ja-JP')}㎡<br>本社から ${formatDistance(distanceKm(hqHere, l))}`,
+        { direction: 'top', offset: [0, -12] },
+      );
       m.on('click', () => openLand(l.id));
       m.addTo(layer);
     }
@@ -212,19 +259,133 @@ export function RealMap() {
       );
       m.addTo(layer);
     }
+    // 印を付けた場所（★）。どこに目を付けていたかを地図の上でも分かるようにする
+    for (const b of state.bookmarks ?? []) {
+      if (zoom < CITY_ZOOM) break;
+      const m = L.marker([b.lat, b.lon], {
+        icon: L.divIcon({ className: 'rm-icon', html: '<span class="rm-mark">★</span>', iconSize: [22, 22], iconAnchor: [11, 22] }),
+        title: b.label,
+        zIndexOffset: 150,
+      });
+      m.bindTooltip(`★ ${b.label}${b.note ? `<br>${b.note}` : ''}`, { direction: 'top', offset: [0, -14] });
+      m.addTo(layer);
+    }
+
     const hqAt = hqLocation(state);
     const hq = L.marker([hqAt.lat, hqAt.lon], { icon: L.divIcon({ className: 'rm-icon', html: '<span class="rm-hqself">本社</span>', iconSize: [40, 22], iconAnchor: [20, 11] }), zIndexOffset: 200 });
     hq.bindTooltip(`本社（${hqAt.label}）`, { direction: 'top', offset: [0, -10] });
     hq.on('click', () => openLand('hq'));
     hq.addTo(layer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [zoom, ownedKey, companyOwnedKey, holdingsKey, landsKey, builtKey, priceKey, customKeyForMarkers, hqKey, ready, state.settings.numberFormat]);
+  }, [zoom, ownedKey, companyOwnedKey, holdingsKey, landsKey, builtKey, priceKey, customKeyForMarkers, hqKey, ready, state.settings.numberFormat, radiusKm, centerLat, centerLon, landSystemOpen, markKey]);
+
+  // --- 半径の円（絞り込んでいる範囲を目で見えるようにする） ---
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (!radiusLayerRef.current) radiusLayerRef.current = L.layerGroup().addTo(map);
+    const layer = radiusLayerRef.current;
+    layer.clearLayers();
+    if (radiusKm == null) return;
+    L.circle([centerLat, centerLon], {
+      radius: radiusKm * 1000,
+      color: '#5EA7FF',
+      weight: 2,
+      opacity: 0.8,
+      dashArray: '6 6',
+      fillColor: '#5EA7FF',
+      fillOpacity: 0.05,
+      interactive: false,
+    }).addTo(layer);
+    L.circleMarker([centerLat, centerLon], { radius: 4, color: '#5EA7FF', weight: 2, fillOpacity: 1, interactive: false }).addTo(layer);
+  }, [radiusKm, centerLat, centerLon, ready]);
+
+  // --- 自社の輸送（航路と、動いている船・飛行機・トラック） ---
+  const shipLayerRef = useRef<L.LayerGroup | null>(null);
+  const shipments = state.trade?.shipments ?? [];
+  // 1秒ごとに描き直す（毎フレーム作り直すと重いので、残り秒数が変わったときだけ）
+  const shipKey = shipments.map((s) => `${s.id}:${Math.round(s.remaining)}`).join(',');
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (!shipLayerRef.current) shipLayerRef.current = L.layerGroup().addTo(map);
+    const layer = shipLayerRef.current;
+    layer.clearLayers();
+    const list = state.trade?.shipments ?? [];
+    if (list.length === 0) return;
+    const hqAt = hqLocation(state);
+    const mode = state.settings.numberFormat;
+
+    for (const sh of list) {
+      const c = COUNTRY_MAP[sh.country as keyof typeof COUNTRY_MAP];
+      if (!c) continue;
+      const m = SHIP_MODE_MAP[sh.mode as ShipMode];
+      // 荷の向き。仕入れは「相手の港 → 本社」、売り渡しは「本社 → 相手の港」
+      const from: [number, number] = sh.kind === 'import' ? [c.lat, c.lon] : [hqAt.lat, hqAt.lon];
+      const to: [number, number] = sh.kind === 'import' ? [hqAt.lat, hqAt.lon] : [c.lat, c.lon];
+      // 日付変更線をまたぐときは、近いほうを回る
+      let lon2 = to[1];
+      if (Math.abs(lon2 - from[1]) > 180) lon2 += lon2 > from[1] ? -360 : 360;
+      const done = Math.max(0, Math.min(1, 1 - sh.remaining / Math.max(1, sh.totalSeconds)));
+      // 少しふくらませて、直線に見えないようにする（航路らしく）
+      const mid: [number, number] = [(from[0] + to[0]) / 2 + (lon2 - from[1]) * 0.08, (from[1] + lon2) / 2];
+      const path: [number, number][] = [];
+      for (let i = 0; i <= 24; i++) {
+        const t = i / 24;
+        const la = (1 - t) * (1 - t) * from[0] + 2 * (1 - t) * t * mid[0] + t * t * to[0];
+        const lo = (1 - t) * (1 - t) * from[1] + 2 * (1 - t) * t * mid[1] + t * t * lon2;
+        path.push([la, lo]);
+      }
+      const color = sh.kind === 'import' ? '#A47BFF' : '#61C987';
+      L.polyline(path, { color, weight: 2, opacity: 0.55, dashArray: '6 6', interactive: false }).addTo(layer);
+      // いまどこを走っているか
+      const t = done;
+      const la = (1 - t) * (1 - t) * from[0] + 2 * (1 - t) * t * mid[0] + t * t * to[0];
+      const lo = (1 - t) * (1 - t) * from[1] + 2 * (1 - t) * t * mid[1] + t * t * lon2;
+      const glyph = sh.mode === 'air' ? '✈' : sh.mode === 'truck' ? '🚚' : '🚢';
+      const marker = L.marker([la, lo], {
+        icon: L.divIcon({ className: 'rm-icon', html: `<span class="rm-ship" style="--ship:${color}">${glyph}</span>`, iconSize: [26, 26], iconAnchor: [13, 13] }),
+        zIndexOffset: 300,
+        interactive: true,
+      });
+      const res = RESOURCE_MAP[sh.resource as ResourceId];
+      marker.bindTooltip(
+        `${sh.kind === 'import' ? `${c.name} → 本社` : `本社 → ${c.name}`}<br>${res?.name ?? sh.resource} ${formatQty(sh.resource, sh.qty, mode)}・${m?.name ?? ''}<br>あと ${Math.ceil(sh.remaining)}秒`,
+        { direction: 'top', offset: [0, -12] },
+      );
+      marker.addTo(layer);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shipKey, ready, hqKey, state.settings.numberFormat]);
 
   // --- 実在の建物（OpenStreetMap）: 寄ったときだけ読み込む ---
   const customKey = Object.keys(state.estate.custom ?? {}).sort().join(',');
   const numberFormat = state.settings.numberFormat;
   // 3D に渡す配列は、持ち物が変わったときだけ作り直す（毎回作ると 3D が作り直される）
   const ownedIds = useMemo(() => (customKey ? customKey.split(',') : []), [customKey]);
+  /**
+   * 半径で絞ったあとの建物。
+   * 絞ると描く数が減るので、動きはむしろ軽くなる。持っている場所は範囲の外でも必ず残す
+   * （自分の持ち物が消えると、売りに行けなくなってしまうため）。
+   */
+  const shownFeatures = useMemo(() => {
+    if (radiusKm == null) return features;
+    const c = { lat: centerLat, lon: centerLon };
+    const owned = new Set(ownedIds);
+    return features.filter((f) => owned.has(f.id) || distanceKm(c, f) <= radiusKm);
+  }, [features, radiusKm, centerLat, centerLon, ownedIds]);
+  const hiddenByRadius = features.length - shownFeatures.length;
+
+  /*
+   * 買えるかどうかを、地図の上でひと目で分かるようにする。
+   * 値段の計算は建物の数だけ走るので1回だけにして、
+   * 「買える件数」が変わったときにだけ描き直す（所持金は毎秒動くので、
+   * そのまま依存に入れると毎秒すべての建物を描き直すことになる）。
+   */
+  const priced = useMemo(() => shownFeatures.map((f) => ({ f, price: quoteFeature(f).basePrice })), [shownFeatures]);
+  const cash = state.company.cash;
+  const affordCount = useMemo(() => priced.reduce((a, x) => a + (cash >= x.price ? 1 : 0), 0), [priced, cash]);
   const use3DRef = useRef(false);
 
   useEffect(() => {
@@ -268,34 +429,53 @@ export function RealMap() {
     layer.clearLayers();
     if (zoom < BUILDING_ZOOM) return;
     // 大きい区画を先に描いて、小さな建物が上に来るようにする（タップしやすさ）
-    const ordered = [...features].sort((a, b) => b.areaSqm - a.areaSqm);
+    const ordered = [...priced].sort((a, b) => b.f.areaSqm - a.f.areaSqm);
     const heavy = ordered.length > 300;
-    for (const f of ordered) {
+    const now = state.company.cash;
+    for (const { f, price: listed } of ordered) {
       const owned = getCustom(state, f.id);
       const color = KIND_DEF[owned?.kind ?? f.kind].color;
+      const canBuy = !owned && now >= listed;
+      /*
+       * 3つの見た目に分ける。色だけに頼らず、線の引き方でも変える。
+       *   所有中   … 太い実線・濃い塗り（さらに中央に ✓ を置く）
+       *   買える   … 実線・はっきりした塗り
+       *   資金不足 … 破線・ごく薄い塗り
+       */
       const poly = L.polygon(
         f.polygon.map((p) => [p.lat, p.lon] as [number, number]),
         {
-          color,
-          weight: owned ? 3 : 1.5,
-          opacity: owned ? 1 : 0.8,
+          color: owned ? '#FFFFFF' : color,
+          weight: owned ? 3.5 : canBuy ? 2.5 : 1,
+          opacity: owned ? 1 : canBuy ? 1 : 0.55,
+          dashArray: owned || canBuy ? undefined : '4 5',
           fillColor: color,
-          fillOpacity: owned ? 0.55 : 0.18,
-          className: 'rm-osm',
+          fillOpacity: owned ? 0.6 : canBuy ? 0.38 : 0.07,
+          className: `rm-osm${owned ? ' rm-osm--owned' : canBuy ? ' rm-osm--buy' : ' rm-osm--poor'}`,
           // 数が多いときは Canvas で描く（SVG だと重くなるため）
           renderer: heavy ? (buildingRendererRef.current ?? undefined) : undefined,
         },
       );
-      const price = owned ? customPrice(state, owned) : quoteFeature(f).basePrice;
+      const price = owned ? customPrice(state, owned) : listed;
       const built = owned ? state.facilities.filter((x) => x.landId === customLandId(f.id)).reduce((a, x) => a + x.count, 0) : 0;
+      const stateLabel = owned ? `所有中・施設 ${built}` : canBuy ? `${formatMoney(price, mode)}（買えます）` : `${formatMoney(price, mode)}（あと ${formatMoney(price - now, mode)}）`;
       poly.bindTooltip(
-        `${owned?.name ?? f.name}<br>${owned?.label ?? f.label}・${Math.round(f.areaSqm).toLocaleString('ja-JP')}㎡<br>${owned ? `所有中・施設 ${built}` : formatMoney(price, mode)}`,
+        `${owned?.name ?? f.name}<br>${owned?.label ?? f.label}・${Math.round(f.areaSqm).toLocaleString('ja-JP')}㎡<br>${stateLabel}`,
         { direction: 'top', sticky: true },
       );
       poly.on('click', () => openFeature(f));
       poly.addTo(layer);
+      // 持っている場所には印を置く（塗りだけだと、混んだ場所で見失う）
+      if (owned) {
+        const c = polygonCenter(f.polygon);
+        L.marker([c.lat, c.lon], {
+          icon: L.divIcon({ className: 'rm-icon', html: '<span class="rm-own">✓</span>', iconSize: [22, 22], iconAnchor: [11, 11] }),
+          interactive: false,
+          zIndexOffset: 120,
+        }).addTo(layer);
+      }
     }
-  }, [features, zoom, customKey, numberFormat]);
+  }, [priced, affordCount, zoom, customKey, numberFormat]);
 
   // 3D から 2D に戻ったら、隠れていたあいだに変わった大きさを地図に教える
   useEffect(() => {
@@ -326,6 +506,20 @@ export function RealMap() {
     map.fitBounds(L.latLngBounds(ownedPoints).pad(0.3), { maxZoom: 15 });
   };
 
+  /** 運んでいる荷が全部入るように、地図を寄せる */
+  const goShipments = () => {
+    const map = mapRef.current;
+    const list = state.trade?.shipments ?? [];
+    if (!map || list.length === 0) return;
+    const hqAt = hqLocation(state);
+    const pts: [number, number][] = [[hqAt.lat, hqAt.lon]];
+    for (const sh of list) {
+      const c = COUNTRY_MAP[sh.country as keyof typeof COUNTRY_MAP];
+      if (c) pts.push([c.lat, c.lon]);
+    }
+    map.fitBounds(L.latLngBounds(pts).pad(0.25), { maxZoom: 6 });
+  };
+
   return (
     <div className="rm">
       <div className="rm__toolbar">
@@ -339,12 +533,15 @@ export function RealMap() {
           <Button size="sm" disabled={ownedPoints.length === 0} onClick={goOwned}>
             所有地へ
           </Button>
-          {bulkLevel > 0 && features.length > 0 && (
+          <Button size="sm" disabled={shipments.length === 0} onClick={goShipments}>
+            輸送中 {shipments.length > 0 ? `(${shipments.length})` : ''}
+          </Button>
+          {bulkLevel > 0 && shownFeatures.length > 0 && (
             <Button
               size="sm"
               variant="primary"
               onClick={() => {
-                const r = engine.bulkBuyFeatures(features);
+                const r = engine.bulkBuyFeatures(shownFeatures);
                 setBulkMsg(r.reason ?? `${r.bought}件を買いました`);
                 if (r.bought > 0) sfx('buy');
                 bumpGame();
@@ -354,23 +551,41 @@ export function RealMap() {
               表示中を一括買収（最大{BULK_BUY_LIMIT[Math.min(bulkLevel, BULK_BUY_LIMIT.length) - 1]}件）
             </Button>
           )}
-          {canUse3D && (
-            <Button
-              size="sm"
-              variant={use3D ? 'primary' : 'secondary'}
-              onClick={() => {
-                setThreeDError(null);
-                engine.updateSettings({ map3D: !wants3D });
-                bumpGame();
-              }}
-              title="近づいた場所を立体で表示します"
-            >
-              {use3D ? '2Dに戻す' : '3Dで見る'}
-            </Button>
-          )}
+        </div>
+        <div className="rm__radius">
+          <span className="rm__radius-label">絞り込み</span>
+          <div className="rm__radius-from">
+            <Segmented
+              ariaLabel="半径を測る場所"
+              items={[
+                { id: 'hq', label: '本社から' },
+                { id: 'view', label: '地図の中心から' },
+              ]}
+              value={radiusFrom}
+              onChange={(v) => setRadiusFrom(v as 'hq' | 'view')}
+            />
+          </div>
+          <div className="rm__radius-opts" role="group" aria-label="半径">
+            {RADIUS_OPTIONS.map((o) => (
+              <button
+                key={o.label}
+                className={`rm__radius-btn${radiusKm === o.km ? ' rm__radius-btn--on' : ''}`}
+                onClick={() => {
+                  setRadiusKm(o.km);
+                  const map = mapRef.current;
+                  // 範囲を決めたら、その範囲がちょうど入るところまで引く（円の外を探し続けないように）
+                  if (map && o.km != null) map.flyToBounds(L.latLng(centerLat, centerLon).toBounds(o.km * 2200), { duration: 0.6 });
+                }}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
         </div>
         <span className="text-sub" style={{ fontSize: 11 }}>
-          {bulkMsg
+          {radiusKm != null && zoom >= BUILDING_ZOOM && hiddenByRadius > 0
+            ? `${radiusFrom === 'hq' ? '本社' : '地図の中心'}から ${radiusKm}km 以内の ${shownFeatures.length}件だけ出しています（範囲の外の ${hiddenByRadius}件は隠しています）`
+            : bulkMsg
             ? bulkMsg
             : zoom < CITY_ZOOM
             ? '丸は物件のある都市。タップで寄る。▲は施設を建てられる産業用地（タップで購入）'
@@ -384,6 +599,55 @@ export function RealMap() {
         </span>
       </div>
       <div className="rm__stage">
+        {/*
+          * どこまで寄れば建物を買えるのかが分からない、という迷いを無くす。
+          * いまの倍率と、建物が出る倍率までの残りを地図の上にそのまま出し、
+          * 押せば一息でそこまで寄れるようにする。
+          */}
+        {!use3D && (
+          <button
+            type="button"
+            className={`rm__zoomhint${zoom >= BUILDING_ZOOM ? ' rm__zoomhint--on' : ''}`}
+            onClick={() => {
+              const map = mapRef.current;
+              if (!map) return;
+              if (zoom >= BUILDING_ZOOM) return;
+              map.setZoom(BUILDING_ZOOM);
+            }}
+            disabled={zoom >= BUILDING_ZOOM}
+          >
+            {zoom >= BUILDING_ZOOM ? (
+              <>
+                <b>建物が出ています</b>
+                <small>押すと買えます</small>
+              </>
+            ) : (
+              <>
+                <b>あと {BUILDING_ZOOM - zoom} 段階で建物が出ます</b>
+                <small>押すとそこまで寄ります</small>
+              </>
+            )}
+            <span className="rm__zoombar" aria-hidden="true">
+              <span style={{ width: `${Math.min(100, Math.max(0, ((zoom - 4) / (BUILDING_ZOOM - 4)) * 100))}%` }} />
+            </span>
+          </button>
+        )}
+
+        {/* 立体表示の切り替えは、地図を見ながら押せるよう地図の右上に小さく置く */}
+        {canUse3D && (
+          <button
+            type="button"
+            className={`rm__3d${use3D ? ' rm__3d--on' : ''}`}
+            onClick={() => {
+              setThreeDError(null);
+              engine.updateSettings({ map3D: !wants3D });
+              bumpGame();
+            }}
+            title={use3D ? '平面（2D）に戻します' : '近づいた場所を立体で表示します（端末によっては重くなります）'}
+          >
+            {use3D ? '2D' : '3D'}
+          </button>
+        )}
         {use3D ? (
           <Suspense
             fallback={
@@ -394,7 +658,7 @@ export function RealMap() {
           >
             <Map3D
               center={view}
-              features={features}
+              features={shownFeatures}
               ownedIds={ownedIds}
               onSelect={(f) => openFeature(f)}
               onView={(v) => {
@@ -426,32 +690,46 @@ export function RealMap() {
       </div>
       <div className="rm__legend">
         <span className="rm__legend-item">
-          <span className="rm-pin rm-pin--market rm-pin--affordable" style={{ ['--pin' as string]: '#5ea7ff' }} />
-          買える物件
+          <span className="rm-swatch rm-swatch--buy" />
+          <span>
+            <strong>買える</strong>
+            <small>実線・色が濃い</small>
+          </span>
         </span>
         <span className="rm__legend-item">
-          <span className="rm-pin rm-pin--market" style={{ ['--pin' as string]: '#5ea7ff' }} />
-          資金不足
+          <span className="rm-swatch rm-swatch--poor" />
+          <span>
+            <strong>資金不足</strong>
+            <small>破線・色がごく薄い</small>
+          </span>
         </span>
         <span className="rm__legend-item">
-          <span className="rm-pin rm-pin--player" style={{ ['--pin' as string]: '#5ea7ff' }} />
-          所有中
-        </span>
-        <span className="rm__legend-item">
-          <span className="rm-pin rm-pin--company" style={{ ['--pin' as string]: '#5ea7ff' }} />
-          他社所有
+          <span className="rm-swatch rm-swatch--owned">✓</span>
+          <span>
+            <strong>所有中</strong>
+            <small>白い太枠と ✓ の印</small>
+          </span>
         </span>
         <span className="rm__legend-item">
           <span className="rm-hq">株</span>
-          会社の本社
+          <span>
+            <strong>会社の本社</strong>
+            <small>株を売買できる</small>
+          </span>
         </span>
         <span className="rm__legend-item">
           <span className="rm-land">▲</span>
-          産業用地
+          <span>
+            <strong>産業用地</strong>
+            <small>押すと買える／黄色は所有中</small>
+          </span>
         </span>
         <span className="rm__legend-item">
-          <span className="rm-osm-legend" />
-          実在の建物（拡大すると出る）
+          <span className="rm-hqself" style={{ fontSize: 9 }}>本社</span>
+          <span>
+            <strong>自社の本社</strong>
+            <small>ここが起点</small>
+          </span>
         </span>
       </div>
       <p className="text-dim" style={{ fontSize: 11 }}>

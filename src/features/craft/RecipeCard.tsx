@@ -9,6 +9,7 @@ import { TOOL_MAP, isToolId } from '@/game/data/tools';
 import { craftableTimes } from '@/game/engine/actions/craft';
 import { describeCondition, isUnlocked } from '@/game/engine/systems/unlocks';
 import { bumpGame, useGame } from '@/stores/gameStore';
+import { formatQty } from '@/utils/names';
 import { sfx } from '@/utils/sfx';
 import { useRepeat } from '@/utils/useRepeat';
 
@@ -64,7 +65,7 @@ export function RecipeCard({ recipe }: { recipe: RecipeDef }) {
         {recipe.outputs && (
           <div className="stat" style={{ textAlign: 'right' }}>
             <span className="stat__value stat__value--sm num">
-              {(Object.entries(recipe.outputs) as [ResourceId, number][]).map(([rid, n]) => `${RESOURCE_MAP[rid].name}×${n}`).join(' ')}
+              {(Object.entries(recipe.outputs) as [ResourceId, number][]).map(([rid, n]) => `${RESOURCE_MAP[rid].name}×${formatQty(rid, n)}`).join(' ')}
             </span>
             <span className="stat__label">出力</span>
           </div>

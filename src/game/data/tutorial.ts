@@ -31,7 +31,7 @@ const facilityCount = (state: GameState) => state.facilities.reduce((a, f) => a 
 export const TUTORIAL_STEPS: TutorialStepDef[] = [
   {
     id: 'stone3',
-    title: '石を3個ひろう',
+    title: '石を3kgひろう',
     text: 'ホームの「石を拾う」を3回タップします。',
     where: 'ホーム › 石を拾う',
     why: '最初の資源です。ここから全部がつながっています。',
@@ -42,7 +42,7 @@ export const TUTORIAL_STEPS: TutorialStepDef[] = [
   },
   {
     id: 'wood2',
-    title: '木を2個あつめる',
+    title: '木を2kgあつめる',
     text: '「木を集める」を2回タップします。',
     where: 'ホーム › 木を集める',
     why: '道具の柄になります。石と木がそろえば道具が作れます。',
@@ -54,7 +54,7 @@ export const TUTORIAL_STEPS: TutorialStepDef[] = [
   {
     id: 'hammer',
     title: '石のハンマーを作る',
-    text: 'クラフトの画面で「石のハンマー」の「1個作る」を押します（石3・木2）。',
+    text: 'クラフトの画面で「石のハンマー」の「1個作る」を押します（石3kg・木2kg）。',
     where: 'クラフト › 石のハンマー › 1個作る',
     why: '道具があると、手では採れないものが採れるようになります。使うと減り、耐久0で壊れます。',
     tab: 'craft',
@@ -121,15 +121,6 @@ export const TUTORIAL_STEPS: TutorialStepDef[] = [
     check: (s) => Object.values(s.market?.autoSell ?? {}).some((c) => c?.enabled),
   },
   {
-    id: 'research',
-    title: 'はじめての研究',
-    text: '研究の画面で、いちばん安いものをタップして「研究する」を押します。',
-    where: '研究 › 研究をタップ › 研究する',
-    why: '研究ツリーの先に、土地・事業・自動化などほとんどの要素がぶら下がっています。',
-    tab: 'research',
-    check: (s) => Object.keys(s.research.completed).length >= 1,
-  },
-  {
     id: 'land',
     title: '地図で場所を買う',
     text: '地図の画面を拡大して、実際に建っている建物や区画をタップし、「購入する」を押します。',
@@ -137,6 +128,15 @@ export const TUTORIAL_STEPS: TutorialStepDef[] = [
     why: '買った場所には施設を建てられ、家賃も入ります。事業を構えるのもこの土地の上です。',
     tab: 'map',
     check: (s) => Object.keys(s.estate?.custom ?? {}).length >= 1 || s.lands.length > 1,
+  },
+  {
+    id: 'research',
+    title: 'はじめての研究',
+    text: '研究の画面で、いちばん安いものをタップして「研究する」を押します。',
+    where: '研究 › 研究をタップ › 研究する',
+    why: '研究ツリーの先に、土地・事業・自動化などほとんどの要素がぶら下がっています。',
+    tab: 'research',
+    check: (s) => Object.keys(s.research.completed).length >= 1,
   },
   {
     id: 'sales',

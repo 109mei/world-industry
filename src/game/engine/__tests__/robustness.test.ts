@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { GameEngine } from '../GameEngine';
+import { FACILITY_MAP, facilityBulkCost } from '@/game/data/facilities';
+import { RECIPE_MAP } from '@/game/data/recipes';
 import { migrateSave } from '../state/migrations';
 import { MAX_VALUE, safe } from '@/utils/numbers';
 import { GRACE_SECONDS } from '../systems/finance';
 import { MAX_CLIENTS } from '../systems/sales';
 import { formatMoney } from '@/utils/format';
+import { getMarketState } from '../systems/market';
 
 function makeEngine(cash = 0) {
   const e = new GameEngine({ rng: () => 0.5, now: () => 1_000_000 });
@@ -82,23 +85,35 @@ describe('クラフトの出来高', () => {
     e.debugUnlockAll();
     e.state.prestige.upgrades = { craft: 5 }; // 出来高 +50%
     e.refreshDerived();
-    e.debugAddResource('scrap_metal', 5_000);
-    e.debugAddResource('wood', 5_000);
+    // 倉庫は資源1種につき100t（＝100,000kg）ある。材料を数千積んだだけでは満杯にならないので、
+    // 材料を容量いっぱいまで積み、出来上がりの鉄の置き場だけを 1,000kg 残して「あと少しで満杯」にする。
+    const cap = e.derived.capacity;
+    e.debugAddResource('scrap_metal', cap);
+    e.debugAddResource('wood', cap);
+    e.debugAddResource('iron', cap - 1_000);
     const scrapBefore = e.state.inventory.scrap_metal ?? 0;
+    const ironBefore = e.state.inventory.iron ?? 0;
     const made = e.craft('smelt_scrap', 'max');
     const ironAfter = e.state.inventory.iron ?? 0;
     const used = scrapBefore - (e.state.inventory.scrap_metal ?? 0);
-    // 使った材料に見合う出来高が、ちゃんと倉庫に入っている（消えていない）
+    // 使った材料に見合う出来高が、ちゃんと倉庫に入っている（消えていない）。
+    // 何kgの鉄くずから鉄が何kgできるかはレシピから引く（いまは 1.2kg → 1kg）
+    const recipe = RECIPE_MAP['smelt_scrap'];
+    const ironPerScrap = (recipe.outputs?.iron ?? 0) / (recipe.inputs.scrap_metal ?? 1);
     expect(made).toBeGreaterThan(0);
-    expect(ironAfter).toBeGreaterThan(used / 3 - 1);
+    // 置き場が足りないぶんは作らない（材料も減らない）
+    expect(used).toBeLessThan(scrapBefore);
+    expect(ironAfter - ironBefore).toBeGreaterThan(used * ironPerScrap - 1);
   });
 });
 
 describe('赤字の判定は収入が入ったあと', () => {
   it('売れば足りるときは倒産しないし、警告も出ない', () => {
-    const e = makeEngine(100_000);
+    // 作業員1人目が15万円になったので、5人ぶんの建設費をデータから出して渡す。
+    // ここで雇えないと人件費が0になり、「売れば足りる」場面そのものが作れない。
+    const e = makeEngine(facilityBulkCost(FACILITY_MAP['worker_stone'], 0, 5));
     e.debugUnlockAll();
-    e.buyFacility('worker_stone', 5);
+    expect(e.buyFacility('worker_stone', 5)).toBe(5);
     e.debugAddResource('stone', 100_000);
     e.state.market.autoSell.stone = { enabled: true, keep: 0, minPriceRatio: 0 };
     e.state.company.cash = 0;
@@ -113,8 +128,9 @@ describe('赤字の判定は収入が入ったあと', () => {
   });
 
   it('本当に立て直せないときは倒産する', () => {
-    const e = makeEngine(100_000);
-    e.buyFacility('worker_stone', 5);
+    // 同じく5人ぶんの建設費を渡して雇い、そのうえで所持金をマイナスにする（売るものが無い）
+    const e = makeEngine(facilityBulkCost(FACILITY_MAP['worker_stone'], 0, 5));
+    expect(e.buyFacility('worker_stone', 5)).toBe(5);
     e.state.company.cash = -1000;
     for (let i = 0; i < GRACE_SECONDS + 5; i++) e.tick(1);
     expect(e.state.stats.bankruptcies).toBe(1);
@@ -165,5 +181,42 @@ describe('取引先の記録', () => {
       });
     }
     expect(Object.keys(salesState(e.state).clients).length).toBeLessThanOrEqual(MAX_CLIENTS);
+  });
+});
+
+describe('総資産は相場では動かない', () => {
+  it('売り買いしていないのに相場が動いても総資産は変わらない', () => {
+    const e = makeEngine(1_000_000);
+    e.debugAddResource('stone', 5_000);
+    e.debugAddResource('wood', 5_000);
+    e.refreshDerived();
+    const before = e.derived.assets;
+    expect(before).toBeGreaterThan(1_000_000);
+    // 高騰させる
+    for (const id of ['stone', 'wood'] as const) {
+      const m = getMarketState(e.state, id);
+      m.modifier = 3;
+      m.saturation = 800;
+    }
+    e.refreshDerived();
+    expect(e.derived.assets).toBeCloseTo(before, 6);
+    // 暴落させる
+    for (const id of ['stone', 'wood'] as const) {
+      const m = getMarketState(e.state, id);
+      m.modifier = 0.2;
+      m.saturation = 0;
+    }
+    e.refreshDerived();
+    expect(e.derived.assets).toBeCloseTo(before, 6);
+  });
+
+  it('実際に売れば総資産は動く', () => {
+    const e = makeEngine(1_000_000);
+    e.debugAddResource('stone', 5_000);
+    e.refreshDerived();
+    const before = e.derived.assets;
+    e.sell('stone', 5_000);
+    e.refreshDerived();
+    expect(e.derived.assets).not.toBeCloseTo(before, 2);
   });
 });

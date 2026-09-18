@@ -6,21 +6,35 @@ interface SheetProps {
   title?: ReactNode;
   icon?: ReactNode;
   children: ReactNode;
+  /** 下の「閉じる」を出さない（自前で閉じるボタンを置く画面用） */
+  hideFooter?: boolean;
 }
 
+/**
+ * いま開いているシートの枚数。
+ *
+ * 「開いたときの値を覚えて、閉じるときに戻す」方式は入れ子に耐えない。
+ * A→B の順に開き、A から先に片付くと、A が空文字に戻したあと
+ * B が 'hidden' に戻してしまい、ページが固定されたままになる。
+ * （シートを開いたまま20秒以上離れると「おかえりなさい」が重なるので、実際に起きうる）
+ * 枚数で数えて、0枚になったときだけ戻す。
+ */
+let openSheets = 0;
+
 /** 下から出てくる詳細パネル（PC では中央のダイアログ） */
-export function Sheet({ open, onClose, title, icon, children }: SheetProps) {
+export function Sheet({ open, onClose, title, icon, children, hideFooter = false }: SheetProps) {
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
     window.addEventListener('keydown', onKey);
-    const prevOverflow = document.body.style.overflow;
+    openSheets += 1;
     document.body.style.overflow = 'hidden';
     return () => {
       window.removeEventListener('keydown', onKey);
-      document.body.style.overflow = prevOverflow;
+      openSheets = Math.max(0, openSheets - 1);
+      if (openSheets === 0) document.body.style.overflow = '';
     };
   }, [open, onClose]);
 
@@ -37,11 +51,13 @@ export function Sheet({ open, onClose, title, icon, children }: SheetProps) {
           </button>
         </div>
         {children}
-        <div className="sheet__footer">
-          <button className="btn btn--secondary btn--block" onClick={onClose} aria-label="閉じる">
-            閉じる
-          </button>
-        </div>
+        {!hideFooter && (
+          <div className="sheet__footer">
+            <button className="btn btn--secondary btn--block" onClick={onClose} aria-label="閉じる">
+              閉じる
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

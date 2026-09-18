@@ -11,9 +11,14 @@ import type { GameState } from '@/types/state';
 import type { EngineContext } from '../context';
 import { safe } from '@/utils/numbers';
 import { businessStaffTotal, businessWageTotal } from './business';
+import { SECONDS_PER_GAME_DAY, WAGE_PER_DAY } from '@/game/data/scale';
 
-/** 従業員1人あたりの人件費（円/秒）。1時間で 1,080円 */
-export const WAGE_PER_EMPLOYEE = 0.3;
+/**
+ * 従業員1人あたりの人件費（円/秒）。
+ * 現実の「1人あたり1日 25,920円（時給1,080円ぶんの負担）」を、
+ * ゲームの1日（現実の60秒）に割り付けた値。
+ */
+export const WAGE_PER_EMPLOYEE = WAGE_PER_DAY / SECONDS_PER_GAME_DAY;
 /** 借金の利息（1時間あたり） */
 export const DEBT_INTEREST_PER_HOUR = 0.2;
 /** 赤字のまま耐えられる時間（秒）。これを超えると破産 */

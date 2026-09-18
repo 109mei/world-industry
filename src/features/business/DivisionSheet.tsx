@@ -16,6 +16,7 @@ import { referencePrice } from '@/game/engine/systems/market';
 import { bumpGame, useGame } from '@/stores/gameStore';
 import { useUiStore } from '@/stores/uiStore';
 import { formatAmount, formatDuration, formatMoney, formatMoneyRate, formatNumber, formatPercent } from '@/utils/format';
+import { formatQty, formatUnitPrice } from '@/utils/names';
 import { sfx } from '@/utils/sfx';
 import { divisionSynergy } from '@/game/engine/systems/synergy';
 import { PACES, PACE_MAP, PHASE_MAP, PROJECT_PHASES, crewSize, qualityLabel, qualityRewardMult, type ProjectPace } from '@/game/data/projectPhases';
@@ -247,11 +248,11 @@ export function DivisionSheet() {
                   <div className="row__grow">
                     <div style={{ fontSize: 13 }}>{res.name}</div>
                     <div className="text-sub num" style={{ fontSize: 11 }}>
-                      店頭 {formatMoney(price, mode)}（仕入れ比 {price >= referencePrice(state, g) ? '+' : ''}{formatPercent(price / Math.max(1, referencePrice(state, g)) - 1, 0)}・この街の人気 ×{localDemand(state, div.landId, g).toFixed(2)}）
+                      店頭 {formatUnitPrice(g, price, mode)}（仕入れ比 {price >= referencePrice(state, g) ? '+' : ''}{formatPercent(price / Math.max(1, referencePrice(state, g)) - 1, 0)}・この街の人気 ×{localDemand(state, div.landId, g).toFixed(2)}）
                     </div>
                   </div>
                   <span className="num" style={{ fontSize: 13 }}>
-                    {formatAmount(have, mode)}個
+                    {formatQty(g, have, mode)}
                   </span>
                 </div>
               );
@@ -281,7 +282,7 @@ export function DivisionSheet() {
                     <Icon name={res.icon} size={24} fallback={res.name.slice(0, 2)} />
                     <div className="row__grow" style={{ fontSize: 13 }}>{res.name}</div>
                     <span className="num text-sub" style={{ fontSize: 12 }}>
-                      残り {formatAmount(d.remaining, mode)}
+                      残り {formatQty(d.id, d.remaining, mode)}
                     </span>
                   </div>
                   <ProgressBar ratio={d.remaining / Math.max(1, total)} tone={d.id === 'gold_ore' || d.id === 'rough_gem' ? 'profit' : 'research'} />
@@ -418,7 +419,7 @@ export function DivisionSheet() {
                   </div>
                   {d.inputs && (
                     <div className="text-sub" style={{ fontSize: 12, marginTop: 4 }}>
-                      材料: {Object.entries(d.inputs).map(([k, v]) => `${RESOURCE_MAP[k as ResourceId].name} ${v}`).join('・')}
+                      材料: {Object.entries(d.inputs).map(([k, v]) => `${RESOURCE_MAP[k as ResourceId].name} ${formatQty(k, v, mode)}`).join('・')}
                     </div>
                   )}
                   {d.product && (
@@ -538,7 +539,7 @@ export function DivisionSheet() {
                     <div className="row__grow" style={{ fontSize: 13 }}>
                       {res.name}
                       <span className="text-sub num" style={{ fontSize: 11, marginLeft: 6 }}>
-                        本社 {formatAmount(atHq, mode)} / 店 {formatAmount(atShop, mode)}（上限 {formatAmount(stockCap, mode)}）
+                        本社 {formatQty(g, atHq, mode)} / 店 {formatQty(g, atShop, mode)}（上限 {formatQty(g, stockCap, mode)}）
                       </span>
                     </div>
                   </div>
@@ -564,7 +565,7 @@ export function DivisionSheet() {
                         bumpGame();
                       }}
                     >
-                      ぜんぶ戻す
+                      すべて戻す
                     </Button>
                   </div>
                   <div className="row" style={{ gap: 6, marginTop: 4 }}>

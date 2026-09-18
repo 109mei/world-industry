@@ -2,6 +2,9 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { Sheet } from '@/components/ui/Sheet';
+import { BookmarkButton } from '@/components/ui/BookmarkButton';
+import { distanceKm, formatDistance } from '@/utils/geo';
+import { hqLocation } from '@/game/engine/hq';
 import { Stat } from '@/components/ui/Stat';
 import { FACILITY_MAP, isFacilityId } from '@/game/data/facilities';
 import { PROPERTY_KIND, PROPERTY_POPULATION, PROPERTY_TERRAIN } from '@/game/data/properties';
@@ -18,7 +21,8 @@ import { getLand } from '@/game/engine/land';
 import { useEffect, useState } from 'react';
 import { bumpGame, useGame } from '@/stores/gameStore';
 import { useUiStore } from '@/stores/uiStore';
-import { formatAmount, formatDuration, formatMoney, formatMoneyRate, formatNumber, formatPercent, formatRate } from '@/utils/format';
+import { formatDuration, formatMoney, formatMoneyRate, formatNumber, formatPercent, formatRate } from '@/utils/format';
+import { formatQty } from '@/utils/names';
 import { sfx } from '@/utils/sfx';
 
 function areaLabel(area: number): string {
@@ -76,6 +80,9 @@ export function FeatureSheet() {
           {owned ? <Badge tone="profit">所有中</Badge> : <Badge tone={canBuy ? 'profit' : 'default'}>{canBuy ? '購入できる' : '資金不足'}</Badge>}
           {feature.named && <Badge tone="default">名前は架空</Badge>}
           {quote.prominence.score >= 0.18 && <Badge tone="research">{quote.prominence.label}</Badge>}
+          <BookmarkButton
+            entry={{ kind: 'feature', id: feature.id, label: owned?.name ?? feature.name, sub: owned?.label ?? feature.label, lat: feature.lat, lon: feature.lon }}
+          />
         </div>
         <p className="card__sub">
           実在する建物の位置と大きさ（OpenStreetMap）をもとにした物件です。名前は実在の施設をもじった架空のもので、実際の所有者・営業とは関係ありません。
@@ -85,6 +92,7 @@ export function FeatureSheet() {
           <Stat label="賃料" value={formatMoneyRate(rent, mode)} tone="profit" extra={`${formatMoney(rent * 3600, mode)}/時（利回り ${formatPercent(kind.yield, 0)}/時）`} />
           <Stat label="敷地" value={areaLabel(feature.areaSqm)} extra={`${formatMoney(quote.unitPrice, mode)}/㎡`} />
           <Stat label="延床" value={areaLabel(floorArea)} extra={`${formatNumber(feature.levels, mode)}階建て`} />
+          <Stat label="本社から" value={formatDistance(distanceKm(hqLocation(state), feature))} extra="運ぶ時間と運賃に効きます" />
           <Stat label="土地の分" value={formatMoney(quote.landPart, mode)} />
           <Stat label="建物の分" value={formatMoney(quote.buildingPart, mode)} />
         </div>
@@ -186,7 +194,7 @@ export function FeatureSheet() {
                         <Icon name={RESOURCE_MAP[r as keyof typeof RESOURCE_MAP]?.icon ?? 'icon_tool_toolbox'} size={22} />
                         <span className="row__grow">{RESOURCE_MAP[r as keyof typeof RESOURCE_MAP]?.name ?? r}</span>
                         <span className="num text-sub">
-                          {land.survey >= 2 ? `残り ${formatAmount(d?.remaining ?? 0, mode)}` : '埋蔵あり'}
+                          {land.survey >= 2 ? `残り ${formatQty(r, d?.remaining ?? 0, mode)}` : '埋蔵あり'}
                         </span>
                       </div>
                     ))}

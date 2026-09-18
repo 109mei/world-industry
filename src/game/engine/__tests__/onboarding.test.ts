@@ -88,3 +88,43 @@ describe('画面まわりの作り', () => {
     expect(GLOBAL_CSS).toMatch(/input,\s*\n\s*textarea,[\s\S]{0,120}user-select: text/);
   });
 });
+
+/**
+ * 本社を決めるまでは、まだ何も始まっていない。
+ * そのあいだに世界が動くと、決めるのに迷っているだけで
+ * イベントでお金が増えたり、開き直したときに「おかえりなさい」が出たりする。
+ */
+describe('始める前は世界が動かない', () => {
+  it('本社を決める前は、時間が経ってもお金が増えない', () => {
+    const e = makeEngine();
+    e.updateSettings({ events: true });
+    const before = e.state.company.cash;
+    for (let i = 0; i < 2000; i++) e.tick(1);
+    expect(e.state.company.cash).toBe(before);
+    expect(e.state.events.active.length).toBe(0);
+  });
+
+  it('本社を決める前は、遊んだ時間も増えない', () => {
+    const e = makeEngine();
+    for (let i = 0; i < 100; i++) e.tick(1);
+    expect(e.state.stats.playtimeSeconds).toBe(0);
+  });
+
+  it('本社を決める前は、留守のあいだも何も進まない', () => {
+    const e = makeEngine();
+    const r = e.applyOffline(8 * 3600);
+    expect(r.simulatedSeconds).toBe(0);
+    expect(r.cashDelta).toBe(0);
+    expect(Object.keys(r.resourceDelta).length).toBe(0);
+  });
+
+  it('本社を決めたあとは、ちゃんと動きはじめる', () => {
+    const e = makeEngine();
+    e.setHqLocation(35.68, 139.76, '東京');
+    e.updateSettings({ events: true });
+    for (let i = 0; i < 60; i++) e.tick(1);
+    expect(e.state.stats.playtimeSeconds).toBeGreaterThan(0);
+    const r = e.applyOffline(600);
+    expect(r.simulatedSeconds).toBeGreaterThan(0);
+  });
+});

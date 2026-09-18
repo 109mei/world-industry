@@ -3,8 +3,9 @@ import { GameEngine } from '../GameEngine';
 import { CONFIG } from '@/game/data/config';
 import { EVENT_MAP } from '@/game/data/events';
 import { GAME_META } from '@/game/data/meta';
+import { FACILITY_MAP, facilityBulkCost } from '@/game/data/facilities';
 import { LANDS } from '@/game/data/lands';
-import { RESOURCE_MAP } from '@/game/data/resources';
+import { RESOURCE_MAP, type ResourceId } from '@/game/data/resources';
 import { getLand } from '../land';
 import { currentPrice, demandFactor, getMarketState, referencePrice, sellRevenue } from '../systems/market';
 import { migrateSave } from '../state/migrations';
@@ -19,12 +20,18 @@ function seeded(seed = 11): () => number {
 
 function makeEngine(now = 1_000_000) {
   const e = new GameEngine({ rng: seeded(), now: () => now });
+  e.keepDefaultHq();
   e.updateSettings({ events: false });
   return e;
 }
 
-/** 土地を買って地質調査まで終え、必要なら施設を建てられる状態 */
-function withSurveyedLand(landId: 'jp_hokkaido' | 'us_texas' | 'br_carajas' = 'jp_hokkaido', cash = 200_000_000) {
+/**
+ * 土地を買って地質調査まで終え、必要なら施設を建てられる状態。
+ * 建設費が現実の水準（小型倉庫4,000万円・大型倉庫16億円・貨物機80億円・
+ * 自動車工場2,000億円・ロボット工場2,500億円）になったので、
+ * ここで試す施設がひととおり建てられるだけの元手（1兆円）を持たせる。
+ */
+function withSurveyedLand(landId: 'jp_hokkaido' | 'us_texas' | 'br_carajas' = 'jp_hokkaido', cash = 1_000_000_000_000) {
   const e = makeEngine();
   e.debugAddCash(cash);
   e.debugUnlockAll();
@@ -40,10 +47,12 @@ describe('市場の需要曲線', () => {
   it('大量に売ると需要が飽和して価格が下がり、時間で回復する', () => {
     const e = makeEngine();
     e.state.unlocked['facility:large_warehouse'] = true;
-    e.debugAddCash(1_000_000);
-    e.buyFacility('large_warehouse', 1);
+    // 需要容量ぶん（工具 288万個）を一度に抱えるには、大型倉庫（+3,000t）が要る。1棟16億円
+    e.debugAddCash(facilityBulkCost(FACILITY_MAP.large_warehouse, 0, 1) + 10_000_000);
+    expect(e.buyFacility('large_warehouse', 1)).toBe(1);
     const cap = RESOURCE_MAP.tool.liquidity * CONFIG.market.demandCapacityMult;
     e.debugAddResource('tool', cap);
+    expect(e.state.inventory.tool).toBe(cap); // 倉庫に全部入っている
     const ref = referencePrice(e.state, 'tool');
     expect(demandFactor(e.state, 'tool')).toBeCloseTo(1, 6);
     // 需要容量ぶんを一気に売ると、1個あたりの平均価格は ln2 ≈ 69% になる
@@ -97,14 +106,18 @@ describe('航空輸送', () => {
     const { e, land } = withSurveyedLand('jp_hokkaido');
     expect(e.buyFacility('cargo_plane', 1, land.id)).toBe(1);
     e.tick(1);
-    expect(e.derived.lands[land.id].transportCapacity).toBeCloseTo(3 * e.derived.modifiers.transportCapacity, 6);
+    // 貨物機は 4,320t/秒（現実の1時間あたり3t を、ゲームの物差しに直した値）
+    const planeCapacity = FACILITY_MAP.cargo_plane.transport!.capacity;
+    expect(e.derived.lands[land.id].transportCapacity).toBeCloseTo(planeCapacity * e.derived.modifiers.transportCapacity, 6);
   });
 
   it('嵐の間は貨物機の輸送能力が下がり、地震の影響は受けない', () => {
     const { e, land } = withSurveyedLand('jp_hokkaido');
-    e.buyFacility('cargo_plane', 1, land.id);
-    e.buyFacility('truck', 5, land.id);
-    e.buyFacility('coal_mine', 1, land.id);
+    const planeCapacity = FACILITY_MAP.cargo_plane.transport!.capacity; // 4,320t/秒
+    const truckCapacity = FACILITY_MAP.truck.transport!.capacity; // 288t/秒
+    expect(e.buyFacility('cargo_plane', 1, land.id)).toBe(1);
+    expect(e.buyFacility('truck', 5, land.id)).toBe(5);
+    expect(e.buyFacility('coal_mine', 1, land.id)).toBe(1);
     e.tick(1);
     const normal = e.derived.lands[land.id].transportCapacity;
     // 嵐
@@ -112,29 +125,41 @@ describe('航空輸送', () => {
     e.tick(1);
     const inStorm = e.derived.lands[land.id].transportCapacity;
     expect(inStorm).toBeLessThan(normal);
-    // 貨物機ぶん（3t/s）が 20% になる: 差は 3×0.8×係数
-    expect(normal - inStorm).toBeCloseTo(3 * 0.8 * e.derived.modifiers.transportCapacity, 5);
+    // 貨物機ぶん（4,320t/秒）が 20% になる: 差は 4,320×0.8×係数
+    expect(normal - inStorm).toBeCloseTo(planeCapacity * 0.8 * e.derived.modifiers.transportCapacity, 5);
     e.state.events.active = [];
     // 地震: トラックだけ半減
     e.state.events.active.push({ id: 2, defId: 'quake', target: land.id, remaining: 60, total: 60, magnitude: EVENT_MAP.quake.magnitude });
     e.tick(1);
     const inQuake = e.derived.lands[land.id].transportCapacity;
-    expect(normal - inQuake).toBeCloseTo(5 * 0.2 * 0.5 * e.derived.modifiers.transportCapacity, 5);
+    // トラック5台ぶん（288t/秒×5）が半減する
+    expect(normal - inQuake).toBeCloseTo(5 * truckCapacity * 0.5 * e.derived.modifiers.transportCapacity, 5);
   });
 });
 
 describe('巨大産業', () => {
   it('自動車工場は材料が揃うと自動車を作り、売ると高額になる', () => {
+    // 工場は土地にしか建てられない。材料もその土地の在庫から使う
     const { e } = withSurveyedLand('jp_hokkaido');
-    e.buyFacility('coal_power', 5, 'jp_hokkaido');
-    e.debugAddResource('coal', 5000);
-    e.state.lands.find((l) => l.id === 'jp_hokkaido')!.stock.coal = 5000;
-    e.buyFacility('car_factory', 1);
-    for (const [id, n] of [['steel', 2000], ['plastic', 1000], ['rubber', 1000], ['glass', 500], ['electronics', 200]] as const) e.debugAddResource(id, n);
-    e.advance(40);
+    const land = e.state.lands.find((l) => l.id === 'jp_hokkaido')!;
+    expect(e.buyFacility('coal_power', 5, 'jp_hokkaido')).toBe(5); // 50MW。自動車工場は15MW要る
+    land.stock.coal = 100_000;
+    expect(e.buyFacility('car_factory', 1, 'jp_hokkaido')).toBe(1);
+    /*
+     * 自動車1台は 鋼鉄900kg＋プラスチック300＋ゴム100＋ガラス100＋電子部品400 ぶん。
+     * 工場は毎秒14.4台ぶんを流すので、材料も毎秒トン単位で要る。
+     * 土地の倉庫（資源1種につき200t）に収まる範囲で、進める秒数ぶんの材料を置く。
+     * debugUnlockAll で研究が全部済んでいるぶん生産が速くなるので、その倍率も見込む。
+     */
+    const seconds = 2;
+    const boost = e.derived.modifiers.production.MANUFACTURING ?? 1;
+    const inputs = FACILITY_MAP.car_factory.production!.inputs!;
+    for (const [id, rate] of Object.entries(inputs) as [ResourceId, number][]) land.stock[id] = rate * boost * seconds * 1.5;
+    e.advance(seconds);
     const inst = e.state.facilities.find((f) => f.typeId === 'car_factory')!;
     expect(e.derived.facilityRuntime[inst.id].status).toBe('running');
-    expect(e.state.inventory.car ?? 0).toBeGreaterThanOrEqual(2 * 0.9);
+    expect(e.state.stats.totalProduced.car ?? 0).toBeGreaterThanOrEqual(2 * 0.9);
+    e.debugAddResource('car', 1);
     const cashBefore = e.state.company.cash;
     e.sell('car', 1);
     expect(e.state.company.cash - cashBefore).toBeGreaterThan(RESOURCE_MAP.car.basePrice * 0.6);
@@ -142,19 +167,21 @@ describe('巨大産業', () => {
 
   it('半導体→ロボットのチェーンが動く', () => {
     const { e } = withSurveyedLand('jp_hokkaido');
-    e.buyFacility('coal_power', 10, 'jp_hokkaido');
-    e.debugAddResource('coal', 20000);
-    e.state.lands.find((l) => l.id === 'jp_hokkaido')!.stock.coal = 20000;
-    e.buyFacility('silicon_plant', 1);
-    e.buyFacility('chip_fab', 1);
-    e.buyFacility('robot_factory', 1);
-    e.debugAddResource('sand', 20000);
-    e.debugAddResource('copper', 5000);
-    e.debugAddResource('water', 20000);
-    e.debugAddResource('machine_parts', 2000);
-    e.debugAddResource('steel', 5000);
-    e.debugAddResource('electronics', 2000);
-    e.advance(120);
+    // 需要はシリコン精製所8MW＋半導体工場30MW＋ロボット工場20MW＝58MW。石炭火力10基で100MW
+    expect(e.buyFacility('coal_power', 10, 'jp_hokkaido')).toBe(10);
+    expect(e.buyFacility('silicon_plant', 1, 'jp_hokkaido')).toBe(1);
+    expect(e.buyFacility('chip_fab', 1, 'jp_hokkaido')).toBe(1);
+    expect(e.buyFacility('robot_factory', 1, 'jp_hokkaido')).toBe(1);
+    /*
+     * 材料も発電の燃料も、建てた土地の在庫から使う。
+     * 工場は毎秒トン単位で材料を食べるので、10秒ぶんに足りるだけ置いておく。
+     * 石炭は火力発電の燃料とシリコン精製の両方に要るので、切らすと連鎖が止まる。
+     */
+    const stock = e.state.lands.find((l) => l.id === 'jp_hokkaido')!.stock;
+    for (const id of ['coal', 'sand', 'copper', 'water', 'machine_parts', 'steel', 'electronics'] as const) {
+      stock[id] = 400_000;
+    }
+    e.advance(10);
     // シリコンは半導体工場が使い切るので累計で確認する
     expect(e.state.stats.totalProduced.silicon ?? 0).toBeGreaterThan(0);
     expect(e.state.stats.totalProduced.semiconductor ?? 0).toBeGreaterThan(0);
@@ -269,6 +296,7 @@ describe('セーブの移行 v2 → v3', () => {
     expect(s.stats.eventsOccurred).toBe(0);
     // 読み込んだ状態でエンジンが動く
     const e = new GameEngine({ state: s, rng: seeded(), now: () => 5 });
+    e.keepDefaultHq();
     e.advance(10);
     expect(e.state.stats.playtimeSeconds).toBeCloseTo(10, 6);
   });
@@ -280,5 +308,40 @@ describe('セーブの移行 v2 → v3', () => {
       expect(l.lon).toBeGreaterThanOrEqual(-180);
       expect(l.lon).toBeLessThanOrEqual(180);
     }
+  });
+});
+
+describe('作るほうが売るより先', () => {
+  it('施設が使う材料は、自動売却で売られない', () => {
+    const e = new GameEngine({ rng: () => 0.5, now: () => 1_000_000 });
+    e.updateSettings({ events: false });
+    e.keepDefaultHq();
+    // スクラップ溶解炉は1基62万円。5基まとめて買えるだけの元手を持たせる
+    e.debugAddCash(facilityBulkCost(FACILITY_MAP.simple_smelter, 0, 5) + 1_000_000);
+    e.state.unlocked['facility:simple_smelter'] = true;
+    e.debugAddResource('scrap_metal', 100_000);
+    e.debugAddResource('wood', 100_000);
+    expect(e.buyFacility('simple_smelter', 5, 'hq')).toBe(5);
+    e.refreshDerived();
+    // 鉄くずを「全部売る」設定にしても、溶解炉が使うぶんは残る
+    e.state.market.autoSell.scrap_metal = { enabled: true, keep: 0, minPriceRatio: 0 };
+    const before = e.state.inventory.scrap_metal ?? 0;
+    e.tick(1);
+    const after = e.state.inventory.scrap_metal ?? 0;
+    expect(after).toBeGreaterThan(0);
+    expect(after).toBeLessThan(before); // 売れてはいる（余っているぶんだけ）
+    // 取り置きのぶんまで減ったら困るので、何回進めても 0 にはならない
+    for (let i = 0; i < 30; i++) e.tick(1);
+    expect(e.state.inventory.scrap_metal ?? 0).toBeGreaterThan(0);
+  });
+
+  it('使う施設が無ければ、これまでどおり全部売れる', () => {
+    const e = new GameEngine({ rng: () => 0.5, now: () => 1_000_000 });
+    e.updateSettings({ events: false });
+    e.keepDefaultHq();
+    e.debugAddResource('stone', 500);
+    e.state.market.autoSell.stone = { enabled: true, keep: 0, minPriceRatio: 0 };
+    e.tick(1);
+    expect(e.state.inventory.stone ?? 0).toBeLessThan(1);
   });
 });

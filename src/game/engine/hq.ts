@@ -9,6 +9,18 @@ export interface HqPlace {
   label: string;
 }
 
+/**
+ * プレイヤーがもう遊び始めているか。
+ *
+ * 本社を決めるまでは、まだ何も始まっていない。
+ * その間に世界を進めてしまうと、決めるのに迷っているだけで
+ * イベントでお金が増えたり、戻ってきたときに「おかえりなさい」が出たりする。
+ * 時間で動くものは、必ずここを見てから動かす。
+ */
+export function hasStarted(state: GameState): boolean {
+  return state.settings?.hqChosen === true;
+}
+
 export function hqLocation(state: GameState): HqPlace {
   const v = state.settings?.hqLocation;
   if (v && Number.isFinite(v.lat) && Number.isFinite(v.lon)) return { lat: v.lat, lon: v.lon, label: v.label || '本社' };

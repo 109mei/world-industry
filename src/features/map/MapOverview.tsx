@@ -81,16 +81,16 @@ export function MapOverview() {
         <div className="row__grow">
           <div className="card__title">持っているものの全体像</div>
           <div className="card__sub">
-            {unsurveyed > 0 ? `${unsurveyed}か所がまだ調査前です。調べると何が埋まっているか分かります。` : '買った場所の内訳です。'}
+            {unsurveyed > 0 ? `${unsurveyed}ヵ所がまだ調査前です。調べると何が埋まっているか分かります。` : '買った場所の内訳です。'}
           </div>
         </div>
       </div>
       <div className="card__body">
         <div className="stat-grid stat-grid--4">
-          <Stat label="場所" value={`${formatNumber(placeCount, mode)}か所`} extra={`${byCountry.size}か国`} />
+          <Stat label="場所" value={`${formatNumber(placeCount, mode)}ヵ所`} extra={`${byCountry.size}ヵ国`} />
           <Stat label="評価額" value={formatMoney(derived.estateValue, mode)} />
           <Stat label="賃料 /秒" value={formatMoneyRate(derived.rentPerSec, mode)} tone="profit" />
-          <Stat label="施設のない土地" value={`${formatNumber(idle, mode)}か所`} tone={idle > 0 ? 'warn' : 'default'} extra={idle > 0 ? '使い道を決めましょう' : undefined} />
+          <Stat label="施設のない土地" value={`${formatNumber(idle, mode)}ヵ所`} tone={idle > 0 ? 'warn' : 'default'} extra={idle > 0 ? '使い道を決めましょう' : undefined} />
         </div>
 
         {kindRows.length > 0 && <DonutChart label="用途ごとの評価額" data={kindRows} format={(v) => formatMoney(v, mode)} />}
@@ -100,13 +100,13 @@ export function MapOverview() {
 
         {lands.length > 0 && (
           <BarChart
-            label="調査の進み具合（か所）"
+            label="調査の進み具合（ヵ所）"
             data={[
               { label: '調査ずみ', value: lands.filter((l) => l.survey >= 2).length, tone: 'profit' },
               { label: '調査前', value: unsurveyed, tone: 'warn' },
             ]}
             max={lands.length}
-            format={(v) => `${formatAmount(v, mode)}か所`}
+            format={(v) => `${formatAmount(v, mode)}ヵ所`}
           />
         )}
       </div>

@@ -44,7 +44,7 @@ export function CompanyPanel() {
               <Stat label="企業価値" value={formatMoney(derived.companyValue, mode)} size="lg" tone="research" />
               <Stat label="総資産" value={formatMoney(derived.assets, mode)} />
               <Stat label="現金" value={formatMoney(state.company.cash, mode)} />
-              <Stat label="在庫の評価額" value={formatMoney(derived.inventoryValue, mode)} />
+              <Stat label="在庫の評価額" value={formatMoney(derived.inventoryValue, mode)} extra="基準価格で計算" />
               <Stat label="収益 /秒（自動）" value={formatMoneyRate(derived.incomePerSec, mode)} tone={derived.incomePerSec > 0 ? 'profit' : derived.incomePerSec < 0 ? 'loss' : 'default'} />
               <Stat label="商業収入 /秒" value={formatMoneyRate(derived.commercialIncome, mode)} tone={derived.commercialIncome > 0 ? 'profit' : 'default'} />
               <Stat label="輸送費 /秒" value={formatMoneyRate(-derived.transportCost, mode)} tone={derived.transportCost > 0 ? 'loss' : 'default'} />
@@ -52,7 +52,7 @@ export function CompanyPanel() {
               <Stat label="累計支出" value={formatMoney(state.company.totalSpent, mode)} tone="loss" />
               <Stat label="純利益（累計）" value={formatMoney(state.company.totalEarned - state.company.totalSpent, mode)} tone={state.company.totalEarned - state.company.totalSpent >= 0 ? 'profit' : 'loss'} />
               {/* ホームや地図と数え方を揃える（本社は「土地」に数えない） */}
-              <Stat label="土地" value={`${Math.max(0, state.lands.length - 1)}か所`} extra={`${new Set(state.lands.filter((l) => l.id !== 'hq').map((l) => l.country)).size}か国`} />
+              <Stat label="土地" value={`${Math.max(0, state.lands.length - 1)}ヵ所`} extra={`${new Set(state.lands.filter((l) => l.id !== 'hq').map((l) => l.country)).size}ヵ国`} />
               <Stat label="施設" value={formatNumber(facilityCount, mode)} />
               <Stat label="従業員" value={`${formatNumber(derived.employees, mode)}人`} />
               <Stat label="発電能力" value={formatMW(derived.power.capacity)} tone="power" extra={`需要 ${formatMW(derived.power.demand)}`} />

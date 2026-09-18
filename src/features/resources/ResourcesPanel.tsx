@@ -3,12 +3,11 @@ import { Icon } from '@/components/ui/Icon';
 import { Segmented } from '@/components/ui/Segmented';
 import { RESOURCES, type ResourceId } from '@/game/data/resources';
 import { TOOLS, type ToolId } from '@/game/data/tools';
+import { formatCapacity } from '@/utils/names';
 import { useGame } from '@/stores/gameStore';
 import { useUiStore } from '@/stores/uiStore';
-import { formatAmount } from '@/utils/format';
 import { EventBanner } from '@/features/home/EventBanner';
 import { MarketPanel } from './MarketPanel';
-import { TradePanel } from './TradePanel';
 import { ResourceCard } from './ResourceCard';
 import { ResourceOverview } from './ResourceOverview';
 
@@ -26,14 +25,13 @@ export function ResourcesPanel() {
     <>
       <div className="row row--between">
         <div className="section-title" style={{ marginTop: 4 }}>
-          資源 <span className="text-sub" style={{ fontWeight: 400, fontSize: 12 }}>倉庫容量 {formatAmount(derived.capacity, mode)}</span>
+          資源 <span className="text-sub" style={{ fontWeight: 400, fontSize: 12 }}>倉庫容量 {formatCapacity(derived.capacity, mode)}</span>
         </div>
       </div>
       <Segmented
         items={[
           { id: 'inventory', label: '在庫' },
           { id: 'market', label: '市場' },
-          { id: 'trade', label: '転売' },
         ]}
         value={sub}
         onChange={setSub}
@@ -81,8 +79,6 @@ export function ResourcesPanel() {
             )}
           </Card>
         </>
-      ) : sub === 'trade' ? (
-        <TradePanel />
       ) : (
         <MarketPanel />
       )}

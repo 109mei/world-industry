@@ -6,10 +6,12 @@ import { Segmented } from '@/components/ui/Segmented';
 import { Stat } from '@/components/ui/Stat';
 import { CONFIG } from '@/game/data/config';
 import { isEstateSystemUnlocked, isLandSystemUnlocked } from '@/game/engine/systems/unlocks';
+import { visibleMapSubs } from '@/game/engine/systems/visibility';
 import { useGame } from '@/stores/gameStore';
 import { useUiStore } from '@/stores/uiStore';
 import { formatMoney, formatMoneyRate, formatNumber } from '@/utils/format';
 import { CompanySheet } from '@/features/estate/CompanySheet';
+import { BookmarkList } from './BookmarkList';
 import { MapOverview } from './MapOverview';
 import { OwnedPlaces } from './OwnedPlaces';
 import { PropertySheet } from '@/features/estate/PropertySheet';
@@ -80,6 +82,11 @@ export function MapPage() {
     );
   }
 
+  // まだ何も持っていないうちは「所有地」を出さない（空の一覧を見せない）
+  const subs = visibleMapSubs(state, derived);
+  const active = subs.includes(sub) ? sub : 'map';
+  const MAP_SUB_LABEL: Record<string, string> = { map: '地図', owned: '所有地', marks: '気になる', stocks: '株式' };
+
   const owned = state.lands.length - 1;
   const ownedProps = Object.keys(state.estate.owned).length;
   const ownedCustom = Object.keys(state.estate.custom ?? {}).length;
@@ -92,7 +99,7 @@ export function MapPage() {
       </h1>
       <Card>
         <div className="stat-grid stat-grid--4">
-          <Stat label="所有する土地" value={`${formatNumber(owned, mode)}か所`} extra={`${new Set(state.lands.map((l) => l.country)).size}か国`} />
+          <Stat label="所有する土地" value={`${formatNumber(owned, mode)}ヵ所`} extra={`${new Set(state.lands.map((l) => l.country)).size}ヵ国`} />
           <Stat label="輸送費 /秒" value={formatMoneyRate(-derived.transportCost, mode)} tone={derived.transportCost > 0 ? 'loss' : 'default'} />
           <Stat label="不動産" value={formatMoney(derived.estateValue, mode)} extra={`${ownedProps + ownedCustom}件・賃料 ${formatMoneyRate(derived.rentPerSec, mode)}`} />
           <Stat label="株式" value={formatMoney(derived.stockValue, mode)} extra={`${holdings}社・配当 ${formatMoneyRate(derived.dividendPerSec, mode)}`} />
@@ -100,17 +107,10 @@ export function MapPage() {
           <Stat label="総資産" value={formatMoney(derived.assets, mode)} />
         </div>
       </Card>
-      <Segmented
-        ariaLabel="地図の表示"
-        items={[
-          { id: 'map', label: '地図' },
-          { id: 'owned', label: '所有地' },
-          ...(estateUnlocked ? [{ id: 'stocks' as const, label: '株式' }] : []),
-        ]}
-        value={sub}
-        onChange={setSub}
-      />
-      {sub === 'map' && (
+      {subs.length > 1 && (
+        <Segmented ariaLabel="地図の表示" items={subs.map((id) => ({ id, label: MAP_SUB_LABEL[id] }))} value={active} onChange={setSub} />
+      )}
+      {active === 'map' && (
         <>
           <Suspense
             fallback={
@@ -126,14 +126,15 @@ export function MapPage() {
           </p>
         </>
       )}
-      {sub === 'owned' && (
+      {active === 'owned' && (
         <>
           <MapOverview />
           <div className="section-title">ひとつずつ見る</div>
           <OwnedPlaces />
         </>
       )}
-      {sub === 'stocks' && estateUnlocked && <StockList />}
+      {active === 'marks' && <BookmarkList />}
+      {active === 'stocks' && estateUnlocked && <StockList />}
       <p className="text-dim" style={{ fontSize: 12 }}>
         建物の形と位置は OpenStreetMap（ODbL）のデータ、名前はそれをもじった架空のものです。価格は実勢を参考にしたゲーム用の値で、会社はすべて架空です。
       </p>

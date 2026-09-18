@@ -4,7 +4,8 @@ import { FACILITY_MAP, isFacilityId } from '@/game/data/facilities';
 import { RESOURCE_MAP, isResourceId, type ResourceId } from '@/game/data/resources';
 import { resourceValue } from '@/game/engine/analysis/roi';
 import { useGame } from '@/stores/gameStore';
-import { formatMoney, formatMoneyRate, formatNumber } from '@/utils/format';
+import { formatMoney, formatMoneyRate } from '@/utils/format';
+import { formatQty } from '@/utils/names';
 
 /** ハイライト: 稼ぎ頭・最高の売却・止まっている施設・マネージャーの働き */
 export function HighlightsCard() {
@@ -40,7 +41,7 @@ export function HighlightsCard() {
             <div className="row num" style={{ fontSize: 13, gap: 6 }}>
               <Icon name={RESOURCE_MAP[best.resource].icon} size={18} />
               <span className="row__grow">
-                {RESOURCE_MAP[best.resource].name}×{formatNumber(best.qty, 'full')}
+                {RESOURCE_MAP[best.resource].name}×{formatQty(best.resource, best.qty, 'full')}
               </span>
               <span className="text-profit">{formatMoney(best.revenue, mode)}</span>
             </div>

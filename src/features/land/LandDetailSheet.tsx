@@ -3,6 +3,9 @@ import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { Sheet } from '@/components/ui/Sheet';
+import { BookmarkButton } from '@/components/ui/BookmarkButton';
+import { distanceKm, formatDistance } from '@/utils/geo';
+import { hqLocation } from '@/game/engine/hq';
 import { Stat } from '@/components/ui/Stat';
 import { FACILITY_MAP, isFacilityId } from '@/game/data/facilities';
 import { COUNTRY_NAME, LAND_MAP, isLandDefId } from '@/game/data/lands';
@@ -14,7 +17,8 @@ import { getLand } from '@/game/engine/land';
 import { bumpGame, useGame } from '@/stores/gameStore';
 import { useUiStore } from '@/stores/uiStore';
 import { STATUS_LABEL } from '@/features/factory/FacilityCard';
-import { formatAmount, formatDuration, formatMoney, formatNumber, formatRate } from '@/utils/format';
+import { formatDuration, formatMoney } from '@/utils/format';
+import { capacityNote, formatCapacity, formatQty, formatQtyRate } from '@/utils/names';
 import { sfx } from '@/utils/sfx';
 
 /** 土地の詳細（購入・調査・鉱脈・現地在庫・輸送・施設） */
@@ -43,11 +47,15 @@ export function LandDetailSheet() {
     return (
       <Sheet open onClose={close} title={title} icon={<Icon name={terrain.icon} size={32} fallback={terrain.name.slice(0, 2)} />}>
         <div className="sheet__section">
+          <div style={{ marginBottom: 6 }}>
+            <BookmarkButton entry={{ kind: 'land', id, label: def.name, sub: `${def.region}・${terrain.name}`, lat: def.lat, lon: def.lon }} />
+          </div>
           <p className="card__sub">{def.description}</p>
           <div className="stat-grid" style={{ marginTop: 8 }}>
             <Stat label="価格" value={formatMoney(def.price, 'full')} size="lg" extra={`${def.areaSqm.toLocaleString('ja-JP')}㎡ × ${def.unitPrice.toLocaleString('ja-JP')}円/㎡（その地域の実勢に近い単価）`} />
             <Stat label="地形" value={terrain.name} extra={terrain.description} />
             <Stat label="人口係数" value={`×${def.population}`} extra="商業施設の収入に掛かる" />
+            <Stat label="本社から" value={formatDistance(distanceKm(hqLocation(state), def))} extra="運ぶ時間と運賃に効きます" />
             <Stat label="資源" value={Object.keys(def.deposits).length > 0 ? '調査で判明' : 'なし'} extra={Object.keys(def.deposits).length > 0 ? '購入後に地下資源調査ができる' : '農園・発電・商業向け'} />
           </div>
         </div>
@@ -83,11 +91,11 @@ export function LandDetailSheet() {
   const depositAmount = (rid: ResourceId): string => {
     const d = land.deposits[rid];
     if (!d) return '—';
-    if (land.survey >= 3) return `${formatNumber(Math.floor(d.remaining), 'full')} / ${formatNumber(d.total, 'full')}`;
+    if (land.survey >= 3) return `${formatQty(rid, Math.floor(d.remaining), 'full')} / ${formatQty(rid, d.total, 'full')}`;
     if (land.survey >= 2) {
       // 地質調査: 1桁の概算（±）
       const mag = Math.pow(10, Math.floor(Math.log10(Math.max(1, d.remaining))));
-      return `およそ ${formatNumber(Math.round(d.remaining / mag) * mag, 'full')} 前後`;
+      return `およそ ${formatQty(rid, Math.round(d.remaining / mag) * mag, 'full')} 前後`;
     }
     return '量は不明';
   };
@@ -98,7 +106,7 @@ export function LandDetailSheet() {
         <div className="stat-grid stat-grid--4">
           <Stat label="地形" value={terrain.name} />
           <Stat label="調査" value={SURVEY_LEVEL_LABEL[land.survey]} tone={land.survey >= 2 ? 'research' : 'default'} />
-          <Stat label="倉庫容量" value={formatAmount(rt?.capacity ?? 0, mode)} />
+          <Stat label="倉庫容量" value={formatCapacity(rt?.capacity ?? 0, mode)} extra={capacityNote(rt?.capacity ?? 0, mode)} />
           <Stat label="輸送能力" value={rt ? `${rt.transportCapacity.toFixed(1)}t/秒` : '—'} tone={rt?.noRoute ? 'loss' : 'default'} extra={rt ? `使用 ${rt.transportUsed.toFixed(2)}t/秒・${formatMoney(rt.transportCost, mode)}/秒` : undefined} />
         </div>
       </div>
@@ -233,9 +241,9 @@ export function LandDetailSheet() {
                 <div className="row__grow" style={{ fontSize: 13 }}>
                   {RESOURCE_MAP[rid].name}
                 </div>
-                <span className="num">{formatAmount(v ?? 0, mode)}</span>
-                {rt?.exports[rid] ? <Badge tone="profit">本社へ {formatRate(rt.exports[rid] ?? 0, mode)}/秒</Badge> : null}
-                {rt?.imports[rid] ? <Badge tone="power">本社から {formatRate(rt.imports[rid] ?? 0, mode)}/秒</Badge> : null}
+                <span className="num">{formatQty(rid, v ?? 0, mode)}</span>
+                {rt?.exports[rid] ? <Badge tone="profit">本社へ {formatQtyRate(rid, rt.exports[rid] ?? 0, mode)}/秒</Badge> : null}
+                {rt?.imports[rid] ? <Badge tone="power">本社から {formatQtyRate(rid, rt.imports[rid] ?? 0, mode)}/秒</Badge> : null}
               </div>
             ))}
           </div>

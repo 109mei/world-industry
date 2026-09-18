@@ -6,7 +6,9 @@ import { describe, expect, it } from 'vitest';
 import { GameEngine } from '../GameEngine';
 import { CONFIG } from '@/game/data/config';
 import { BUSINESS_MAP } from '@/game/data/business';
+import { FACILITY_MAP, facilityBulkCost } from '@/game/data/facilities';
 import { getDivision, shopStockCapacity } from '../systems/business';
+import { WAGE_PER_EMPLOYEE } from '../systems/finance';
 import { getMarketState } from '../systems/market';
 import type { OsmFeature } from '@/game/services/osm/overpass';
 
@@ -130,19 +132,25 @@ describe('事業をたたむとき', () => {
 describe('離席中の倒産', () => {
   it('報告に倒産が載る', () => {
     const e = makeEngine(0);
-    e.debugAddCash(200);
-    e.buyFacility('worker_stone', 3);
+    // 作業員を3人雇って、手元にはほとんど残さない。
+    // 雇う費用が現実の額（1人目15万円）になったので、建設費はデータから出して足す。
+    // 石は売らないので収入は無く、給料だけが出ていって資金がショートする。
+    e.debugAddCash(facilityBulkCost(FACILITY_MAP['worker_stone'], 0, 3) + 200);
+    expect(e.buyFacility('worker_stone', 3)).toBe(3);
     e.refreshDerived();
     const report = e.applyOffline(1800, 1800);
     expect(report.bankrupted).toBe(true);
   });
 
   it('倒産していなければ載らない', () => {
-    const e = makeEngine(1_000_000);
+    // こちらは逆に、離れているあいだの給料を払いきれるだけ持たせる（＝倒産しない側）
+    const seconds = 600;
+    const wages = WAGE_PER_EMPLOYEE * FACILITY_MAP['worker_stone'].employees * 3 * seconds;
+    const e = makeEngine(facilityBulkCost(FACILITY_MAP['worker_stone'], 0, 3) + wages * 2);
     e.debugUnlockAll();
-    e.buyFacility('worker_stone', 3);
+    expect(e.buyFacility('worker_stone', 3)).toBe(3);
     e.refreshDerived();
-    const report = e.applyOffline(600, 600);
+    const report = e.applyOffline(seconds, seconds);
     expect(report.bankrupted).toBe(false);
   });
 });

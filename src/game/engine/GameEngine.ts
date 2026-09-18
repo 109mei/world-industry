@@ -6,7 +6,7 @@ import { LANDS, type LandDefId } from '@/game/data/lands';
 import { RECIPES, type RecipeId } from '@/game/data/recipes';
 import { RESEARCH, type ResearchId } from '@/game/data/research';
 import type { ResourceId } from '@/game/data/resources';
-import type { AutomationKey, DerivedState, GameEvent, GameEventType, GameState, OfflineReport, ThemeMode } from '@/types/state';
+import type { AutomationKey, Bookmark, DerivedState, GameEvent, GameEventType, GameState, OfflineReport, ThemeMode } from '@/types/state';
 import { craft } from './actions/craft';
 import { buyFacility, setFacilityEnabled } from './actions/facility';
 import { gather } from './actions/gather';
@@ -23,15 +23,18 @@ import { buildBankruptState, runSolvency, runWages } from './systems/finance';
 import { runHistory } from './systems/history';
 import { cancelProject, closeDivision, openDivision, restockShop, returnFromShop, runBusiness, setStaff, shopStockCapacity, startAd, startProject, toggleParking, getDivision } from './systems/business';
 import { buyTickets, play, runLottery, type PlayResult } from './systems/gambling';
+import { playMinigame, type MinigameResult } from './systems/minigame';
+import type { MinigameId } from '@/game/data/minigames';
 import { buyProperty, computeEstate, isEstateUnlocked, runEstate, sellProperty } from './systems/estate';
 import { buyCustomProperty, customBuyCost, quoteFeature, sellCustomProperty } from './systems/customEstate';
-import { placeLabel } from './hq';
+import { hasStarted, placeLabel } from './hq';
 import type { OsmFeature } from '@/game/services/osm/overpass';
 import { computeEventMods, runEvents, triggerEvent } from './systems/events';
 import { runLogistics } from './systems/logistics';
 import { buyResource, runAutoSell, runMarket, sellResource } from './systems/market';
 import { AUTOMATION_KEYS, AUTOMATION_UPGRADE_ID, runAutomation, setAutomation, toggleAutoGather, toggleAutoRecipe } from './systems/automation';
 import { computeModifiers } from './systems/modifiers';
+import { runCalendar } from './systems/calendar';
 import { runPower } from './systems/power';
 import { runProduction } from './systems/production';
 import { buildPrestigeState, buyPrestigeUpgrade } from './systems/prestige';
@@ -44,6 +47,9 @@ import { runSurveys } from './systems/survey';
 import { runUnlocks } from './systems/unlocks';
 import type { ProjectPace } from '@/game/data/projectPhases';
 import { buyCard, claimSeries, openPack, runCards, sellCard } from './systems/cards';
+import type { CountryCode } from '@/game/data/lands';
+import type { ShipMode } from '@/game/data/trade';
+import { acceptOffer as acceptTradeOffer, declineOffer as declineTradeOffer, exportOrder, importOrder, pitch as pitchTrade, runTrade } from './systems/trade';
 
 export type EngineListener = (event: GameEvent, options: { toast: boolean }) => void;
 
@@ -108,6 +114,7 @@ export class GameEngine {
     const ev: GameEvent = { id: this.state.nextEventId++, time: this.nowFn(), type, message };
     if (opts.achievementId) ev.achievementId = opts.achievementId;
     if (opts.eventId) ev.eventId = opts.eventId;
+    if (opts.scope) ev.scope = opts.scope;
     this.state.eventLog.push(ev);
     if (this.state.eventLog.length > CONFIG.eventLogLength) {
       this.state.eventLog.splice(0, this.state.eventLog.length - CONFIG.eventLogLength);
@@ -154,6 +161,7 @@ export class GameEngine {
     const business = runBusiness(this.ctx, dt);
     runLottery(this.ctx, dt);
     runCards(this.ctx, dt);
+    runTrade(this.ctx, dt);
     runAutomation(this.ctx, dt);
     runInfluence(this.ctx, dt);
     const sold = runAutoSell(this.ctx);
@@ -171,7 +179,9 @@ export class GameEngine {
     const extra = this.derived.extraIncome;
     this.derived.extraIncome = 0;
     this.recordIncome(sold + earned + rent + dividends + extra + business.income - business.costs - cost - wages, dt);
-    state.stats.playtimeSeconds += dt;
+    // 遊び始めるまでは、遊んだ時間にも数えない
+    if (hasStarted(state)) state.stats.playtimeSeconds += dt;
+    runCalendar(this.ctx, dt);
     runCompanyMetrics(this.ctx);
     // 収入がすべて入ってから、赤字かどうかを判定する
     const { bankrupt } = runSolvency(this.ctx, dt);
@@ -274,7 +284,13 @@ export class GameEngine {
   /** オフライン進行を適用して報告を返す。maxSeconds を超える分は切り捨てる */
   applyOffline(elapsedSeconds: number, maxSeconds = this.state.settings.maxOfflineSeconds + (this.derived.modifiers?.offlineBonusSec ?? 0)): OfflineReport {
     const safeMax = Number.isFinite(maxSeconds) ? maxSeconds : 0;
-    const simulated = Number.isFinite(elapsedSeconds) ? Math.max(0, Math.min(elapsedSeconds, safeMax)) : 0;
+    // まだ遊び始めていない（本社を決めていない）うちは、留守のあいだも何も進めない。
+    // 決めるのに迷っているだけで「おかえりなさい」が出てしまうため
+    const simulated = !hasStarted(this.state)
+      ? 0
+      : Number.isFinite(elapsedSeconds)
+        ? Math.max(0, Math.min(elapsedSeconds, safeMax))
+        : 0;
     const before = { ...this.state.inventory };
     const cashBefore = this.state.company.cash;
     const bankrupciesBeforeRef = this.state.stats.bankruptcies ?? 0;
@@ -407,10 +423,53 @@ export class GameEngine {
    * 最初に配色（暗い／明るい／端末に合わせる）を選ぶ。
    * あとから設定でいつでも変えられるので、ここは「最初の1回だけ聞く」ための印だけ立てる。
    */
+  /** 最初に会社名を決める。あとから設定でいつでも変えられる */
+  chooseCompanyName(name: string): boolean {
+    const trimmed = (name ?? '').trim().slice(0, 24);
+    if (!trimmed) return false;
+    this.state.company.name = trimmed;
+    this.state.settings.nameChosen = true;
+    return true;
+  }
+
   chooseTheme(mode: ThemeMode): void {
     if (mode !== 'dark' && mode !== 'light' && mode !== 'system') return;
     this.state.settings.theme = mode;
     this.state.settings.themeChosen = true;
+  }
+
+  // ---- 貿易 ----
+  /** 海外から仕入れる（代金は今、品は届いてから） */
+  tradeImport(country: CountryCode, resource: ResourceId, qty: number, mode: ShipMode) {
+    const r = importOrder(this.ctx, country, resource, qty, mode);
+    if (r.ok) this.refreshDerived();
+    return r;
+  }
+
+  /** 海外へ売り渡す（品は今、代金は届いてから） */
+  tradeExport(country: CountryCode, resource: ResourceId, qty: number, mode: ShipMode) {
+    const r = exportOrder(this.ctx, country, resource, qty, mode);
+    if (r.ok) this.refreshDerived();
+    return r;
+  }
+
+  /** 届いた商談を受ける */
+  tradeAccept(offerId: number, mode: ShipMode = 'ship') {
+    const r = acceptTradeOffer(this.ctx, offerId, mode);
+    if (r.ok) this.refreshDerived();
+    return r;
+  }
+
+  /** 届いた商談を断る */
+  tradeDecline(offerId: number): boolean {
+    return declineTradeOffer(this.ctx, offerId);
+  }
+
+  /** こちらから値段を提示して売り込む */
+  tradePitch(country: CountryCode, resource: ResourceId, qty: number, unitPrice: number, mode: ShipMode = 'ship') {
+    const r = pitchTrade(this.ctx, country, resource, qty, unitPrice, mode);
+    if (r.ok) this.refreshDerived();
+    return r;
   }
 
   /** 本社の場所を決める。最初の1回だけ（決めたあとは変えられない） */
@@ -654,6 +713,17 @@ export class GameEngine {
     return true;
   }
 
+  // ---------- 手仕事のミニゲーム ----------
+  /**
+   * ミニゲーム1回ぶんの結果を反映する。
+   * score は「どれだけうまくやれたか」の 0〜1。中で必ず挟み込む。
+   */
+  playMinigame(id: MinigameId, score: number): MinigameResult {
+    const r = playMinigame(this.ctx, id, score);
+    if (r.ok) this.refreshDerived();
+    return r;
+  }
+
   // ---------- 賭け事 ----------
   /** スロットなどで遊ぶ */
   playGame(gameId: Parameters<typeof play>[1], betId?: string): PlayResult {
@@ -784,6 +854,51 @@ export class GameEngine {
     const gained = next.prestige.points - prevPoints;
     this.emit('success', `会社を売却して再出発しました。永続ポイント +${gained}（合計 ${next.prestige.points}pt）。「会社」の再出発から、強化を買えます`, { toast: true });
     return true;
+  }
+
+  // ---------- 気になる場所の印 ----------
+  /** 印が付いているか */
+  hasBookmark(kind: Bookmark['kind'], id: string): boolean {
+    return (this.state.bookmarks ?? []).some((b) => b.kind === kind && b.id === id);
+  }
+
+  /**
+   * 印を付ける／外す。付いていれば外し、付いていなければ付ける。
+   * 数が増えすぎると一覧が読めなくなるので、古いものから落とす。
+   */
+  toggleBookmark(entry: Omit<Bookmark, 'at'>): boolean {
+    if (!this.state.bookmarks) this.state.bookmarks = [];
+    const list = this.state.bookmarks;
+    const at = list.findIndex((b) => b.kind === entry.kind && b.id === entry.id);
+    if (at >= 0) {
+      list.splice(at, 1);
+      return false;
+    }
+    list.push({ ...entry, at: this.nowFn() });
+    if (list.length > 200) list.splice(0, list.length - 200);
+    return true;
+  }
+
+  removeBookmark(kind: Bookmark['kind'], id: string): void {
+    if (!this.state.bookmarks) return;
+    this.state.bookmarks = this.state.bookmarks.filter((b) => !(b.kind === kind && b.id === id));
+  }
+
+  /** 印にメモを書く */
+  setBookmarkNote(kind: Bookmark['kind'], id: string, note: string): void {
+    const b = (this.state.bookmarks ?? []).find((x) => x.kind === kind && x.id === id);
+    if (b) b.note = note.slice(0, 120);
+  }
+
+  /**
+   * 電力会社と契約する容量を決める（MW）。0 は契約しない。
+   * 基本料金は契約した容量ぶん必ずかかるので、使う見込みより大きく契約すると損をする。
+   */
+  setPowerContract(mw: number): void {
+    const v = Number.isFinite(mw) ? Math.max(0, mw) : 0;
+    if (!this.state.power) this.state.power = { contractMW: 0 };
+    this.state.power.contractMW = v;
+    this.refreshDerived();
   }
 
   updateSettings(patch: Partial<GameState['settings']>): void {

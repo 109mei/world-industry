@@ -5,6 +5,7 @@ import { RESOURCE_MAP } from '@/game/data/resources';
 import { TOOL_MAP } from '@/game/data/tools';
 import { previewGather } from '@/game/engine/actions/gather';
 import { bumpGame, useGame } from '@/stores/gameStore';
+import { formatQtyRate } from '@/utils/names';
 import { sfx } from '@/utils/sfx';
 import { useRepeat } from '@/utils/useRepeat';
 
@@ -19,6 +20,7 @@ let popSeq = 1;
 /** 採集ボタン1つ（数字ポップと長押し連打つき） */
 function GatherButton({ id, pops, addPop }: { id: GatherActionId; pops: Pop[]; addPop: (id: GatherActionId, text: string, x: number) => void }) {
   const { state, engine, derived } = useGame();
+  const mode = state.settings.numberFormat;
   const g = GATHER_ACTIONS.find((a) => a.id === id)!;
   const p = previewGather(state, id, derived.modifiers.gatherAmount);
   const res = RESOURCE_MAP[g.resource];
@@ -33,11 +35,11 @@ function GatherButton({ id, pops, addPop }: { id: GatherActionId; pops: Pop[]; a
         sfx('tap');
         const rect = ref.current?.getBoundingClientRect();
         const x = rect && clientX !== undefined ? Math.max(8, Math.min(rect.width - 8, clientX - rect.left)) : (rect?.width ?? 60) / 2;
-        addPop(id, `+${got}`, x);
+        addPop(id, formatQtyRate(g.resource, got, mode), x);
       }
       bumpGame();
     },
-    [engine, id, addPop],
+    [engine, id, addPop, g.resource, mode],
   );
   const hold = useRepeat(() => doGather(), { delay: 350, interval: 120 });
   const disabled = !p.available || full;
@@ -63,7 +65,7 @@ function GatherButton({ id, pops, addPop }: { id: GatherActionId; pops: Pop[]; a
       <span className="btn__label">{g.label}</span>
       {p.available ? (
         <span className="btn__amount">
-          +{p.amount} {res.name}
+          {formatQtyRate(g.resource, p.amount, mode)} {res.name}
         </span>
       ) : (
         <span className="btn__hint">{p.reason}</span>

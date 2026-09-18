@@ -27,6 +27,9 @@ const TONE: Record<EventKind, 'profit' | 'loss' | 'warn' | 'power' | 'research'>
   market_wave: 'profit',
   order_rush: 'profit',
   slowdown: 'warn',
+  tariff: 'warn',
+  fx: 'power',
+  port: 'warn',
 };
 
 /** 進行中のイベント（相場変動・災害など）。残り時間つきで表示する */

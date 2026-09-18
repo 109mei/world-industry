@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Badge } from '@/components/ui/Badge';
+import { BookmarkButton } from '@/components/ui/BookmarkButton';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Icon } from '@/components/ui/Icon';
@@ -13,7 +14,8 @@ import { clientList, getClient, isSalesUnlocked, pitchCooldownLeft, salesState, 
 import { referencePrice } from '@/game/engine/systems/market';
 import { bumpGame, useGame } from '@/stores/gameStore';
 import { useUiStore } from '@/stores/uiStore';
-import { formatAmount, formatDuration, formatMoney, formatPercent } from '@/utils/format';
+import { formatDuration, formatMoney, formatPercent } from '@/utils/format';
+import { formatQty, formatUnitPrice } from '@/utils/names';
 import { sfx } from '@/utils/sfx';
 
 /** いまの相場と比べて何%か（符号も自分で付ける） */
@@ -100,10 +102,10 @@ export function SalesPanel() {
               <Icon name={res.icon} size={32} fallback={res.name.slice(0, 2)} />
               <div className="row__grow">
                 <div className="card__title">
-                  {c?.name ?? o.clientId} — {res.name} {formatAmount(o.amountPer, mode)}個 × {o.deliveries}回
+                  {c?.name ?? o.clientId} — {res.name} {formatQty(o.resource, o.amountPer, mode)} × {o.deliveries}回
                 </div>
                 <div className="card__sub">
-                  単価 {formatMoney(o.unitPrice * dealMult, mode)}（{priceLabel(o.unitPrice * dealMult, referencePrice(state, o.resource))}）・納期 {formatDuration(o.intervalSec)}ごと
+                  単価 {formatUnitPrice(o.resource, o.unitPrice * dealMult, mode)}（{priceLabel(o.unitPrice * dealMult, referencePrice(state, o.resource))}）・納期 {formatDuration(o.intervalSec)}ごと
                 </div>
               </div>
               <Badge tone="profit">合計 {formatMoney(total, mode)}</Badge>
@@ -152,10 +154,10 @@ export function SalesPanel() {
               <Icon name={res.icon} size={32} fallback={res.name.slice(0, 2)} />
               <div className="row__grow">
                 <div className="card__title">
-                  {c?.name ?? d.clientId} — {res.name} {formatAmount(d.amountPer, mode)}個
+                  {c?.name ?? d.clientId} — {res.name} {formatQty(d.resource, d.amountPer, mode)}
                 </div>
                 <div className="card__sub">
-                  単価 {formatMoney(d.unitPrice * dealMult, mode)}・残り {d.deliveriesLeft}回・在庫 {formatAmount(have, mode)}
+                  単価 {formatUnitPrice(d.resource, d.unitPrice * dealMult, mode)}・残り {d.deliveriesLeft}回・在庫 {formatQty(d.resource, have, mode)}
                 </div>
               </div>
               {d.missed > 0 && <Badge tone="warn">落とした {d.missed}回</Badge>}
@@ -191,7 +193,7 @@ export function SalesPanel() {
                 </Button>
                 {!canDeliver && (
                   <span className="text-sub" style={{ fontSize: 12 }}>
-                    あと {formatAmount(d.amountPer - have, mode)}個 足りません
+                    あと {formatQty(d.resource, d.amountPer - have, mode)} 足りません
                   </span>
                 )}
               </div>
@@ -225,6 +227,9 @@ export function SalesPanel() {
                   </div>
                 </div>
                 <Badge tone={c.relation >= 45 ? 'profit' : 'default'}>{tier.label}</Badge>
+              </div>
+              <div className="card__body" style={{ paddingBottom: 0 }}>
+                <BookmarkButton entry={{ kind: 'client', id: c.id, label: c.name, sub: `${c.label}・${c.regionLabel}`, lat: c.lat, lon: c.lon }} />
               </div>
               <div className="card__body">
                 <ProgressBar ratio={c.relation / 100} tone="profit" label={`関係 ${Math.round(c.relation)} / 100`} />

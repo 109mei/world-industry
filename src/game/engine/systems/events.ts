@@ -6,10 +6,14 @@ import { FACILITY_MAP, isFacilityId } from '@/game/data/facilities';
 import { RESOURCE_MAP, type ResourceId } from '@/game/data/resources';
 import type { ActiveEvent, EventModifiers, GameState } from '@/types/state';
 import type { EngineContext } from '../context';
+import { hasStarted } from '../hq';
 import { getLand, ownedLands } from '../land';
 import { isEstateUnlocked, shiftCityPrice } from './estate';
 import { getMarketState } from './market';
 import { eventDamageMult } from './synergy';
+import { COUNTRY_NAME, type CountryCode } from '@/game/data/lands';
+import { COUNTRIES } from '@/game/data/trade';
+import { isTradeUnlocked } from './trade';
 
 export function createEmptyEventMods(): EventModifiers {
   return { landProduction: {}, transport: {}, power: 1, commercial: 1, stock: 1, transportCost: 1, marketPrice: 1, researchRate: 1, dealPrice: 1, production: 1 };
@@ -71,6 +75,21 @@ function pickTarget(ctx: EngineContext, def: EventDef): { ok: boolean; target: s
       return { ok: (state.sales?.deals.length ?? 0) > 0 && !state.events.active.some((e) => EVENT_MAP[e.defId as EventDefId]?.kind === 'order_rush'), target: null };
     case 'slowdown':
       return { ok: state.facilities.some((f) => f.count > 0) && !state.events.active.some((e) => EVENT_MAP[e.defId as EventDefId]?.kind === 'slowdown'), target: null };
+    case 'tariff':
+    case 'fx':
+    case 'port': {
+      // 貿易ができるようになってからでないと、相手国の話は起きても意味がない
+      if (!isTradeUnlocked(state)) return { ok: false, target: null };
+      // 同じ国に同じ種類のことが重ならないようにする
+      const busy = new Set(
+        state.events.active
+          .filter((e) => isEventDefId(e.defId) && EVENT_MAP[e.defId].kind === def.kind)
+          .map((e) => e.target),
+      );
+      const pool = COUNTRIES.map((c) => c.id as string).filter((c) => !busy.has(c));
+      if (pool.length === 0) return { ok: false, target: null };
+      return { ok: true, target: choose(pool) };
+    }
     case 'bull':
     case 'bear':
       return { ok: isEstateUnlocked(state, derived.assets) && !state.events.active.some((e) => e.defId === 'bull' || e.defId === 'bear'), target: null };
@@ -91,6 +110,7 @@ function describe(def: EventDef, target: string | null, state: GameState): strin
   let name = '';
   if (target) {
     if (target in RESOURCE_MAP) name = RESOURCE_MAP[target as ResourceId].name;
+    else if (target in COUNTRY_NAME) name = COUNTRY_NAME[target as CountryCode];
     else if (isCityId(target)) name = CITY_MAP[target].name;
     else name = getLand(state, target)?.name ?? target;
   }
@@ -188,6 +208,8 @@ export function triggerEvent(ctx: EngineContext, defId?: string): boolean {
  */
 export function runEvents(ctx: EngineContext, dt: number): void {
   const { state, rng } = ctx;
+  // まだ本社も決めていない＝遊び始めていないうちは、何も起こさない
+  if (!hasStarted(state)) return;
   const ev = state.events;
   for (let i = ev.active.length - 1; i >= 0; i--) {
     const a = ev.active[i];

@@ -15,7 +15,7 @@ export function useSceneMusic(): void {
   const homeSub = useUiStore((s) => s.homeSubTab);
   const openGame = useUiStore((s) => s.openGameId);
 
-  const music = state.settings.music !== false;
+  const music = state.settings.music !== false && state.settings.mute !== true;
   const musicVolume = state.settings.musicVolume ?? 0.45;
 
   useEffect(() => {

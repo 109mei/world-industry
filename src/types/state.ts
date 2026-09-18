@@ -4,6 +4,7 @@ import type { BusinessKindId } from '@/game/data/business';
 import type { CompanyPolicy } from '@/game/data/companies';
 import type { RecipeId } from '@/game/data/recipes';
 import type { GatherActionId } from '@/game/data/gathering';
+import type { SkillId } from '@/game/data/minigames';
 import type { ResourceId } from '@/game/data/resources';
 import type { TerrainId } from '@/game/data/terrain';
 import type { ToolId } from '@/game/data/tools';
@@ -138,6 +139,11 @@ export interface GameEvent {
   achievementId?: string;
   /** ランダムイベントのとき、その定義ID */
   eventId?: string;
+  /**
+   * 誰の出来事か。'other' は他社の動き（ホームの「最近の出来事」には出さない）。
+   * 省略＝自分の会社の出来事。
+   */
+  scope?: 'other';
 }
 
 /** 進行中のランダムイベント */
@@ -237,6 +243,8 @@ export interface SettingsState {
   hqChosen?: boolean;
   /** 配色（暗い／明るい）を最初に選んだか。選ぶまで先に進めない */
   themeChosen?: boolean;
+  /** 会社名を最初に決めたか。あとから設定で変えられる */
+  nameChosen?: boolean;
   /** 施設一覧で「今建てられるものだけ」を表示する */
   factoryOnlyBuildable: boolean;
   /** クラフト一覧で「作れるものだけ」を表示する */
@@ -247,6 +255,20 @@ export interface SettingsState {
   currency?: string;
   /** 数字の単位の付け方（日本式の万・億／英語式の K・M／付けない） */
   unitStyle?: 'ja' | 'western' | 'none';
+  /** 読んだ使い方ガイドの id。もう自動では出さない */
+  guidesSeen?: string[];
+  /** 使い方ガイドを自動で出さない */
+  guidesOff?: boolean;
+  /** すべての音を止める（効果音・BGM の設定より優先される） */
+  mute?: boolean;
+  /** 画面の動きを減らす（アニメーション・数字の演出を止める。軽くもなる） */
+  reduceMotion?: boolean;
+  /** 文字の大きさ */
+  fontScale?: 'small' | 'normal' | 'large';
+  /** 遊んでいるあいだ画面を消さない */
+  keepAwake?: boolean;
+  /** 押したときに端末を軽く震わせる */
+  haptics?: boolean;
 }
 
 /** 所有している不動産 */
@@ -607,12 +629,108 @@ export interface HistoryState {
   nextIn: number;
 }
 
+/** 輸送中の荷 */
+export interface Shipment {
+  id: number;
+  /** 買い付け（届いたら在庫が増える）か、売り渡し（届いたらお金が入る）か */
+  kind: 'import' | 'export';
+  country: string;
+  resource: string;
+  qty: number;
+  mode: string;
+  /** 残り秒数 */
+  remaining: number;
+  /** 出したときの所要秒数（進み具合の表示に使う） */
+  totalSeconds: number;
+  /** 買い付けなら支払い済みの総額、売り渡しなら届いたときに入る総額 */
+  amount: number;
+  /** 納期のある契約に紐づく荷なら、その契約の番号 */
+  dealId?: number;
+  /** 相手の位置（地図に経路を描くのに使う）。無ければ相手国の港を使う */
+  lat?: number;
+  lon?: number;
+  /** 相手の名前（会社名）。無ければ国名を出す */
+  company?: string;
+  /** 行きか、帰りか。帰ってくるまで、その乗り物は次の荷に使えない */
+  leg?: 'out' | 'back';
+}
+
+/** 相手から届く商談 */
+export interface TradeOffer {
+  id: number;
+  /** 話を持ってきた会社の名前（架空）。国ではなく会社から話が来る */
+  company: string;
+  /** その会社がどこにあるか（表示用） */
+  place: string;
+  /** 相手の会社の位置。分かっていれば、ここまでの距離で日数と運賃を出す */
+  lat?: number;
+  lon?: number;
+  /** 本社からの距離（km）。相手の位置が分かっているときだけ */
+  distanceKm?: number;
+  /** どうやってこちらを知ったか（「広告を見て」「うわさを聞いて」など） */
+  reason?: string;
+  /** 取引先の id（地図で見つけた建物）。関係を上げ下げするのに使う */
+  clientId?: string;
+  /** 相手が買いたい（こちらが売る）か、売りたい（こちらが買う）か */
+  kind: 'buy' | 'sell';
+  country: string;
+  resource: string;
+  qty: number;
+  /** 1個あたりの提示額（円） */
+  unitPrice: number;
+  /** 残り秒数。過ぎると消える */
+  expiresIn: number;
+  /** 受けたときに納める期限（秒）。買い取り側の契約にだけある */
+  dueSeconds?: number;
+}
+
+export interface TradeState {
+  /** 国ごとの為替（1 が基準） */
+  fx: Record<string, number>;
+  /** 国と品ごとの相場（`国:品` → 倍率） */
+  priceMult: Record<string, number>;
+  shipments: Shipment[];
+  offers: TradeOffer[];
+  nextOfferIn: number;
+  nextDriftIn: number;
+  nextId: number;
+  /** 累計の仕入れ額・売却額・運賃・関税 */
+  spent: number;
+  earned: number;
+  freight: number;
+  duty: number;
+}
+
+/** 腕1つぶんの状態 */
+export interface SkillState {
+  level: number;
+  /** いまのレベルの中で貯まっている経験値 */
+  exp: number;
+  /** 遊んだ回数 */
+  plays: number;
+  /** 自己最高の出来（0〜1） */
+  best: number;
+}
+
 export interface GameState {
   saveVersion: number;
+  /**
+   * 手仕事の腕（熟練度）。ミニゲームで伸び、下がらない。
+   * 施設の生産や採集量にそのまま効くので、終盤まで意味が残る。
+   */
+  skills?: Partial<Record<SkillId, SkillState>>;
   meta: {
     createdAt: number;
     lastSaveTime: number;
     lastTickTime: number;
+    /**
+     * 前の版のセーブから引き継いだ金額（円）。
+     * 値段の作り直しでセーブを作り直したとき、前に持っていたもの全部を
+     * いまの相場で数え直して所持金にしている。お知らせを一度だけ出すために残す。
+     */
+    carriedOver?: number;
+    /** 引き継ぎのお知らせをもう見せたか */
+    carriedOverSeen?: boolean;
   };
   company: CompanyState;
   inventory: Partial<Record<ResourceId, number>>;
@@ -643,11 +761,57 @@ export interface GameState {
   lottery?: LotteryState;
   /** トレーディングカード */
   cards?: CardState;
+  /** 貿易（国ごとの相場・輸送中の荷・商談） */
+  trade?: TradeState;
+  /** 電力会社との契約（自前で発電しないぶんを買う） */
+  power?: PowerContractState;
+  /** 気になる場所の印（★） */
+  bookmarks?: Bookmark[];
+  /** ゲームの中の暦 */
+  calendar?: CalendarState;
   /** グラフ用の記録 */
   history?: HistoryState;
   eventLog: GameEvent[];
   nextEventId: number;
   settings: SettingsState;
+}
+
+/**
+ * 気になる場所の印（★）。
+ * 買うかどうか迷っている区画、よく見に行く自分の施設、取引先などを
+ * 覚えておいて、一覧からすぐ飛べるようにする。
+ */
+export interface Bookmark {
+  /** 何の印か。feature=地図の建物 / land=産業用地 / property=一覧の物件 / client=取引先 / company=上場企業 */
+  kind: 'feature' | 'land' | 'property' | 'client' | 'company';
+  /** その種類の中での id（OSM の w123456、産業用地の id など） */
+  id: string;
+  /** 一覧に出す名前 */
+  label: string;
+  /** 補足（用途・地域など） */
+  sub?: string;
+  lat: number;
+  lon: number;
+  /** 自分で書いたメモ */
+  note?: string;
+  /** 付けた時刻 */
+  at: number;
+}
+
+/** ゲームの中の暦 */
+export interface CalendarState {
+  /** 会社を興してからの日数（小数。1日ぶんたつと1増える） */
+  elapsedDays: number;
+  /** 直前に画面へ知らせた月（月が変わったときだけ知らせるため） */
+  lastMonth: number;
+  /** 直前の季節（季節が変わったときだけ知らせるため） */
+  lastSeason: string;
+}
+
+/** 電力会社との契約 */
+export interface PowerContractState {
+  /** 契約している容量（MW）。0 は契約なし。基本料金はこの容量ぶんかかる */
+  contractMW: number;
 }
 
 export type FacilityStatus = 'running' | 'partial' | 'no_input' | 'storage_full' | 'no_power' | 'depleted' | 'disabled' | 'idle';
@@ -680,6 +844,12 @@ export interface PowerRuntime {
   ratio: number;
   /** 発電施設ごとの出力（MW） */
   byFacility: Record<string, number>;
+  /** 電力会社から買っている量（MW） */
+  purchased: number;
+  /** 契約している容量（MW） */
+  contractMW: number;
+  /** 電気代（円/秒。基本料金＋従量料金） */
+  cost: number;
 }
 
 export interface LandRuntime {
@@ -821,6 +991,8 @@ export interface DerivedState {
   employees: number;
   inventoryValue: number;
   power: PowerRuntime;
+  /** 電気代（円/秒。電力会社から買っているぶん） */
+  powerCost: number;
   lands: Record<string, LandRuntime>;
   modifiers: Modifiers;
   /** 商業施設の収入（円/秒） */

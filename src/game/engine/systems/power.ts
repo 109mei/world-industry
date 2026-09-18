@@ -4,6 +4,10 @@ import type { PowerRuntime } from '@/types/state';
 import { clean } from '../inventory';
 import type { EngineContext } from '../context';
 import { getLand, stockOf, terrainMultiplier } from '../land';
+import { basicChargePerSec, usageChargePerSec } from '@/game/data/power';
+import { nearestCountry } from '@/game/data/trade';
+import { hqLocation } from '../hq';
+import { safe } from '@/utils/numbers';
 
 interface PlantInfo {
   instId: string;
@@ -16,7 +20,12 @@ interface PlantInfo {
 }
 
 export function createEmptyPower(): PowerRuntime {
-  return { capacity: 0, demand: 0, generation: 0, ratio: 1, byFacility: {} };
+  return { capacity: 0, demand: 0, generation: 0, ratio: 1, byFacility: {}, purchased: 0, contractMW: 0, cost: 0 };
+}
+
+/** 電力会社の電気が、いくらでどれだけ使えるか。会社のある国で値段が変わる */
+export function gridCountry(state: import('@/types/state').GameState) {
+  return nearestCountry(hqLocation(state));
 }
 
 /**
@@ -55,10 +64,27 @@ export function runPower(ctx: EngineContext, dt: number): void {
 
   const renewableCap = plants.filter((p) => p.renewable).reduce((a, p) => a + p.capacity, 0);
   const fuelCap = plants.filter((p) => !p.renewable).reduce((a, p) => a + p.capacity, 0);
-  const capacity = renewableCap + fuelCap;
   const genRenew = Math.min(renewableCap, demand);
   const genFuel = Math.min(fuelCap, Math.max(0, demand - genRenew));
-  const generation = genRenew + genFuel;
+  const selfGen = genRenew + genFuel;
+
+  /*
+   * 電力会社から買うぶん。
+   * 自前の発電でまかなえなかったぶんだけを、契約した容量を上限に買う。
+   * 燃料と違って在庫は要らないかわりに、基本料金が契約容量ぶん必ずかかる。
+   */
+  const contractMW = Math.max(0, state.power?.contractMW ?? 0);
+  const purchased = Math.min(contractMW, Math.max(0, demand - selfGen));
+  const country = gridCountry(state);
+  const gridCost = basicChargePerSec(contractMW, country) + usageChargePerSec(purchased, country);
+  if (gridCost > 0 && dt > 0) {
+    const paid = gridCost * dt;
+    state.company.cash = safe(state.company.cash - paid);
+    state.company.totalSpent = safe(state.company.totalSpent + paid);
+  }
+
+  const capacity = renewableCap + fuelCap + contractMW;
+  const generation = selfGen + purchased;
   const ratio = demand <= 1e-9 ? 1 : Math.min(1, generation / demand);
   const fuelLoad = fuelCap > 1e-9 ? genFuel / fuelCap : 0;
   const renewLoad = renewableCap > 1e-9 ? genRenew / renewableCap : 0;
@@ -78,8 +104,9 @@ export function runPower(ctx: EngineContext, dt: number): void {
   state.stats.totalGeneratedMWh += (generation * dt) / 3600;
 
   const prev = derived.power;
-  derived.power = { capacity, demand, generation, ratio, byFacility };
+  derived.power = { capacity, demand, generation, ratio, byFacility, purchased, contractMW, cost: gridCost };
+  derived.powerCost = gridCost;
   if (prev.ratio >= 0.999 && ratio < 0.999 && demand > 0) {
-    ctx.emit('warn', `電力不足: 需要 ${demand.toFixed(1)}MW に対して発電 ${generation.toFixed(1)}MW`, { toast: true });
+    ctx.emit('warn', `電力不足: 需要 ${demand.toFixed(1)}MW に対して ${generation.toFixed(1)}MW しかありません（発電所を建てるか、電力会社との契約を増やしてください）`, { toast: true });
   }
 }

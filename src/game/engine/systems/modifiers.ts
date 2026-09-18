@@ -1,4 +1,5 @@
 import { FACILITY_CATEGORIES } from '@/game/data/facilities';
+import { SKILL_MAP, type SkillId } from '@/game/data/minigames';
 import { RESEARCH, type ResearchDef } from '@/game/data/research';
 import type { GameState, Modifiers } from '@/types/state';
 import { applySynergies } from './synergy';
@@ -66,10 +67,31 @@ export function applyPrestigeUpgrades(state: GameState, m: Modifiers): void {
   m.offlineBonusSec += 7200 * lv('offline');
 }
 
+/**
+ * 手仕事の腕（ミニゲームで伸びる熟練度）の効果をまとめる。
+ *
+ * 腕ごとに効き先を変えてあるので、4つとも別の意味がある。
+ * ここが重なっていると「どれか1つを鍛えれば済む」になってしまう。
+ */
+export function applySkills(state: GameState, m: Modifiers): void {
+  const lv = (id: SkillId) => Math.min(SKILL_MAP[id].maxLevel, Math.max(0, state.skills?.[id]?.level ?? 0));
+  // 選別の腕: 混ざりものを外してから溶かすので、加工の取り分が増える
+  m.production.PROCESSING = (m.production.PROCESSING ?? 1) * (1 + SKILL_MAP.sorting.perLevel * lv('sorting'));
+  // 栽培の腕: 畑・林・鉱山など「採ってくる」施設に効く
+  m.production.RESOURCE = (m.production.RESOURCE ?? 1) * (1 + SKILL_MAP.growing.perLevel * lv('growing'));
+  // 採掘の腕: 岩の目を読めると、同じ鉱区から多く掘れる。調査も手際よくなる
+  m.depositAmount *= 1 + SKILL_MAP.mining.perLevel * lv('mining');
+  m.surveyCost *= Math.max(0.5, 1 - 0.01 * lv('mining'));
+  // 手際: 手で集める量と、手作りの歩留まり
+  m.gatherAmount *= 1 + SKILL_MAP.handling.perLevel * lv('handling');
+  m.craftYield *= 1 + 0.02 * lv('handling');
+}
+
 /** 完了した研究と再出発ボーナスから係数をまとめて計算する */
 export function computeModifiers(state: GameState): Modifiers {
   const m = createBaseModifiers();
   applyPrestigeUpgrades(state, m);
+  applySkills(state, m);
   for (const r of RESEARCH as readonly ResearchDef[]) {
     if (!state.research.completed[r.id]) continue;
     for (const e of r.effects) {

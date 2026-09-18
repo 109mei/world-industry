@@ -9,6 +9,8 @@ import { DebugPanel } from '@/features/debug/DebugPanel';
 import { FactoryPage } from '@/features/factory/FactoryPage';
 import { HomePage } from '@/features/home/HomePage';
 import { TutorialCard } from '@/features/home/TutorialCard';
+import { GuideModal } from '@/features/guide/GuideModal';
+import { CarryOverModal } from '@/features/offline/CarryOverModal';
 import { OfflineReportModal } from '@/features/offline/OfflineReportModal';
 import { MapPage } from '@/features/map/MapPage';
 import { ResearchPage } from '@/features/research/ResearchPage';
@@ -16,6 +18,7 @@ import { ResourceDetailSheet } from '@/features/resources/ResourceDetailSheet';
 import { SettingsPage } from '@/features/settings/SettingsPage';
 import { RESEARCH } from '@/game/data/research';
 import { isLandSystemUnlocked, isUnlocked } from '@/game/engine/systems/unlocks';
+import { visibleTabs } from '@/game/engine/systems/visibility';
 import { LANDS } from '@/game/data/lands';
 import { useGame } from '@/stores/gameStore';
 import { useUiStore } from '@/stores/uiStore';
@@ -23,6 +26,7 @@ import type { NavTab } from '@/types/ui';
 import { applyTheme, useResolvedTheme } from '@/utils/theme';
 import { setNumberDisplay } from '@/utils/format';
 import { useSceneMusic } from '@/hooks/useSceneMusic';
+import { useAppChrome } from '@/hooks/useAppChrome';
 
 const PAGES: Record<NavTab, () => ReactElement> = {
   home: HomePage,
@@ -40,13 +44,22 @@ export function App() {
   useEffect(() => applyTheme(theme), [theme]);
   // 画面に合わせて BGM を切り替える
   useSceneMusic();
+  // 文字の大きさ・動きを減らす・画面を消さない、を画面全体に効かせる
+  useAppChrome();
   // 通貨と単位の表記は、計算ではなく表示だけを切り替える
   useEffect(() => {
     setNumberDisplay({ currencyId: state.settings.currency ?? 'jpy', unitStyle: state.settings.unitStyle ?? 'ja' });
   }, [state.settings.currency, state.settings.unitStyle]);
   // 最初に決めること（配色・本社）が終わるまではホームから動かさない
-  const onboarding = state.settings.themeChosen !== true || state.settings.hqChosen !== true;
-  const Page = onboarding ? PAGES.home : PAGES[tab];
+  const onboarding = state.settings.themeChosen !== true || state.settings.nameChosen !== true || state.settings.hqChosen !== true;
+  /*
+   * まだ使えない機能はタブごと出さない。
+   * 出していない画面を開いたままにしておくと（解放条件が下がったときなど）
+   * 中身の無い画面に取り残されるので、そのときはホームに戻す。
+   */
+  const tabs = visibleTabs(state, derived);
+  const activeTab = tabs.includes(tab) ? tab : 'home';
+  const Page = onboarding ? PAGES.home : PAGES[activeTab];
   const stopped = Object.values(derived.facilityRuntime).some((r) => r.status === 'no_input' || r.status === 'storage_full' || r.status === 'no_power' || r.status === 'depleted');
   // LAND: 買える土地があるのにまだ1つも持っていない／輸送手段がなく在庫が溜まっている土地がある
   const landSystem = isLandSystemUnlocked(state, derived.assets);
@@ -57,18 +70,20 @@ export function App() {
   const attention = { factory: stopped, map: noLandYet || noRoute, research: researchReady };
   return (
     <div className="app">
-      <SideNav attention={attention} />
+      <SideNav attention={attention} tabs={tabs} />
       <div className="app__body">
         <Header />
         <main className="app__main">
           {/* 案内した先の画面でも、いま何をするのかが見えているようにする（ホームは大きいカードのほうを出す） */}
-          {tab !== 'home' && !onboarding && <TutorialCard compact />}
+          {activeTab !== 'home' && !onboarding && <TutorialCard compact />}
           <Page />
         </main>
       </div>
-      <BottomNav attention={attention} />
+      <BottomNav attention={attention} tabs={tabs} />
       <ResourceDetailSheet />
+      <CarryOverModal />
       <OfflineReportModal />
+      <GuideModal />
       <Toasts />
       <AchievementPopup />
       <DebugPanel />

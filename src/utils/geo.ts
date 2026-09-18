@@ -11,11 +11,23 @@ const R_M = R_KM * 1000;
 /** 2点間の距離（km） */
 export function distanceKm(a: LatLon, b: LatLon): number {
   const dLat = ((b.lat - a.lat) * Math.PI) / 180;
-  const dLon = ((b.lon - a.lon) * Math.PI) / 180;
+  // 日付変更線をまたぐときは、近いほうの回り方で測る（地球の裏側を回らない）
+  let dLonDeg = b.lon - a.lon;
+  if (dLonDeg > 180) dLonDeg -= 360;
+  if (dLonDeg < -180) dLonDeg += 360;
+  const dLon = (dLonDeg * Math.PI) / 180;
   const la1 = (a.lat * Math.PI) / 180;
   const la2 = (b.lat * Math.PI) / 180;
   const h = Math.sin(dLat / 2) ** 2 + Math.cos(la1) * Math.cos(la2) * Math.sin(dLon / 2) ** 2;
   return 2 * R_KM * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+/** 距離の表示（1km 未満は m、100km 以上は整数の km） */
+export function formatDistance(km: number): string {
+  if (!Number.isFinite(km)) return '—';
+  if (km < 1) return `${Math.round(km * 1000).toLocaleString('ja-JP')}m`;
+  if (km < 100) return `${km.toFixed(1)}km`;
+  return `${Math.round(km).toLocaleString('ja-JP')}km`;
 }
 
 /**

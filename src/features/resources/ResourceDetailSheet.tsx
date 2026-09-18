@@ -7,10 +7,11 @@ import { Sparkline } from '@/components/ui/Sparkline';
 import { Stat } from '@/components/ui/Stat';
 import { RESOURCE_CATEGORY_LABEL, RESOURCE_MAP } from '@/game/data/resources';
 import { resourceFlows } from '@/game/engine/analysis/flows';
-import { currentPrice, demandFactor, eventPriceMultiplier, getMarketState, sellRevenue } from '@/game/engine/systems/market';
+import { currentPrice, demandFactor, eventPriceMultiplier, getMarketState, productionReserve, sellRevenue } from '@/game/engine/systems/market';
 import { bumpGame, useGame } from '@/stores/gameStore';
 import { useUiStore } from '@/stores/uiStore';
-import { formatAmount, formatDuration, formatMoney, formatNumber, formatPercent, formatRate } from '@/utils/format';
+import { formatDuration, formatMoney, formatPercent } from '@/utils/format';
+import { formatQty, formatQtyRate, formatUnitPrice } from '@/utils/names';
 import { sfx } from '@/utils/sfx';
 
 /** 数字だけを残し、頭の 0 を落とす（「050」→「50」） */
@@ -51,6 +52,8 @@ export function ResourceDetailSheet() {
   const price = currentPrice(state, id);
   const market = getMarketState(state, id);
   const auto = state.market.autoSell[id];
+  // 本社の施設と自動クラフトが使うぶん（売るより先に取り置く）
+  const reserved = productionReserve(state)[id] ?? 0;
   const prod = derived.production[id] ?? 0;
   const cons = derived.consumption[id] ?? 0;
   const modifier = market.modifier;
@@ -84,10 +87,10 @@ export function ResourceDetailSheet() {
       </p>
 
       <div className="sheet__section stat-grid stat-grid--4">
-        <Stat label="所持量" value={formatAmount(amount, mode)} extra={`容量 ${formatAmount(derived.capacity, mode)}`} />
-        <Stat label="生産 /秒" value={formatRate(prod, mode)} tone={prod > 0 ? 'profit' : 'default'} />
-        <Stat label="消費 /秒" value={formatRate(-cons, mode)} tone={cons > 0 ? 'loss' : 'default'} />
-        <Stat label="純増 /秒" value={formatRate(prod - cons, mode)} tone={prod - cons > 0 ? 'profit' : prod - cons < 0 ? 'loss' : 'default'} />
+        <Stat label="所持量" value={formatQty(id, amount, mode)} extra={`容量 ${formatQty(id, derived.capacity, mode)}`} />
+        <Stat label="生産 /秒" value={formatQtyRate(id, prod, mode)} tone={prod > 0 ? 'profit' : 'default'} />
+        <Stat label="消費 /秒" value={formatQtyRate(id, -cons, mode)} tone={cons > 0 ? 'loss' : 'default'} />
+        <Stat label="純増 /秒" value={formatQtyRate(id, prod - cons, mode)} tone={prod - cons > 0 ? 'profit' : prod - cons < 0 ? 'loss' : 'default'} />
       </div>
       <div style={{ marginTop: 8 }}>
         <ProgressBar ratio={amount / derived.capacity} tone="auto" size="lg" />
@@ -95,7 +98,8 @@ export function ResourceDetailSheet() {
           {untilEmpty !== null ? <span className="text-loss">このままだと約 {formatDuration(untilEmpty)} で枯渇</span> : untilFull !== null ? <span>約 {formatDuration(untilFull)} で満杯</span> : <span>在庫は横ばい</span>}
           {(flows.imports > 0 || flows.exports > 0) && (
             <span>
-              輸送 {flows.imports > 0 ? `本社へ +${formatRate(flows.imports, mode)}/秒` : ''} {flows.exports > 0 ? `土地へ -${formatRate(flows.exports, mode)}/秒` : ''}
+              {/* formatQtyRate が符号を付けるので、ここで手書きの +/- を重ねない */}
+              輸送 {flows.imports > 0 ? `本社へ ${formatQtyRate(id, flows.imports, mode)}/秒` : ''} {flows.exports > 0 ? `土地へ ${formatQtyRate(id, -flows.exports, mode)}/秒` : ''}
             </span>
           )}
         </div>
@@ -107,19 +111,19 @@ export function ResourceDetailSheet() {
         </div>
         <div className="flows">
           <div>
-            <div className="stat__label">作っている（個/秒）</div>
+            <div className="stat__label">作っている（毎秒）</div>
             {flows.producers.length === 0 && flows.recipesMaking.length === 0 && !flows.gather && <div className="text-dim" style={{ fontSize: 12 }}>作る手段がまだありません</div>}
             {flows.producers.slice(0, 6).map((f) => (
               <div key={`p:${f.landId}:${f.typeId}`} className="row num" style={{ fontSize: 12, gap: 6 }}>
                 <Icon name={f.icon} size={16} />
                 <span className="row__grow">{f.label}</span>
-                <span className={f.rate > 0 ? 'text-profit' : 'text-dim'}>{formatRate(f.rate, mode)}</span>
+                <span className={f.rate > 0 ? 'text-profit' : 'text-dim'}>{formatQtyRate(id, f.rate, mode)}</span>
               </div>
             ))}
             {flows.gather && <div className="text-sub" style={{ fontSize: 12 }}>手作業: {flows.gather.label}（HOME）</div>}
             {flows.recipesMaking.map((r) => (
               <div key={r.id} className="text-sub" style={{ fontSize: 12 }}>
-                クラフト: {r.name}（{Object.entries(r.inputs).map(([k, v]) => `${RESOURCE_MAP[k as keyof typeof RESOURCE_MAP].name}×${v}`).join('・')}）
+                クラフト: {r.name}（{Object.entries(r.inputs).map(([k, v]) => `${RESOURCE_MAP[k as keyof typeof RESOURCE_MAP].name}×${formatQty(k, v, mode)}`).join('・')}）
               </div>
             ))}
             {flows.producers.length === 0 && flows.facilitiesMaking.slice(0, 3).map((f) => (
@@ -129,13 +133,13 @@ export function ResourceDetailSheet() {
             ))}
           </div>
           <div>
-            <div className="stat__label">使っている（個/秒）</div>
+            <div className="stat__label">使っている（毎秒）</div>
             {flows.consumers.length === 0 && flows.recipesUsing.length === 0 && <div className="text-dim" style={{ fontSize: 12 }}>どこでも使っていません{def.sellable ? '（売って現金に）' : ''}</div>}
             {flows.consumers.slice(0, 6).map((f) => (
               <div key={`c:${f.landId}:${f.typeId}`} className="row num" style={{ fontSize: 12, gap: 6 }}>
                 <Icon name={f.icon} size={16} />
                 <span className="row__grow">{f.label}</span>
-                <span className={f.rate > 0 ? 'text-loss' : 'text-dim'}>{formatRate(-f.rate, mode)}</span>
+                <span className={f.rate > 0 ? 'text-loss' : 'text-dim'}>{formatQtyRate(id, -f.rate, mode)}</span>
               </div>
             ))}
             {flows.recipesUsing.slice(0, 4).map((r) => (
@@ -151,10 +155,10 @@ export function ResourceDetailSheet() {
         <div className="sheet__section">
           <div className="section-title">市場</div>
           <div className="stat-grid stat-grid--4" style={{ marginTop: 8 }}>
-            <Stat label="現在価格" value={formatMoney(price, 'full')} extra={`基準 ${formatMoney(def.basePrice, 'full')}`} />
+            <Stat label="現在価格" value={formatUnitPrice(id, price, 'full')} extra={`基準 ${formatUnitPrice(id, def.basePrice, 'full')}`} />
             <Stat label="相場" value={`×${(modifier * eventMult).toFixed(2)}`} tone={modifier * eventMult >= 1.05 ? 'profit' : modifier * eventMult <= 0.95 ? 'loss' : 'default'} extra={eventMult !== 1 ? `イベント ×${eventMult.toFixed(1)}` : `${modifier - 1 >= 0 ? '+' : ''}${((modifier - 1) * 100).toFixed(0)}%`} />
             <Stat label="需要" value={formatPercent(demand)} tone={demand >= 0.9 ? 'profit' : demand >= 0.6 ? 'warn' : 'loss'} extra={demand >= 0.9 ? '値崩れなし' : demand >= 0.6 ? 'やや飽和' : '飽和中'} />
-            <Stat label="全部売ると" value={formatMoney(allRevenue, mode)} extra={amount >= 1 ? `平均 ${formatMoney(allRevenue / Math.floor(amount), 'full')}/個` : undefined} />
+            <Stat label="全部売ると" value={formatMoney(allRevenue, mode)} extra={amount >= 1 ? `平均 ${formatUnitPrice(id, allRevenue / Math.floor(amount), 'full')}` : undefined} />
           </div>
           <div style={{ marginTop: 6 }}>
             <ProgressBar ratio={demand} tone={demand >= 0.9 ? 'profit' : demand >= 0.6 ? 'warn' : 'loss'} label="需要" />
@@ -189,7 +193,14 @@ export function ResourceDetailSheet() {
           </div>
           <p className="text-sub" style={{ fontSize: 12, marginTop: 4 }}>
             在庫が「残す量」を超えた分を自動で売ります。大量に売ると価格が下がるので注意。
+            <br />
+            <strong>作るのに使うぶんは、売るより先に取り置かれます。</strong>
           </p>
+          {reserved >= 1 && (
+            <div className="text-warn" style={{ fontSize: 12, marginTop: 4 }}>
+              いま本社で使っているぶんとして {formatQty(id, Math.ceil(reserved), 'full')} を取り置いています（残す量に上乗せ）。
+            </div>
+          )}
           <div className="row" style={{ marginTop: 8, flexWrap: 'wrap' }}>
             <label className="field" style={{ flex: 1, minWidth: 120 }}>
               <span className="field__label">残す量</span>
@@ -218,14 +229,14 @@ export function ResourceDetailSheet() {
           </div>
           {auto?.enabled && (
             <div className="text-profit" style={{ fontSize: 12, marginTop: 6 }}>
-              自動売却中: {formatNumber(auto.keep, 'full')} を超えた分を売却
+              自動売却中: {formatQty(id, auto.keep, 'full')} を超えた分を売却
               {auto.minPriceRatio ? `（相場が基準の ${Math.round(auto.minPriceRatio * 100)}% 未満なら待つ）` : ''}
             </div>
           )}
         </div>
       )}
       <div className="sheet__section text-dim" style={{ fontSize: 12 }}>
-        累計入手 {formatAmount(state.stats.totalObtained[id] ?? 0, mode)} ／ 累計売却 {formatAmount(state.stats.totalSold[id] ?? 0, mode)}
+        累計入手 {formatQty(id, state.stats.totalObtained[id] ?? 0, mode)} ／ 累計売却 {formatQty(id, state.stats.totalSold[id] ?? 0, mode)}
       </div>
     </Sheet>
   );

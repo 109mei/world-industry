@@ -12,8 +12,8 @@ import { canBuildOn, getLand, landPopulation, surveyMultiplier, terrainMultiplie
 import { describeCondition, isUnlocked } from '@/game/engine/systems/unlocks';
 import { bumpGame, useGame } from '@/stores/gameStore';
 import type { FacilityStatus } from '@/types/state';
-import { formatMoney, formatNumber, formatPercent, formatRate } from '@/utils/format';
-import { NAMES, formatMW } from '@/utils/names';
+import { formatMoney, formatNumber, formatPercent } from '@/utils/format';
+import { NAMES, formatCapacity, formatMW, formatQty, formatQtyRate } from '@/utils/names';
 import { sfx } from '@/utils/sfx';
 import { useRepeat } from '@/utils/useRepeat';
 import { FixPanel } from './FixPanel';
@@ -136,7 +136,7 @@ export function FacilityCard({ def, landId = 'hq' }: Props) {
               (Object.entries(io.inputs) as [ResourceId, number][]).map(([rid, rate]) => (
                 <div key={rid} className={`row num ${runtime?.missingInputs.includes(rid) ? 'text-loss' : ''}`} style={{ fontSize: 13, gap: 4 }}>
                   <Icon name={RESOURCE_MAP[rid].icon} size={16} />
-                  {RESOURCE_MAP[rid].name} {formatRate(-rate * Math.max(1, count) * mult, mode)}
+                  {RESOURCE_MAP[rid].name} {formatQtyRate(rid, -rate * Math.max(1, count) * mult, mode)}
                 </div>
               ))
             ) : (
@@ -151,8 +151,8 @@ export function FacilityCard({ def, landId = 'hq' }: Props) {
               (Object.entries(io.outputs) as [ResourceId, number][]).map(([rid, rate]) => (
                 <div key={rid} className={`row num ${runtime?.blockedOutputs.includes(rid) || runtime?.depleted.includes(rid) ? 'text-loss' : 'text-profit'}`} style={{ fontSize: 13, gap: 4 }}>
                   <Icon name={RESOURCE_MAP[rid].icon} size={16} />
-                  {RESOURCE_MAP[rid].name} {formatRate(rate * Math.max(1, count) * mult, mode)}
-                  {def.extractsDeposit && land && <span className="text-sub">（残り {formatNumber(Math.floor(land.deposits[rid]?.remaining ?? 0), mode)}）</span>}
+                  {RESOURCE_MAP[rid].name} {formatQtyRate(rid, rate * Math.max(1, count) * mult, mode)}
+                  {def.extractsDeposit && land && <span className="text-sub">（残り {formatQty(rid, Math.floor(land.deposits[rid]?.remaining ?? 0), mode)}）</span>}
                 </div>
               ))}
           </div>
@@ -168,7 +168,7 @@ export function FacilityCard({ def, landId = 'hq' }: Props) {
           )}
           {def.fuel && (
             <div className="text-sub" style={{ fontSize: 12 }}>
-              燃料: {(Object.entries(def.fuel) as [ResourceId, number][]).map(([rid, r]) => `${RESOURCE_MAP[rid].name} ${formatRate(-r, mode)}/秒`).join('、')}（最大出力時、1個あたり）
+              燃料: {(Object.entries(def.fuel) as [ResourceId, number][]).map(([rid, r]) => `${RESOURCE_MAP[rid].name} ${formatQtyRate(rid, -r, mode)}/秒`).join('、')}（最大出力時、1個あたり）
             </div>
           )}
         </div>
@@ -180,7 +180,7 @@ export function FacilityCard({ def, landId = 'hq' }: Props) {
       )}
       {def.storageBonus && (
         <div className="card__body num" style={{ fontSize: 13 }}>
-          倉庫容量 <span className="text-profit">+{formatNumber(Math.round(def.storageBonus * storageMult), 'full')}</span> / 個
+          倉庫容量 <span className="text-profit">+{formatCapacity(Math.round(def.storageBonus * storageMult), 'full')}</span> / 資源1種（個で数えるものは {Math.round(def.storageBonus * storageMult).toLocaleString('ja-JP')}個）
           {count > 0 && <span className="text-sub">（合計 +{formatNumber(Math.round(def.storageBonus * storageMult * count), 'full')}）</span>}
         </div>
       )}

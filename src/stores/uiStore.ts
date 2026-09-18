@@ -12,7 +12,7 @@ export type CompanySubTab = 'info' | 'achievements' | 'rich' | 'prestige';
 /** ホーム画面の中の切替（資源・会社をここに統合した） */
 export type HomeSubTab = 'home' | 'resources' | 'sales' | 'business' | 'company';
 /** 地図画面の中の切替（土地・物件・株をここに統合した） */
-export type MapSubTab = 'map' | 'owned' | 'stocks';
+export type MapSubTab = 'map' | 'owned' | 'marks' | 'stocks';
 
 export interface Toast {
   id: number;
@@ -32,8 +32,8 @@ interface UiStore {
   /** いま開いているミニゲーム（BGM の切り替えにも使う） */
   openGameId: string | null;
   setOpenGameId: (id: string | null) => void;
-  resourceSubTab: 'inventory' | 'market' | 'trade';
-  setResourceSubTab: (t: 'inventory' | 'market' | 'trade') => void;
+  resourceSubTab: 'inventory' | 'market';
+  setResourceSubTab: (t: 'inventory' | 'market') => void;
   craftCategory: CraftCategoryFilter;
   setCraftCategory: (c: CraftCategoryFilter) => void;
   selectedResource: ResourceId | null;
@@ -75,6 +75,15 @@ interface UiStore {
   /** 物件一覧の絞り込み */
   estateFilter: 'all' | 'owned' | 'affordable';
   setEstateFilter: (f: 'all' | 'owned' | 'affordable') => void;
+  /** 地図で「本社から半径○km」だけを出す絞り込み（null＝制限なし） */
+  mapRadiusKm: number | null;
+  setMapRadiusKm: (km: number | null) => void;
+  /** 半径を測る中心（本社から／いま見ている地図の中心から） */
+  mapRadiusFrom: 'hq' | 'view';
+  setMapRadiusFrom: (from: 'hq' | 'view') => void;
+  /** 設定から開いた使い方ガイド（読み返し用。自動表示より優先される） */
+  openGuideId: string | null;
+  setOpenGuide: (id: string | null) => void;
   /** 地図で移動したい場所（設定すると地図がそこへ飛ぶ） */
   mapTarget: { lat: number; lon: number; zoom: number; seq: number } | null;
   flyTo: (lat: number, lon: number, zoom: number) => void;
@@ -129,6 +138,12 @@ export const useUiStore = create<UiStore>((set) => ({
   openCompany: (selectedCompany) => set({ selectedCompany }),
   estateFilter: 'all',
   setEstateFilter: (estateFilter) => set({ estateFilter }),
+  mapRadiusKm: null,
+  setMapRadiusKm: (mapRadiusKm) => set({ mapRadiusKm }),
+  mapRadiusFrom: 'hq',
+  setMapRadiusFrom: (mapRadiusFrom) => set({ mapRadiusFrom }),
+  openGuideId: null,
+  setOpenGuide: (openGuideId) => set({ openGuideId }),
   mapTarget: null,
   flyTo: (lat, lon, zoom) => set((s) => ({ mapTarget: { lat, lon, zoom, seq: (s.mapTarget?.seq ?? 0) + 1 } })),
 }));

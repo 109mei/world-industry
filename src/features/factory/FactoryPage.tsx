@@ -1,3 +1,4 @@
+import { capacityNote, formatCapacity } from '@/utils/names';
 import { useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -9,7 +10,7 @@ import { canBuildOn, getLand, isHq } from '@/game/engine/land';
 import { isUnlocked } from '@/game/engine/systems/unlocks';
 import { bumpGame, useGame } from '@/stores/gameStore';
 import { useUiStore } from '@/stores/uiStore';
-import { formatAmount, formatMoney, formatNumber } from '@/utils/format';
+import { formatMoney, formatNumber } from '@/utils/format';
 import { sfx } from '@/utils/sfx';
 import { FacilityCard } from './FacilityCard';
 import { FactoryOverview } from './FactoryOverview';
@@ -32,10 +33,18 @@ export function FactoryPage() {
   const landId = getLand(state, factoryLand) ? factoryLand : 'hq';
   const land = getLand(state, landId)!;
   const defs = FACILITIES as readonly FacilityDef[];
-  // この土地に建てられるもの（本社なら本社用、土地なら土地用＋どこでも）。未解放で hidden のものは出さない
+  /*
+   * この土地に建てられるもの。未解放で hidden のものは出さない。
+   *
+   * 本社は「手作業と倉庫」だけの場所にしてある。工場・発電所・店舗・研究所は
+   * 地図で買った土地にしか建たないので、本社の一覧には並べない
+   * （建てられないものを並べても迷わせるだけ）。
+   * ただし、すでに本社に建っているものは管理できるように残す。
+   */
+  const builtHere = new Set(state.facilities.filter((f) => f.landId === landId && f.count > 0).map((f) => f.typeId));
   const visible = defs.filter((d) => {
     if (!(isUnlocked(state, 'facility', d.id) || !d.hiddenUntilUnlocked)) return false;
-    if (isHq(landId)) return d.site !== 'land';
+    if (isHq(landId)) return d.site !== 'land' || builtHere.has(d.id);
     if (d.site === 'hq') return false;
     return true;
   });
@@ -87,7 +96,7 @@ export function FactoryPage() {
           <Stat label={`${land.name}の施設`} value={formatNumber(facilityCountAll, mode)} />
           <Stat label="従業員（全体）" value={`${formatNumber(derived.employees, mode)}人`} />
           <Stat label="稼働 / 停止" value={`${running} / ${stopped}`} tone={stopped > 0 ? 'warn' : 'default'} />
-          <Stat label="倉庫容量" value={formatAmount(capacity, mode)} />
+          <Stat label="倉庫容量" value={formatCapacity(capacity, mode)} extra={capacityNote(capacity, mode)} />
         </div>
         {onLand.some((f) => f.count > 0) && (
           <div className="row row--between" style={{ marginTop: 10, flexWrap: 'wrap', gap: 8 }}>

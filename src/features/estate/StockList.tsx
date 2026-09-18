@@ -1,4 +1,5 @@
 import { Card } from '@/components/ui/Card';
+import { EventList } from '@/features/home/EventList';
 import { Icon } from '@/components/ui/Icon';
 import { Sparkline } from '@/components/ui/Sparkline';
 import { COMPANIES, POLICY_DEF, SECTOR_LABEL, type CompanyDef } from '@/game/data/companies';
@@ -79,6 +80,11 @@ export function StockList() {
       )}
       <div className="section-title">上場企業（{others.length}社）</div>
       <div className="grid grid--2">{others.map(render)}</div>
+      {/* 他社の動きはホームに混ぜず、株を見ているここにまとめる */}
+      <div className="section-title">他社の動き</div>
+      <Card>
+        <EventList limit={10} scope="other" />
+      </Card>
       <Card flat>
         <div className="card__body text-sub" style={{ fontSize: 12 }}>
           株価 = 事業価値 ＋ 内部留保 ＋ 所有物件 を発行株数で割ったものに、需給（買うと上がり、売ると下がる。時間で戻る）と相場イベントを掛けたもの。配当は方針で決まり、残りは再投資されて株価が育ちます。発行株の3分の2を持つと経営権を得ます。

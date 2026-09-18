@@ -1,4 +1,8 @@
+import { CONFIG } from '@/game/data/config';
+import { FACILITY_MAP } from '@/game/data/facilities';
+import { LAND_MAP } from '@/game/data/lands';
 import { GAME_META } from '@/game/data/meta';
+import { RESOURCE_MAP } from '@/game/data/resources';
 import type { GameState } from '@/types/state';
 import { migrateSave } from '@/game/engine/state/migrations';
 import type { SaveRepository } from './SaveRepository';
@@ -13,22 +17,92 @@ export interface SaveFile {
 /**
  * セーブの保存先。
  *
- * カードを100種に総入れ替えしたときに、それまでのセーブを引き継がないと決めたので、
- * 保存先そのものを v2 に変えてある。v1 のデータは purgeLegacySaves() で消す。
- * 次に「全部やり直し」をするときも、ここを v3 にして LEGACY_SAVE_KEYS に v2 を足すだけでよい。
+ * v3 では素材の値段をすべて現実の相場に置き換え、数の意味そのものが変わった
+ * （1個＝1kg／1g／1L）。古いセーブをそのまま読むと、同じ「鉄100」が
+ * 別の量を指すことになって数字が壊れる。だから保存先ごと作り直している。
+ *
+ * ただし前のセーブを黙って捨てはしない。readLegacyCarryOver() で
+ * 「そのとき持っていたもの全部の値打ち」を今の相場で数え直し、所持金として引き継ぐ。
+ * 次に作り直すときも、ここを v4 にして LEGACY_SAVE_KEYS に v3 を足すだけでよい。
  */
-export const SAVE_KEY = 'world-industry.save.v2';
+export const SAVE_KEY = 'world-industry.save.v3';
 /** 直前のセーブ（自動バックアップ） */
-export const SAVE_BACKUP_KEY = 'world-industry.save.v2.backup';
+export const SAVE_BACKUP_KEY = 'world-industry.save.v3.backup';
 /** 読み込めなかったセーブの退避先（上書きしないで残す） */
-export const SAVE_BROKEN_KEY = 'world-industry.save.v2.broken';
+export const SAVE_BROKEN_KEY = 'world-industry.save.v3.broken';
 
-/** もう読まない、古い保存先。開いたときに消す */
+/** もう読まない、古い保存先。引き継ぎを数えたあとに消す */
 export const LEGACY_SAVE_KEYS = [
+  'world-industry.save.v2',
+  'world-industry.save.v2.backup',
+  'world-industry.save.v2.broken',
   'world-industry.save.v1',
   'world-industry.save.backup',
   'world-industry.save.broken',
 ] as const;
+
+/** 引き継ぎのときに読む、本体のセーブ（バックアップより先に試す順） */
+const CARRY_OVER_KEYS = ['world-industry.save.v2', 'world-industry.save.v2.backup', 'world-industry.save.v1'] as const;
+
+function numberOf(v: unknown): number {
+  return typeof v === 'number' && Number.isFinite(v) ? v : 0;
+}
+
+/**
+ * 古いセーブの「持っていたもの全部」を、いまの相場で数え直して円にする。
+ *
+ * 版が変わって形が合わないので、migrateSave は通さずに手で拾う。
+ * 知らない ID は黙って飛ばす（消えた資源や施設があっても止まらないように）。
+ * 読めなければ 0 を返すだけで、例外は投げない。
+ */
+export function carryOverValue(raw: unknown): number {
+  const file = (raw ?? {}) as Record<string, unknown>;
+  const st = (file.state && typeof file.state === 'object' ? file.state : file) as Record<string, unknown>;
+  const company = (st.company ?? {}) as Record<string, unknown>;
+  let total = numberOf(company.cash);
+
+  const inv = (st.inventory ?? {}) as Record<string, unknown>;
+  for (const [id, qty] of Object.entries(inv)) {
+    const def = (RESOURCE_MAP as Record<string, { basePrice: number } | undefined>)[id];
+    if (def) total += numberOf(qty) * def.basePrice;
+  }
+
+  const facilities = Array.isArray(st.facilities) ? st.facilities : [];
+  for (const f of facilities) {
+    const row = (f ?? {}) as Record<string, unknown>;
+    const def = (FACILITY_MAP as Record<string, { baseCost: number } | undefined>)[String(row.typeId)];
+    if (def) total += def.baseCost * Math.max(0, numberOf(row.count)) * CONFIG.facilityValueRatio;
+  }
+
+  const lands = Array.isArray(st.lands) ? st.lands : [];
+  for (const l of lands) {
+    const row = (l ?? {}) as Record<string, unknown>;
+    const def = (LAND_MAP as Record<string, { price: number } | undefined>)[String(row.defId ?? row.id)];
+    if (def) total += def.price;
+  }
+
+  // 細工されたセーブに桁違いの数が入っていても、そのまま所持金にはしない
+  const CAP = 1e12;
+  return Number.isFinite(total) && total > 0 ? Math.floor(Math.min(total, CAP)) : 0;
+}
+
+/**
+ * 古い保存先を読んで、引き継ぐ金額を返す。何も無ければ 0。
+ * ここでは消さない（消すのは purgeLegacySaves）。
+ */
+export async function readLegacyCarryOver(repo: SaveRepository): Promise<number> {
+  for (const key of CARRY_OVER_KEYS) {
+    try {
+      const json = await repo.getItem(key);
+      if (!json) continue;
+      const value = carryOverValue(JSON.parse(json));
+      if (value > 0) return value;
+    } catch {
+      /* 読めないセーブは次の候補へ */
+    }
+  }
+  return 0;
+}
 
 /**
  * 古い保存先を消す。消したものがあれば true。

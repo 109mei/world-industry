@@ -15,7 +15,8 @@ import { landPropertyId, propertyPrice, propertyRentPerSec } from '@/game/engine
 import { useGame } from '@/stores/gameStore';
 import { useUiStore } from '@/stores/uiStore';
 import type { LandState } from '@/types/state';
-import { formatAmount, formatMoney, formatMoneyRate } from '@/utils/format';
+import { formatMoney, formatMoneyRate } from '@/utils/format';
+import { formatQty } from '@/utils/names';
 
 interface Place {
   land: LandState;
@@ -86,7 +87,7 @@ export function OwnedPlaces() {
     <div className="list">
       <Card>
         <div className="stat-grid stat-grid--4">
-          <Stat label="持っている場所" value={`${places.length}か所`} extra={`${new Set(places.map((p) => p.land.country)).size}か国`} />
+          <Stat label="持っている場所" value={`${places.length}ヵ所`} extra={`${new Set(places.map((p) => p.land.country)).size}ヵ国`} />
           <Stat label="評価額の合計" value={formatMoney(totalValue, mode)} />
           <Stat label="賃料の合計" value={formatMoneyRate(totalRent, mode)} tone={totalRent > 0 ? 'profit' : 'default'} />
           <Stat label="建っている施設" value={`${state.facilities.reduce((a, f) => a + f.count, 0)}件`} />
@@ -128,18 +129,18 @@ export function OwnedPlaces() {
                   <Stat
                     label="生産 /秒"
                     value={top
-                      .map(([r, v]) => `${RESOURCE_MAP[r as keyof typeof RESOURCE_MAP]?.name ?? r} ${formatAmount(v, mode)}`)
+                      .map(([r, v]) => `${RESOURCE_MAP[r as keyof typeof RESOURCE_MAP]?.name ?? r} ${formatQty(r, v, mode)}`)
                       .slice(0, 2)
                       .join('・')}
                     tone="profit"
-                    extra={top.length > 2 ? top.slice(2).map(([r, v]) => `${RESOURCE_MAP[r as keyof typeof RESOURCE_MAP]?.name ?? r} ${formatAmount(v, mode)}`).join('・') : undefined}
+                    extra={top.length > 2 ? top.slice(2).map(([r, v]) => `${RESOURCE_MAP[r as keyof typeof RESOURCE_MAP]?.name ?? r} ${formatQty(r, v, mode)}`).join('・') : undefined}
                   />
                 )}
                 {deposits.length > 0 && (
                   <Stat
                     label={p.land.survey >= 2 ? '残りの埋蔵' : '埋まっているもの'}
                     value={deposits
-                      .map(([r, d]) => (p.land.survey >= 2 ? `${RESOURCE_MAP[r as keyof typeof RESOURCE_MAP]?.name ?? r} ${formatAmount(d?.remaining ?? 0, mode)}` : (RESOURCE_MAP[r as keyof typeof RESOURCE_MAP]?.name ?? r)))
+                      .map(([r, d]) => (p.land.survey >= 2 ? `${RESOURCE_MAP[r as keyof typeof RESOURCE_MAP]?.name ?? r} ${formatQty(r, d?.remaining ?? 0, mode)}` : (RESOURCE_MAP[r as keyof typeof RESOURCE_MAP]?.name ?? r)))
                       .slice(0, 3)
                       .join('・')}
                   />
@@ -148,7 +149,7 @@ export function OwnedPlaces() {
                   <Stat
                     label="現地の在庫"
                     value={stock
-                      .map(([r, v]) => `${RESOURCE_MAP[r as keyof typeof RESOURCE_MAP]?.name ?? r} ${formatAmount(v ?? 0, mode)}`)
+                      .map(([r, v]) => `${RESOURCE_MAP[r as keyof typeof RESOURCE_MAP]?.name ?? r} ${formatQty(r, v ?? 0, mode)}`)
                       .slice(0, 2)
                       .join('・')}
                   />

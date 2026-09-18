@@ -25,6 +25,13 @@ function makeEngine(cash = 0) {
   return e;
 }
 
+/**
+ * 不動産・株式が開く総資産（＝ CONFIG.estate.unlockAssets）。
+ * 値段を現実の相場に直したとき、いちばん安い物件でも 900万円になったので、
+ * 解放の敷居も 3億円まで上がった。テストではこの額を所持金に積んで解放状態を作る。
+ */
+const UNLOCK_CASH = CONFIG.estate.unlockAssets;
+
 describe('データの整合性', () => {
   it('物件の都市・会社の物件がすべて定義されている', () => {
     const cityIds = new Set(CITIES.map((c) => c.id as string));
@@ -57,17 +64,18 @@ describe('データの整合性', () => {
 
 describe('不動産', () => {
   it('総資産が足りないと解放されず、買えない', () => {
-    const e = makeEngine(1_000_000);
+    // 敷居の半分。いちばん安い物件は買える額だが、解放されていないので買えない
+    const e = makeEngine(UNLOCK_CASH / 2);
     expect(e.isEstateUnlocked()).toBe(false);
     expect(e.buyProperty('iz_house_lot')).toBe(false);
   });
 
   it('物件を買うと手数料込みで支払い、賃料が入り、総資産に評価額が含まれる', () => {
-    const e = makeEngine(20_000_000);
+    const e = makeEngine(UNLOCK_CASH);
     e.tick(1);
     expect(e.isEstateUnlocked()).toBe(true);
     const cost = propertyBuyCost(e.state, 'iz_shop');
-    expect(cost).toBe(Math.ceil(12_000_000 * 1.03));
+    expect(cost).toBe(Math.ceil(PROPERTY_MAP['iz_shop'].price * (1 + CONFIG.estate.buyFee)));
     const before = e.state.company.cash;
     expect(e.buyProperty('iz_shop')).toBe(true);
     expect(e.state.company.cash).toBeCloseTo(before - cost, 3);
@@ -86,7 +94,7 @@ describe('不動産', () => {
   });
 
   it('売ると手数料を引いた額が戻り、損益が記録される', () => {
-    const e = makeEngine(20_000_000);
+    const e = makeEngine(UNLOCK_CASH);
     e.tick(1);
     e.buyProperty('iz_house_lot');
     const price = propertyPrice(e.state, 'iz_house_lot');
@@ -106,7 +114,7 @@ describe('不動産', () => {
   });
 
   it('地価は時間で動き、上限・下限に収まる', () => {
-    const e = makeEngine(20_000_000);
+    const e = makeEngine(UNLOCK_CASH);
     e.advance(3600 * 5);
     const mults = Object.values(e.state.estate.cityMult);
     expect(mults.length).toBe(CITIES.length);
@@ -118,7 +126,7 @@ describe('不動産', () => {
   });
 
   it('地価上昇イベントで対象都市の物件が値上がりする', () => {
-    const e = makeEngine(20_000_000);
+    const e = makeEngine(UNLOCK_CASH);
     e.tick(1);
     e.buyProperty('iz_house_lot');
     e.updateSettings({ events: true });
@@ -136,7 +144,7 @@ describe('不動産', () => {
 
 describe('株式', () => {
   it('株を買うと株価が上がり、配当が入る', () => {
-    const e = makeEngine(100_000_000);
+    const e = makeEngine(UNLOCK_CASH);
     e.tick(1);
     const p0 = stockPrice(e.state, 'chikuho_energy');
     expect(p0).toBeCloseTo((30 * 1e8 + propertyPrice(e.state, 'iz_solar_land')) / 1_000_000, 0);
@@ -156,7 +164,7 @@ describe('株式', () => {
   });
 
   it('売ると株価が下がり、損益が記録される', () => {
-    const e = makeEngine(100_000_000);
+    const e = makeEngine(UNLOCK_CASH);
     e.tick(1);
     e.buyShares('chikuho_energy', 1000);
     const p1 = stockPrice(e.state, 'chikuho_energy');
@@ -233,7 +241,7 @@ describe('株式', () => {
   });
 
   it('株高イベントで株価が上がる', () => {
-    const e = makeEngine(100_000_000);
+    const e = makeEngine(UNLOCK_CASH);
     e.tick(1);
     e.updateSettings({ events: true });
     const p0 = stockPrice(e.state, 'wakaba_foods');
@@ -244,7 +252,9 @@ describe('株式', () => {
   });
 
   it('所持金より多くは買えない', () => {
-    const e = makeEngine(5_000_000);
+    // 解放の敷居ちょうど（3億円）。ニシキ自動車は 8兆円 ÷ 20億株 ＝ 1株4,000円なので、
+    // 100万株＝40億円には遠く届かず、100株＝約40万円なら買える
+    const e = makeEngine(UNLOCK_CASH);
     e.tick(1);
     expect(e.buyShares('nishiki_motors', 1_000_000)).toBe(0);
     const n = e.buyShares('nishiki_motors', 100);
